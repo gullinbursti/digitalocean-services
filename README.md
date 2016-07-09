@@ -1,8 +1,5 @@
 # digitalocean-services[TashaYar]
-Web + bot services running on DigitalOcean
-
-###-###-###-###-###-###-###-###-###-###-###-###-###-###-###-###
-
+Services running on DigitalOcean - TashaYar (104.131.141.147)
 
 ## Enabled cronjobs:
     */2	*	*	*	*	/var/modd/prod/trailer_maker
