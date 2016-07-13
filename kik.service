@@ -1,0 +1,12 @@
+[Unit]
+Description= kikbot in python via tornado
+After=network.target
+
+[Service]
+Type=simple
+ExecStart= /var/opt/kikNotifyBot.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
