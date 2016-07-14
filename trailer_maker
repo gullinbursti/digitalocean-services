@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+out_path=/var/www/html/trailers
+
+for l in `curl -s http://beta.modd.live/api/trailer_maker.php` ; do
+  c_name=$(echo $l | cut -d\, -f1)
+  f_name=$(echo $l | cut -d\, -f2)
+
+  printf "%s\t%s\n" "${c_name}" "${f_name}"
+
+  file_flv="${out_path}/${f_name}.flv"
+  file_mp4="${out_path}/${f_name}-full.mp4"
+  file_web="${out_path}/${f_name}.mp4"
+
+  timeout 10s /usr/local/bin/livestreamer twitch.tv/${c_name} worst -o ${file_flv}
+  avconv -i ${file_flv} -codec copy ${file_mp4} #--ffmpeg -i ${file_flv} -c:v libx264 -crf 19 -strict experimental ${file_mp4}
+  avconv -i ${file_mp4} -s 360x224 -strict experimental ${file_web} #--ffmpeg -i ${file_mp4} -vf scale=360:224 ${file_web}
+done
+
+exit 0

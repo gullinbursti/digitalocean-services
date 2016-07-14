@@ -1,0 +1,37 @@
+#!/bin/bash
+
+
+for l in `curl -s http://beta.modd.live/api/streamer_names.php` ; do
+  #-- vars
+  channel=$l
+  stream=$(curl -s https://api.twitch.tv/kraken/streams/${channel} | grep -o \"stream\"\:\{)
+  list=""
+
+  #-- is online
+  if [ ! -z "$stream" ]; then
+    #-- search file
+    found=$(cat online.txt | grep "$channel")
+
+    #-- found, append to file
+    if [ -z "$found" ]; then
+      echo "${channel}" >> online.txt ; fi
+
+  #-- not online
+  else
+    #-- search file
+    found=$(cat online.txt | grep "$channel")
+
+    #-- found, add to list & remove
+    if [ ! -z "$found" ]; then
+      list="$list,$channel"
+      sed "/$channel/d" online.txt > online.tmp
+      mv online.tmp online.txt
+    fi
+  fi
+
+  #-- submit if list has names
+  if [ ! -z "$list" ]; then
+    curl -X POST -s http://beta.modd.live/api/end_session.php -d "channels=${list#?}" ; fi
+done
+
+exit 0;
