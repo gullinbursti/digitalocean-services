@@ -427,7 +427,7 @@ class KikBot(tornado.web.RequestHandler):
           })
              
           response = requests.post("https://hooks.slack.com/services/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", data={'payload': payload})
-             
+          
           del gameHelpList[message.from_user]
           return
              
@@ -480,7 +480,17 @@ class KikBot(tornado.web.RequestHandler):
             TextMessage(
               to = message.from_user,
               chat_id = message.chat_id,
-              body = "Great! Do you currently need help with any of these games?",
+              body = "Awesome, %s was found and you will begin receiving updates when they go live." % (message.body)
+            )
+          ])
+          
+          sleep (3)
+          
+          kik.send_messages([
+            TextMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              body = "Do you currently need help with any of these games?",
               keyboards = [
                 SuggestedResponseKeyboard(
                   hidden = False,
