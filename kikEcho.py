@@ -14,26 +14,18 @@ import tornado.escape
 import tornado.ioloop
 import tornado.web
 
+import modd
+
 from kik import KikApi, Configuration
 from kik.messages import messages_from_json, TextMessage, StartChattingMessage, LinkMessage, PictureMessage, StickerMessage, ScanDataMessage, UnknownMessage, VideoMessage, SuggestedResponseKeyboard, TextResponse, CustomAttribution, ReadReceiptMessage
 
 
 
-def sendTracker(category, action, label):
-  try:
-    _response = urllib2.urlopen("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)))
-  
-  except:
-    print "GA ERROR!"
-        
-  return
-  
-        
 def getStreamers():
   streamers = []
   conn = pymysql.connect(host='external-db.s4086.gridserver.com', unix_socket='/tmp/mysql.sock', user='db4086_modd_usr', passwd='f4zeHUga.age', db='db4086_modd')
   cur = conn.cursor()
-  cur.execute("SELECT `channel_name` FROM `twitch_channels` WHERE `type` = 'streamer' OR `type` = 'game';")
+  cur.execute("SELECT `channel_name` FROM `subscribe_topics` WHERE `type` = 'streamer' OR `type` = 'game';")
   
   for r in cur:
     streamers.append(r[0])
@@ -50,6 +42,7 @@ def getStreamerContent(url):
   return [_json['channel'], _json['preview_img'], _json['player_url']]
   
   
+
 class Notify(tornado.web.RequestHandler):
   def set_default_headers(self):
     self.set_header("Access-Control-Allow-Origin", "*")
@@ -64,7 +57,7 @@ class Notify(tornado.web.RequestHandler):
     
     for chat in kikSubscribers:
       print("SENDING CONVO - TO: " + chat['kikUser'] + " CHAT_ID: " + chat['chat_id'])
-      sendTracker("bot", "send", "kik")
+      modd.utils.sendTracker("bot", "send", "kik")
       kik.send_messages([
         TextMessage(
           to = chat['kikUser'],
@@ -122,7 +115,7 @@ class Message(tornado.web.RequestHandler):
       
     conn = pymysql.connect(host='external-db.s4086.gridserver.com', unix_socket='/tmp/mysql.sock', user='db4086_modd_usr', passwd='f4zeHUga.age', db='db4086_modd')
     cur = conn.cursor()
-    cur.execute("SELECT `chat_id` FROM `kikbot_logs` WHERE `username` = '%s' LIMIT 1;" % (username))
+    cur.execute("SELECT `chat_id` FROM `kikbot_logs` WHERE `username` = '%s' ORDER BY `added` DESC LIMIT 1;" % (username))
     result = cur.fetchone()
     cur.close()
     conn.close()
@@ -200,7 +193,7 @@ class KikBot(tornado.web.RequestHandler):
           
       # -=-=-=-=-=-=-=-=- READ RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
       elif isinstance(message, ReadReceiptMessage):
-        sendTracker("bot", "read", "kik")
+        modd.utils.sendTracker("bot", "read", "kik")
         return
          
          
@@ -278,7 +271,7 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- BUTTONS for Help -=-=-=-=-=-=-=-=-
         gameName = "";  
         if message.body.lower() == '1. overwatch':
-          sendTracker("bot", "question", "kik")
+          modd.utils.sendTracker("bot", "question", "kik")
           gameName = "Overwatch"
           gameHelpList[message.from_user] = gameName
           kik.send_messages([
@@ -291,7 +284,7 @@ class KikBot(tornado.web.RequestHandler):
           return;
              
         if message.body.lower() == '2. cs:go':
-          sendTracker("bot", "question", "kik")
+          modd.utils.sendTracker("bot", "question", "kik")
           gameName = "CS:GO"
           gameHelpList[message.from_user] = gameName
           kik.send_messages([
@@ -304,7 +297,7 @@ class KikBot(tornado.web.RequestHandler):
           return;
                    
         if message.body.lower() == '3. league of legends':
-          sendTracker("bot", "question", "kik")
+          modd.utils.sendTracker("bot", "question", "kik")
           gameName = "League of Legends"
           gameHelpList[message.from_user] = gameName
           kik.send_messages([
@@ -317,7 +310,7 @@ class KikBot(tornado.web.RequestHandler):
           return;
              
         if message.body.lower() == '4. dota2':
-          sendTracker("bot", "question", "kik")
+          modd.utils.sendTracker("bot", "question", "kik")
           gameName = "Dota2"
           gameHelpList[message.from_user] = gameName
           kik.send_messages([
@@ -330,7 +323,7 @@ class KikBot(tornado.web.RequestHandler):
           return;
              
         if message.body.lower() == 'no thanks':
-          sendTracker("bot", "question", "kik")
+          modd.utils.sendTracker("bot", "question", "kik")
           kik.send_messages([
             TextMessage(
               to = message.from_user,
@@ -361,7 +354,7 @@ class KikBot(tornado.web.RequestHandler):
                 
           else:
             #print ("MENTION: " + message.mention)
-            sendTracker("bot", "mention", "kik")
+            modd.utils.sendTracker("bot", "mention", "kik")
             participants = message.participants
             participants.remove(message.from_user)
              
@@ -369,7 +362,7 @@ class KikBot(tornado.web.RequestHandler):
             print("FROM: " + message.from_user)
             print("PARTICIPANT: " + participants[0])
                 
-            sendTracker("bot", "init", "kik")
+            modd.utils.sendTracker("bot", "init", "kik")
              
             kik.send_messages([
               TextMessage(
@@ -481,7 +474,7 @@ class KikBot(tornado.web.RequestHandler):
           print("SUBSCRIBING TO: " + message.chat_id)
           _ = urllib2.urlopen('http://beta.modd.live/api/streamer_subscribe.php?type=kik&channel=%s&username=%s&cid=%s' % (streamerLowerCase, message.from_user, message.chat_id))
           subscribersForStreamer[streamerLowerCase].append({'kikUser':message.from_user,'chat_id':message.chat_id})
-          sendTracker("bot", "subscribe", "kik")
+          modd.utils.sendTracker("bot", "subscribe", "kik")
              
           kik.send_messages([
             TextMessage(
@@ -544,7 +537,7 @@ class Slack(tornado.web.RequestHandler):
       cur.close()
       conn.close()
       
-      if len(result) > 0:
+      if len(result) > 0 and chat_id in help_convos:
         to_user = result[0]
         
         print "%s (%s)\n%s" % (to_user, chat_id, message)
@@ -564,7 +557,7 @@ class Slack(tornado.web.RequestHandler):
             )
           ])
             
-          del help_convos[message.chat_id]
+          del help_convos[chat_id]
           
         else:
           kik.send_messages([
