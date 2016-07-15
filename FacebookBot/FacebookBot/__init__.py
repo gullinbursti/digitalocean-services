@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-import pymysql
+import MySQLdb as mdb
 import sys
 import json
 import time
@@ -33,15 +33,24 @@ def getStreamerContent(url):
 
 def getStreamers():
   streamers = []
-  conn = pymysql.connect(host='external-db.s4086.gridserver.com', unix_socket='/tmp/mysql.sock', user='db4086_modd_usr', passwd='f4zeHUga.age', db='db4086_modd')
-  cur = conn.cursor()
-  cur.execute("SELECT `channel_name` FROM `subscribe_topics` WHERE `type` = 'streamer' OR `type` = 'game';")
   
-  for r in cur:
-    streamers.append(r[0])
-  cur.close()
-  conn.close()
+  try:
+    conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+    with conn:
+      cur = conn.cursor(mdb.cursors.DictCursor)
+      cur.execute("SELECT `channel_name` FROM `subscribe_topics` WHERE `type` = 'streamer' OR `type` = 'game';")
+      rows = cur.fetchall()
+    
+      for row in rows:
+        streamers.append(row['channel_name'])  
   
+  except mdb.Error, e:
+    logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+    
+  finally:
+    if conn:    
+      conn.close()
+      
   return streamers
 
 
@@ -65,7 +74,7 @@ def isStreamerOnline(streamerName):
 def slack():
   logger.info("-=- /slack\n%s" % (request.form))
   if request.form.get('token') == "uKA7dgfnfadLN4QApLYmmn4m":
-    logger.info("help_convos:\n%s" % (help_convos))
+    help_session = {}
     
     _arr = request.form.get('text').split(' ')
     _arr.pop(0)
@@ -76,16 +85,57 @@ def slack():
     message = " ".join(_arr).replace("'", "")
 
     logger.info("SenderID: %s\nMessage: %s" % (sender_id, message))
+    
+    
+    try:
+      conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+      with conn:
+        cur = conn.cursor(mdb.cursors.DictCursor)
+        cur.execute("SELECT `id`, `topic_name`, `state` FROM `help_sessions` WHERE `sender_id` = \'%s\' AND `messenger` = \'facebook\' AND (`state` = 2 OR `state` = 3) ORDER BY `added` DESC LIMIT 1;" % (sender_id))
+        
+        if cur.rowcount == 1:
+          row = cur.fetchone()
+          help_session = {
+            'id': row['id'],
+            'topic_name': row['topic_name'],
+            'state': row['topic_name']
+          }
+          
+          if help_session['state'] == 2:
+            cur.execute("UPDATE `help_sessions` SET `state` = 3 WHERE `id` = %d LIMIT 1;" % (help_session['id']))
+            help_session['state'] = 3
+        
+    except mdb.Error, e:
+      logger.info("Error %d: %s" % (e.args[0], e.args[1]))
 
-    if "%s_%s" % (sender_id, sender_id) in help_convos:
-      if message == "!end":
-        print "-=- ENDING HELP -=-"
-        send_text(sender_id, "Closed this %s help session." % (help_convos["%s_%s" % (sender_id, sender_id)]['game']))
-        send_text(sender_id, "Please tell me a game or player name you want to subscribe to.")
-        del help_convos["%s_%s" % (sender_id, sender_id)]
+    finally:
+      if conn:    
+        conn.close()
+        
+    logger.info("---------= help_session:%s" % (help_session))
+    
+    if len(help_session) != 0:
+      if help_session['state'] == 3:
+        if message == "!end":
+          print "-=- ENDING HELP -=-"
+          send_text(sender_id, "Closed this %s help session." % (help_convos["%s_%s" % (sender_id, sender_id)]['game']))
+          send_text(sender_id, "Please tell me a game or player name you want to subscribe to.")
+        
+          try:
+            conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+            with conn:
+              cur = conn.cursor(mdb.cursors.DictCursor)
+              cur.execute("UPDATE `help_sessions` SET `state` = 4 WHERE `id` = %s LIMIT 1;" % (help_session['id']))
+            
+          except mdb.Error, e:
+            logger.info("Error %d: %s" % (e.args[0], e.args[1]))
 
-      else:
-        send_text(sender_id, "Helper says:\n%s" % (message))
+          finally:
+            if conn:    
+              conn.close()
+
+        else:
+          send_text(sender_id, "Helper says:\n%s" % (message))
 
   return "OK", 200
   
@@ -141,16 +191,107 @@ def webook():
           #if messaging_event["message"]["type"] == "image":
           #  return "ok", 200
 
-          # MESSAGE CREDENTIALS 
+          # MESSAGE CREDENTIALS
           sender_id = messaging_event["sender"]["id"]        # the facebook ID of the person sending you the message
           recipient_id = messaging_event["recipient"]["id"]  # the recipient's ID, which should be your page's facebook ID
           message_text = messaging_event["message"]["text"]  # the message's text
           timestamp = messaging_event["timestamp"]
           
           streamerLowerCase = message_text.lower()
-          logger.info("gameHelpList: %s" % (gameHelpList))
-          logger.info("help_convos: %s" % (help_convos))
+          help_session = {}
           
+          try:
+            conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+            with conn:
+              cur = conn.cursor(mdb.cursors.DictCursor)
+              cur.execute("SELECT `id`, `topic_name`, `state` FROM `help_sessions` WHERE `sender_id` = \'%s\' AND `messenger` = \'facebook\' AND `state` = 1 ORDER BY `added` DESC LIMIT 1;" % (sender_id))
+              
+              if cur.rowcount == 1:
+                row = cur.fetchone()
+                help_session = {
+                  'id': row['id'],
+                  'topic_name': row['topic_name'],
+                  'state': row['state']
+                }
+              
+          except mdb.Error, e:
+            logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+
+          finally:
+            if conn:    
+              conn.close()
+              
+          
+          logger.info("---------= help_session:%s" % (help_session))
+          
+          #-- HELP LOOKUP
+          if len(help_session) != 0:
+            if help_session['state'] == 1:
+              send_text(sender_id, "Locating top %s player..." % (help_session['topic_name']))
+              send_text(sender_id, "Type '!end' to close this help session.")
+
+              payload = json.dumps({
+                'channel': "#fb-help", 
+                'username': sender_id,
+                'text': "Requesting help for *%s*:\n%s\n_\"%s\"_" % (help_session['topic_name'], sender_id, message_text.replace("\'", ""))
+              })
+
+              response = requests.post("https://hooks.slack.com/services/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", data={'payload': payload})
+
+              try:
+                conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+                with conn:
+                  cur = conn.cursor()
+                  cur.execute("UPDATE `help_sessions` SET `state` = 2 WHERE `id` = %s LIMIT 1;" % (help_session['id']))
+
+              except mdb.Error, e:
+                logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+
+              finally:
+                if conn:    
+                  conn.close()
+
+              return "ok", 200
+              
+            elif help_session['state'] == 2 or help_session['state'] == 3:
+              if message_text == "!end":
+                print "-=- ENDING HELP -=-"
+                send_text(sender_id, "You have closed this %s help session." % (help_convos["%s_%s" % (sender_id, sender_id)]['game']))
+                send_text(sender_id, "Please tell me a game or player name you want to subscribe to.")
+                del help_convos["%s_%s" % (sender_id, sender_id)]
+
+                payload = json.dumps({
+                  'channel': "#kik-help", 
+                  'username': sender_id,
+                  'text': "*Help session closed*"
+                })
+
+                try:
+                  conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+                  with conn:
+                    cur = conn.cursor()
+                    cur.execute("UPDATE `help_sessions` SET `state` = 4 WHERE `id` = %s LIMIT 1;" % (help_session['id']))
+
+                except mdb.Error, e:
+                  logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+
+                finally:
+                  if conn:    
+                    conn.close()
+
+              else: 
+                payload = json.dumps({
+                  'channel': "#kik-help", 
+                  'username': sender_id,
+                  'text': "_\"%s\"_" % (message_text.replace("\'", ""))
+                })
+
+              response = requests.post("https://hooks.slack.com/services/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", data={'payload': payload})
+              return "ok", 200
+
+            else:
+              return "ok", 200
+            
           
           if 'quick_reply' in messaging_event["message"]:
             payload = messaging_event["message"]["quick_reply"]["payload"]
@@ -158,10 +299,23 @@ def webook():
             if payload.startswith("hlp_"):
               logger.info("Starting help...")
               game_name = payload.split("_")[1]
-              gameHelpList["%s_%s" % (sender_id, sender_id)] = game_name
-              logger.info("gameHelpList: %s" % (gameHelpList))
               
               send_text(sender_id, "Ok, describe what you are having trouble with in %s." % (game_name))
+              
+              try:
+                conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+                with conn:
+                  cur = conn.cursor()
+                  cur.execute("UPDATE `help_sessions` SET `state` = 5 WHERE `sender_id` = \'%s\' AND `topic_name` = \'%s\' AND `messenger` = \'facebook\' AND `state` < 4 LIMIT 1;" % (sender_id, game_name))
+                  cur.execute("INSERT INTO `help_sessions` (`id`, `topic_name`, `chat_id`, `sender_id`, `sender_name`, `messenger`, `added`) VALUES(NULL, \'%s\', \'%s\', \'%s\', \'%s\', \'facebook\', NOW());" % (game_name, sender_id, sender_id, sender_id))
+
+              except mdb.Error, e:
+                logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+
+              finally:
+                if conn:    
+                  conn.close()
+                  
             return "ok", 200
           
           # -- !all MESSAGE
@@ -185,56 +339,10 @@ def webook():
                   send_text(sender_id, streamerString)
             return "ok", 200
              
-          #-- HELP LOOKUP
-          if "%s_%s" % (sender_id, sender_id) in gameHelpList:
-            help_convos["%s_%s" % (sender_id, sender_id)] = {
-              'sender_id': sender_id,
-              'game': gameHelpList["%s_%s" % (sender_id, sender_id)]
-            }
-
-            send_text(sender_id, "Locating top %s player..." % (gameHelpList["%s_%s" % (sender_id, sender_id)]))
-            send_text(sender_id, "Type '!end' to close this help session.")
-
-            payload = json.dumps({
-              'channel': "#fb-help", 
-              'username': sender_id,
-              'text': "Requesting help for *%s*:\n%s\n_\"%s\"_" % (gameHelpList["%s_%s" % (sender_id, sender_id)], sender_id, message_text.replace("\'", ""))
-            })
-
-            response = requests.post("https://hooks.slack.com/services/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", data={'payload': payload})
-            
-            logger.info("help_convos: %s" % (help_convos))
-            del gameHelpList["%s_%s" % (sender_id, sender_id)]
-            return "ok", 200
-
-          #-- HELP SESSION
-          if "%s_%s" % (sender_id, sender_id) in help_convos:
-            if message_text == "!end":
-              print "-=- ENDING HELP -=-"
-              send_text(sender_id, "You have closed this %s help session." % (help_convos["%s_%s" % (sender_id, sender_id)]['game']))
-              send_text(sender_id, "Please tell me a game or player name you want to subscribe to.")
-              del help_convos["%s_%s" % (sender_id, sender_id)]
-
-              payload = json.dumps({
-                'channel': "#kik-help", 
-                'username': sender_id,
-                'text': "*Help session closed*"
-              })
-
-            else: 
-              payload = json.dumps({
-                'channel': "#kik-help", 
-                'username': sender_id,
-                'text': "_\"%s\"_" % (message_text.replace("\'", ""))
-              })
-
-            response = requests.post("https://hooks.slack.com/services/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", data={'payload': payload})
-            return "ok", 200
-            
           # -- FOUND STREAMER
           if streamerLowerCase in subscribersForStreamer:
             sendTracker("bot", "subscribe", "facebook")
-            _ = urllib2.urlopen('http://beta.modd.live/api/streamer_subscribe.php?type=fb&channel=%s&cid=%s' %(message_text, sender_id))
+            _ = urllib2.urlopen('http://beta.modd.live/api/streamer_subscribe.php?type=fb&channel=%s&cid=%s' % (streamerLowerCase, sender_id))
             subscribersForStreamer[streamerLowerCase].append({'chat_id':sender_id})
             if isStreamerOnline(streamerLowerCase):
               link_pic = getStreamerContent("http://beta.modd.live/api/live_streamer.php?channel=" + streamerLowerCase)
@@ -264,7 +372,7 @@ def webook():
                 'payload': "hlp_Dota2"
               }]
 
-              #send_text(sender_id, "Do you currently need help with any of these games?", _qr)
+              send_text(sender_id, "Do you currently need help with any of these games?", _qr)
               
           else:
             send_text(sender_id, "Oh no!, " + message_text + " was not found. Provide me with the name of your favorite player, team, or game.")
