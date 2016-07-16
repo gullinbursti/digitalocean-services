@@ -9,6 +9,7 @@ import csv
 import json
 import random
 import sqlite3
+import re
 
 import urllib2
 import requests
@@ -37,6 +38,10 @@ Const.DB_PASS = 'f4zeHUga.age'
 
 Const.MAX_REPLIES = 4
 
+
+#=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+
+
 def getStreamers():
   streamers = []
   return streamers
@@ -48,7 +53,8 @@ def default_keyboard():
     SuggestedResponseKeyboard(
       hidden = False,
       responses = [
-        TextResponse(u"Pok\xe9mon Go"),
+        #TextResponse(u"Pokemon Go"),
+        TextResponse(u"Pokemon Go"),
         TextResponse("Dota 2"),
         TextResponse("League of Legends"),
         TextResponse("CS:GO")
@@ -129,12 +135,14 @@ def fetch_topics():
   _arr = []
   
   try:
-    conn = sqlite3.connect("%s/data/sqlite3/topics.db" % (os.getcwd()))
+    conn = sqlite3.connect("%s/data/sqlite3/kikbot.db" % (os.getcwd()))
     c = conn.cursor()
     c.execute("SELECT display_name FROM topics WHERE enabled = 1;")
     
     for row in c.fetchall():
       _arr.append(row[0])
+      key_name = re.sub( '\s+', "_", row[0])
+      print "UTF-8 ENCODED : [%s]" % (quote(row[0].key_name.encode('utf-8')).toLower())
     
     conn.close()
     
@@ -153,7 +161,7 @@ def fetch_slack_webhooks():
   _obj = {}
   
   try:
-    conn = sqlite3.connect("%s/data/sqlite3/topics.db" % (os.getcwd()))
+    conn = sqlite3.connect("%s/data/sqlite3/kikbot.db" % (os.getcwd()))
     c = conn.cursor()
     c.execute("SELECT topics.display_name, slack_channels.channel_name, slack_channels.webhook FROM slack_channels INNER JOIN topics ON topics__slack_channels.slack_channel_id = topics.id INNER JOIN topics__slack_channels ON topics__slack_channels.topic_id = topics.id AND topics__slack_channels.slack_channel_id = slack_channels.id WHERE slack_channels.enabled = 1;")
     
@@ -181,7 +189,7 @@ def fetch_faq(topic_name):
   _arr = []
   
   try:
-    conn = sqlite3.connect("%s/data/sqlite3/topics.db" % (os.getcwd()))
+    conn = sqlite3.connect("%s/data/sqlite3/kikbot.db" % (os.getcwd()))
     c = conn.cursor()
     c.execute("SELECT faq_content.entry FROM faqs JOIN faq_content ON faqs.id = faq_content.faq_id WHERE faqs.title = \'%s\';" % (topic_name))
     
@@ -206,7 +214,7 @@ class KikBot(tornado.web.RequestHandler):
       
   def post(self):
     print "%d\tself.request.headers.get('X-Kik-Signature')=%s" % (int(time.time()), self.request.headers.get('X-Kik-Signature'))
-    print "%d\tself.request.body=%s" % (int(time.time()), self.request.body)
+    #print "%d\tself.request.body=%s" % (int(time.time()), self.request.body)
     print "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     
     if not kik.verify_signature(self.request.headers.get('X-Kik-Signature'), self.request.body):
@@ -217,12 +225,12 @@ class KikBot(tornado.web.RequestHandler):
     data_json = tornado.escape.json_decode(self.request.body)
     messages = messages_from_json(data_json["messages"])
     
-    print "%d\t:: len(messages)=%d" % (int(time.time()), len(messages))
+    #print "%d\t:: len(messages)=%d" % (int(time.time()), len(messages))
     for message in messages:
   
       # -=-=-=-=-=-=-=-=- UNSUPPORTED TYPE -=-=-=-=-=-=-=-=-
       if isinstance(message, LinkMessage) or isinstance(message, PictureMessage) or isinstance(message, VideoMessage) or isinstance(message, ScanDataMessage) or isinstance(message, StickerMessage) or isinstance(message, UnknownMessage):
-        print "%d\t=-= IGNORING MESSAGE =-= " % (int(time.time()))
+        print "%d\t=-= IGNORING MESSAGE =-=\n%s " % (int(time.time()), message)
         kik.send_messages([
           TextMessage(
             to = message.from_user,
@@ -247,15 +255,15 @@ class KikBot(tornado.web.RequestHandler):
         print "%d\t-= ReadReceiptMessage =-= " % (int(time.time()))
         
         modd.utils.sendTracker("bot", "read", "kik")
-        self.set_status(200)        
+        self.set_status(200)
         return
-         
+
          
       # -=-=-=-=-=-=-=-=- START CHATTING -=-=-=-=-=-=-=-=-
       elif isinstance(message, StartChattingMessage):
         print "%d\t-= StartChattingMessage =-= " % (int(time.time()))
         
-        print "%d\telayed_kik_send"% (int(time.time()))
+        print "%d\tdelayed_kik_send"% (int(time.time()))
         kik.send_messages([
           TextMessage(
             to = message.from_user,
@@ -373,7 +381,7 @@ class KikBot(tornado.web.RequestHandler):
         else:
           
           # -=-=-=-=-=-=-=-=- DEFAULT GAME BTNS -=-=-=-=-=-=-=-=-
-          if message.body == u"Pok\xe9mon Go" or message.body == "CS:GO" or message.body == "Dota 2" or message.body == "League of Legends":
+          if message.body == u"Pokemon Go" or message.body == "CS:GO" or message.body == "Dota 2" or message.body == "League of Legends":
             if len(gameHelpList) == 0:
               start_help(message)
             
@@ -660,13 +668,73 @@ slack_webhooks = fetch_slack_webhooks()
 #       subscribersForStreamer[c[0].lower()].append({'kikUser':c[1],'chat_id':c[2]})
       
 
-kik = KikApi("streamcard", "aa503b6f-dcda-4817-86d0-02cfb110b16a")
-#kik = KikApi("game.bots", "0fb46005-dd00-49c3-a4a5-239a0bdc1e79")
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
 
 
-#kik.set_configuration(Configuration(webhook="http://76.102.12.47:8891/kik", features={"receiveReadReceipts":True, "receiveDeliveryReceipts":True}))
-kik.set_configuration(Configuration(webhook="http://159.203.250.4:8891/kik", features={}))
-#kik.set_configuration(Configuration(webhook="http://76.102.12.47:8891/kik", features={}))
+# Const.KIK_API_CONFIG = {
+#   'USERNAME': "streamcard",
+#   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
+#   'WEBHOOK': {
+#     'HOST': "http://76.102.12.47",
+#     'PORT': 8890,
+#     'PATH': "kik"
+#   },
+# 
+#   'FEATURES': {
+#     'receiveDeliveryReceipts': True,
+#     'receiveReadReceipts': True
+#   }
+# }
+
+
+
+Const.KIK_API_CONFIG = {
+  'USERNAME': "game.bots",
+  'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
+  'WEBHOOK': {
+    'HOST': "http://159.203.250.4",
+    'PORT': 8080,
+    'PATH': "kik"
+  },
+
+  'FEATURES': {
+    'receiveDeliveryReceipts': True,
+    'receiveReadReceipts': True
+  }
+}
+
+Const.KIK_CONFIGURATION = Configuration(
+  webhook = "%s:%d/%s" % (Const.KIK_API_CONFIG['WEBHOOK']['HOST'], Const.KIK_API_CONFIG['WEBHOOK']['PORT'], Const.KIK_API_CONFIG['WEBHOOK']['PATH']),
+  features = Const.KIK_API_CONFIG['FEATURES']
+)
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
+
+kik = KikApi(
+  Const.KIK_API_CONFIG['USERNAME'],
+  Const.KIK_API_CONFIG['API_KEY']
+)
+
+kik.set_configuration(Const.KIK_CONFIGURATION)
+
+
+
+
+
+print "\n\n\n# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #"
+print "# -= Firing up KikApi WITH =- #"
+print "# -= =-=-=-=-=-=-=-=-=-=-=-= =- #"
+print "USERNAME : %s\nAPI_KEY : %s\nHOST   : %s\nPORT   : %d\nPATH   : %s\nCONFIG :%s" % (
+  Const.KIK_API_CONFIG['USERNAME'],
+  Const.KIK_API_CONFIG['API_KEY'],
+  Const.KIK_API_CONFIG['WEBHOOK']['HOST'],
+  Const.KIK_API_CONFIG['WEBHOOK']['PORT'],
+  Const.KIK_API_CONFIG['WEBHOOK']['PATH'],
+  kik.get_configuration().to_json())
+print "# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #\n\n\n"
+
+
 
 application = tornado.web.Application([
   (r"/kik", KikBot), 
@@ -678,7 +746,7 @@ application = tornado.web.Application([
 
 
 if __name__ == "__main__":
-  application.listen(8891)
+  application.listen(int(Const.KIK_API_CONFIG['WEBHOOK']['PORT']))
   tornado.ioloop.IOLoop.instance().start()
   print "%d\ttornado start" % (int(time.time()))
   

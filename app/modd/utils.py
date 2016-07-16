@@ -7,6 +7,11 @@ import urllib2
 import grequests
 
 
+def lan_ip():
+  
+  
+  return "0.0.0.0"
+
 
 class AsyncHTTPHandler(urllib2.HTTPHandler):
   def http_response(self, req, response):
@@ -31,6 +36,7 @@ def sendTracker(category, action, label):
     
     # print "--> AsyncHTTPHandler :: _o=%s" % (_o)
   return
+
 
 def slack_send(channel, webhook, message_txt, from_user="game.bots"):
   print "slack_send(channel=%s, webhook=%s, message_txt=%s, from_user=%s)" % (channel, webhook, message_txt, from_user)
