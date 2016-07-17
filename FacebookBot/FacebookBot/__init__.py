@@ -6,137 +6,270 @@ import sys
 import json
 import time
 import requests
+import netifaces as ni 
 import urllib2
 import logging
-from datetime import datetime
+import grequests
+import threading
+import random
+import sqlite3
+import re
+
+
+from datetime import date, datetime
+from urllib2 import quote
+
+import modd
+import const as Const
 
 from flask import Flask, request
 
 app = Flask(__name__)
 
-def sendTracker(category, action, label):
+logger = logging.getLogger(__name__)
+hdlr = logging.FileHandler('/var/log/FacebookBot.log')
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+hdlr.setFormatter(formatter)
+logger.addHandler(hdlr) 
+logger.setLevel(logging.INFO)
+
+
+
+Const.DB_HOST = 'external-db.s4086.gridserver.com'
+Const.DB_NAME = 'db4086_modd'
+Const.DB_USER = 'db4086_modd_usr'
+Const.DB_PASS = 'f4zeHUga.age'
+
+Const.VERIFY_TOKEN = "ae9118876b91ea88def1259cc13ff2ca"
+Const.ACCESS_TOKEN = "EAAXFDiMELKsBAJCy4kCwLcVMoXDG441SSvbnq1cDSmbiWLNE8Rsjv8GtLyZCSgnZBlQVWf9ipmfT2ye80Ld8hxxJ1puqvjIZAvXlw1LNerEMbrDODm1R6ZA4RQ6Nx4bPzSiIOT17AhvWEyotZBhKgZAelhwZBRL1AKHa9wRDOjpqZAOFn3nE1yhC"
+
+Const.MAX_REPLIES = 4
+
+
+#=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+
+
+class AsyncHTTPHandler(urllib2.HTTPHandler):
+  def http_response(self, req, response):
+    print "response.geturl(%s)" % (response.geturl())
+    return response
+    
+
+def send_tracker(category, action, label):
+  print "send_tracker(category=%s, action=%s, label=%s)" % (category, action, label) 
   try:
     _response = urllib2.urlopen("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)))
   
   except:
     print "GA ERROR!"
         
+    return
+    # _o = urllib2.build_opener(AsyncHTTPHandler())
+    # _t = threading.Thread(target=_o.open, args=("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)),))
+    # _t.start()
+  
+    # print "--> AsyncHTTPHandler :: _o=%s" % (_o)
+  return
+  
+  
+def slack_send(channel, webhook, message_txt, from_user="game.bots"):
+  print "slack_send(channel=%s, webhook=%s, message_txt=%s, from_user=%s)" % (channel, webhook, message_txt, from_user)
+  payload = json.dumps({
+    'channel': "#" + channel, 
+    'username': from_user,
+    'icon_url': "http://i.imgur.com/ETxDeXe.jpg",
+    'text': message_txt
+  })
+
+  _rs = (grequests.post(i, data={'payload': payload}) for i in [webhook])
+  grequests.map(_rs)
+
+  print "--> async grequests.post(i=%s, data=%s)" % (webhook, payload)
+
+
+def start_help(message):
+  print "%d\tstart_help(message=%s)" % (int(time.time()), message)
+  modd.utils.sendTracker("bot", "question", "kik")
+  gameHelpList[message.from_user] = message.body
+
+  kik.send_messages([
+    TextMessage(
+      to = message.from_user,
+      chat_id = message.chat_id,
+      body = "Please describe what you need help with?",
+      type_time = 333
+    )
+  ])
+
   return
 
 
-def getStreamerContent(url):
-  _response = urllib2.urlopen(url, timeout=5)
-  _json = json.load(_response, 'utf-8')
+def end_help(to_user, chat_id, user_action=True):
+  print "%d\tend_help(to_user=\'%s\', chat_id=\'%s\', user_action=%d)" % (int(time.time()), to_user, chat_id, user_action)
+
+  if not user_action:
+    kik.send_messages([
+      TextMessage(
+        to = to_user,
+        chat_id = chat_id,
+        body = u"This %s help session is now closed." % (help_convos[chat_id]['game']),
+        type_time = 250,
+      )
+    ])
+
+    if chat_id in help_convos:
+      _obj = slack_webhooks[help_convos[chat_id]['game']]
+      print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
+      modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
+      del help_convos[chat_id]
+
+  time.sleep(3)
+  kik.send_messages([
+    TextMessage(
+      to = to_user,
+      chat_id = chat_id,
+      body = "Select a game you need help with...",
+      keyboards = default_keyboard()
+    )
+  ])
+
+  return
   
-  return [_json['channel'], _json['preview_img'], _json['player_url']]
   
+def fetch_topics():
+  print "%d\tfetch_topics()" % (int(time.time()))
+  _arr = []
+
+  try:
+    conn = sqlite3.connect("%s/data/sqlite3/kikbot.db" % (os.getcwd()))
+    c = conn.cursor()
+    c.execute("SELECT display_name, keyname FROM topics WHERE enabled = 1;")
+
+    for row in c.fetchall():
+      _arr.append(row[0])
+      key_name = re.sub( '\s+', "_", row[0])
+      print "UTF-8 ENCODED : [%s]" % (quote(row[0].key_name.encode('utf-8')).toLower())
+
+    conn.close()
+
+  except:
+    pass
+
+  finally:
+    pass
+
+  print "%d\t_arr:%s" % (int(time.time()), _arr)
+  return _arr
+
+
+def fetch_slack_webhooks():
+  print "%d\tfetch_slack_webhooks()" % (int(time.time()))
+  _obj = {}
+
+  try:
+    conn = sqlite3.connect("%s/data/sqlite3/fb_bot.db" % (os.getcwd()))
+    c = conn.cursor()
+    c.execute("SELECT topics.display_name, slack_channels.channel_name, slack_channels.webhook FROM slack_channels INNER JOIN topics ON topics__slack_channels.slack_channel_id = topics.id INNER JOIN topics__slack_channels ON topics__slack_channels.topic_id = topics.id AND topics__slack_channels.slack_channel_id = slack_channels.id WHERE slack_channels.enabled = 1;")
+
+    for row in c.fetchall():
+      _obj[row[0]] = {
+        'channel_name': row[1],
+        'webhook':row[2]
+      }
+
+    conn.close()
+
+  except:
+    pass
+
+  finally:
+    pass
+
+  print "%d\t_obj:%s" % (int(time.time()), _obj)
+  return _obj
+
+
+def fetch_faq(topic_name):
+  print "%d\tfetch_faq(topic_name=%s)" % (int(time.time()), topic_name)
+
+  _arr = []
+
+  try:
+    conn = sqlite3.connect("%s/data/sqlite3/fb_bot.db" % (os.getcwd()))
+    c = conn.cursor()
+    c.execute("SELECT faq_content.entry FROM faqs JOIN faq_content ON faqs.id = faq_content.faq_id WHERE faqs.title = \'%s\';" % (topic_name))
+
+    for row in c.fetchall():
+      _arr.append(row[0])
+
+    conn.close()
+
+  except:
+    pass
+
+  finally:
+    pass
+
+  return _arr
+
 
 def getStreamers():
   streamers = []
-  
-  try:
-    conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
-    with conn:
-      cur = conn.cursor(mdb.cursors.DictCursor)
-      cur.execute("SELECT `channel_name` FROM `subscribe_topics` WHERE `type` = 'streamer' OR `type` = 'game';")
-      rows = cur.fetchall()
-    
-      for row in rows:
-        streamers.append(row['channel_name'])  
-  
-  except mdb.Error, e:
-    logger.info("Error %d: %s" % (e.args[0], e.args[1]))
-    
-  finally:
-    if conn:    
-      conn.close()
-      
   return streamers
-
-
-def isStreamerOnline(streamerName):
-#	logger.info("isStreamerOnline " + str(streamerName))
-  
-  _response = urllib2.urlopen("https://api.twitch.tv/kraken/streams/%s" % (streamerName))
-  _json = json.load(_response, 'utf-8')
-
-  try:
-    if _json['stream']:
-      return True
-      
-  except:
-    return False
-    
-  return False
 
 
 @app.route('/slack', methods=['POST'])
 def slack():
-  logger.info("-=- /slack\n%s" % (request.form))
+  print "%d\t=-=-=-=-=-=-=-=-=-=-= SLACK RESPONSE =-=-=-=-=-=-=-=-=-=-=\n" % (int(time.time()), request.form)  
   if request.form.get('token') == "uKA7dgfnfadLN4QApLYmmn4m":
     help_session = {}
     
     _arr = request.form.get('text').split(' ')
     _arr.pop(0)
-
-    sender_id = _arr[0]
-    _arr.pop(0)
-
-    message = " ".join(_arr).replace("'", "")
-
-    logger.info("SenderID: %s\nMessage: %s" % (sender_id, message))
     
+    chat_id = _arr[0]
+    _arr.pop(0)
+    
+    message = " ".join(_arr).replace("'", "")
+    to_user = ""
     
     try:
-      conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+      conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
       with conn:
         cur = conn.cursor(mdb.cursors.DictCursor)
-        cur.execute("SELECT `id`, `topic_name`, `state` FROM `help_sessions` WHERE `sender_id` = \'%s\' AND `messenger` = \'facebook\' AND (`state` = 2 OR `state` = 3) ORDER BY `added` DESC LIMIT 1;" % (sender_id))
-        
+        cur.execute("SELECT `username` FROM `_logs` WHERE `chat_id` = '%s' ORDER BY `added` DESC LIMIT 1;" % (chat_id))
+
         if cur.rowcount == 1:
           row = cur.fetchone()
-          help_session = {
-            'id': row['id'],
-            'topic_name': row['topic_name'],
-            'state': row['topic_name']
-          }
           
-          if help_session['state'] == 2:
-            cur.execute("UPDATE `help_sessions` SET `state` = 3 WHERE `id` = %d LIMIT 1;" % (help_session['id']))
-            help_session['state'] = 3
-        
+          print "%d\thelp_convos:%s" % (int(time.time()), help_convos)
+          if chat_id in help_convos:
+            help_convos[chat_id]['ignore_streak'] = -1
+            to_user = row['username']
+
+            #print "%d\tto_user=%s, to_user=%s, chat_id=%s, message=%s" % (int(time.time()), to_user, chat_id, message)
+
+            if message == "!end":
+              print "%d\t-=- ENDING HELP -=-"
+              end_help(to_user, chat_id, False)
+
+            else:
+              kik.send_messages([
+                TextMessage(
+                  to = to_user,
+                    chat_id = chat_id,
+                    body = "%s helper:\n%s" % (help_convos[chat_id]['game'], message),
+                    type_time = 250,
+                  )
+              ])
+
     except mdb.Error, e:
-      logger.info("Error %d: %s" % (e.args[0], e.args[1]))
+      print "%d\tError %d: %s" % (e.args[0], e.args[1])
 
     finally:
       if conn:    
         conn.close()
         
-    logger.info("---------= help_session:%s" % (help_session))
-    
-    if len(help_session) != 0:
-      if help_session['state'] == 3:
-        if message == "!end":
-          print "-=- ENDING HELP -=-"
-          send_text(sender_id, "Closed this %s help session." % (help_convos["%s_%s" % (sender_id, sender_id)]['game']))
-          send_text(sender_id, "Please tell me a game or player name you want to subscribe to.")
-        
-          try:
-            conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
-            with conn:
-              cur = conn.cursor(mdb.cursors.DictCursor)
-              cur.execute("UPDATE `help_sessions` SET `state` = 4 WHERE `id` = %s LIMIT 1;" % (help_session['id']))
-            
-          except mdb.Error, e:
-            logger.info("Error %d: %s" % (e.args[0], e.args[1]))
-
-          finally:
-            if conn:    
-              conn.close()
-
-        else:
-          send_text(sender_id, "Helper says:\n%s" % (message))
-
   return "OK", 200
   
 
@@ -151,7 +284,7 @@ def notify():
   link_pic = getStreamerContent("http://beta.modd.live/api/live_streamer.php?channel=" + streamerName)
   fbSubscribers = subscribersForStreamer[streamerName]
   for chat in fbSubscribers:
-    sendTracker("bot", "send", "facebook")
+    send_tracker("bot", "send", "facebook")
     send_text(chat['chat_id'], fbMessage)
     send_picture(chat['chat_id'], link_pic[0], link_pic[1])
 
@@ -164,7 +297,7 @@ def verify():
   # when the endpoint is registered as a webhook, it must
   # return the 'hub.challenge' value in the query arguments
   if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
-    if not request.args.get("hub.verify_token") == "ae9118876b91ea88def1259cc13ff2ca":
+    if not request.args.get("hub.verify_token") == Const.VERIFY_TOKEN:
       return "Verification token mismatch", 403
     return request.args["hub.challenge"], 200
 
@@ -201,10 +334,12 @@ def webook():
           help_session = {}
           
           try:
-            conn = mdb.connect('external-db.s4086.gridserver.com', 'db4086_modd_usr', 'f4zeHUga.age', 'db4086_modd');
+            conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
             with conn:
               cur = conn.cursor(mdb.cursors.DictCursor)
-              cur.execute("SELECT `id`, `topic_name`, `state` FROM `help_sessions` WHERE `sender_id` = \'%s\' AND `messenger` = \'facebook\' AND `state` = 1 ORDER BY `added` DESC LIMIT 1;" % (sender_id))
+              with conn:
+                cur = conn.cursor()
+                cur.execute("INSERT IGNORE INTO `kikbot_logs` (`username`, `chat_id`, `body`, `added`) VALUES (\'%s\', \'%s\', \'%s\',  NOW())" % (message.from_user, message.chat_id, quote(message.body.encode('utf-8'))))
               
               if cur.rowcount == 1:
                 row = cur.fetchone()
@@ -341,7 +476,7 @@ def webook():
              
           # -- FOUND STREAMER
           if streamerLowerCase in subscribersForStreamer:
-            sendTracker("bot", "subscribe", "facebook")
+            send_tracker("bot", "subscribe", "facebook")
             _ = urllib2.urlopen('http://beta.modd.live/api/streamer_subscribe.php?type=fb&channel=%s&cid=%s' % (streamerLowerCase, sender_id))
             subscribersForStreamer[streamerLowerCase].append({'chat_id':sender_id})
             if isStreamerOnline(streamerLowerCase):
@@ -384,7 +519,7 @@ def webook():
           
         if messaging_event.get("read"):  # read confirmation
           logger.info("READ CONFIRM")
-          sendTracker("bot", "read", "facebook")
+          send_tracker("bot", "read", "facebook")
           return "ok", 200
 
         if messaging_event.get("optin"):  # optin confirmation
@@ -458,38 +593,12 @@ def send_message(data):
 
 
 
-global subscribersForStreamer
-subscribersForStreamer = {}
-
-global gameHelpList
 gameHelpList = {}
-
-global help_convos
 help_convos = {}
 
-streamerArray = getStreamers()
-for s in streamerArray:
-  subscribersForStreamer[s.lower()] = []
+topics = fetch_topics()
+slack_webhooks = fetch_slack_webhooks()
 
-
-x = urllib2.urlopen("http://beta.modd.live/api/subscriber_list.php?type=fb").read()
-
-r = x.split("\n")
-for row in r:
-  c = row.split(",")
-  if len(c) == 3:
-    logger.info(c[0])
-    logger.info(c[1])
-    logger.info(c[2])
-    subscribersForStreamer[c[0].lower()].append({'chat_id':c[2]})
-#subscribersForStreamer = {"matty_devdev":[], "faroutrob":[]}
-
-logger = logging.getLogger(__name__)
-hdlr = logging.FileHandler('/var/log/FacebookBot.log')
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr) 
-logger.setLevel(logging.INFO)
 
 if __name__ == '__main__':
   app.run(debug=True)
