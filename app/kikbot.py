@@ -137,7 +137,7 @@ def fetch_topics():
   try:
     conn = sqlite3.connect("%s/data/sqlite3/kikbot.db" % (os.getcwd()))
     c = conn.cursor()
-    c.execute("SELECT display_name, keyname FROM topics WHERE enabled = 1;")
+    c.execute("SELECT display_name FROM topics WHERE enabled = 1;")
     
     for row in c.fetchall():
       _arr.append(row[0])
@@ -749,3 +749,5 @@ if __name__ == "__main__":
   application.listen(int(Const.KIK_API_CONFIG['WEBHOOK']['PORT']))
   tornado.ioloop.IOLoop.instance().start()
   print "%d\ttornado start" % (int(time.time()))
+  
+  
