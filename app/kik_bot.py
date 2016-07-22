@@ -15,8 +15,6 @@ import urllib2
 import requests
 import netifaces as ni
 import MySQLdb as mdb
-import cStringIO
-import pycurl
 
 import tornado.escape
 import tornado.ioloop
@@ -59,7 +57,8 @@ def default_keyboard():
         TextResponse(u"Pokemon Go"),
         TextResponse("Dota 2"),
         TextResponse("League of Legends"),
-        TextResponse("CS:GO")
+        TextResponse("CS:GO"),
+        TextResponse("Cancel")
       ]
     )
   ]
@@ -92,7 +91,7 @@ def start_help(message):
     TextMessage(
       to = message.from_user,
       chat_id = message.chat_id,
-      body = "Please describe what you need help with?",
+      body = "Please describe what you need help with. Note your messages will be sent to %s coaches for support." % (message.body),
       type_time = 333
     )
   ])
@@ -113,24 +112,40 @@ def end_help(to_user, chat_id, user_action=True):
       )
     ])
     
-    if chat_id in help_convos:
-      _obj = slack_webhooks[help_convos[chat_id]['game']]
-      print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
-      modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
-      del help_convos[chat_id]
+  if chat_id in help_convos:
+    _obj = slack_webhooks[help_convos[chat_id]['game']]
+    print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
+    modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
+    del help_convos[chat_id]
+    
     
   time.sleep(3)
+  cancel_session(to_user, chat_id)
+  
+  return
+
+
+def cancel_session(to_user, chat_id):
+  print "%d\tcancel_session(to_user=\'%s\', chat_id=\'%s\')" % (int(time.time()), to_user, chat_id)
+  
   kik.send_messages([
     TextMessage(
       to = to_user,
       chat_id = chat_id,
-      body = "Select a game you need help with...",
-      keyboards = default_keyboard()
+      body = "Ok, Thanks for using GameBots!",#body = "Sounds good! Your GameBot is always here if you need help, just send me a message.",
+      type_time = 250,
     )
   ])
   
+  if to_user in gameHelpList:
+    del gameHelpList[to_user]
+  
+  
+  if chat_id in help_convos:
+    del help_convos[chat_id]
+    
   return
-
+    
 
 def fetch_topics():
   print "%d\tfetch_topics()" % (int(time.time()))
@@ -243,7 +258,7 @@ class KikBot(tornado.web.RequestHandler):
           TextMessage(
             to = message.from_user,
             chat_id = message.chat_id,
-            body = "Select a game you need help with...",
+            body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
             keyboards = default_keyboard()
           )
         ])
@@ -291,7 +306,7 @@ class KikBot(tornado.web.RequestHandler):
           TextMessage(
             to = message.from_user,
             chat_id = message.chat_id,
-            body = "Select a game you need help with...",
+            body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
             keyboards = default_keyboard()
           )
         ])
@@ -326,12 +341,12 @@ class KikBot(tornado.web.RequestHandler):
         
         
         # -=-=-=-=-=-=-=-=-=- END SESSION -=-=-=-=-=-=-=-
-        if message.body.lower() == "!end":
+        if message.body.lower() == "!end" or message.body.lower() == "cancel" or message.body.lower() == "quit":
           print "%d\t-=- ENDING HELP -=-"              
           end_help(message.from_user, message.chat_id)
-          self.set_status(200)            
+          self.set_status(200)              
           return
-        
+          
         
         # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
         if message.mention is not None:
@@ -371,14 +386,13 @@ class KikBot(tornado.web.RequestHandler):
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "Select a game you need help with...",
+                body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
                 keyboards = default_keyboard()
               )
             ])
           
             self.set_status(200)          
             return
-            
             
         else:
           
@@ -396,159 +410,125 @@ class KikBot(tornado.web.RequestHandler):
           
           
           # -=-=-=-=-=-=-=-=-=- FAQ BUTTONS -=-=-=-=-=-=-=-=-=- 
-          elif (message.body == u"Yes" or message.body == u"No"):
-            
+          #elif message.body.find("FAQ") > -1 or message.body == u"Ask Another Question":
+          elif message.body == u"More Details":
             if message.chat_id in help_convos:
+              # if message.body.find("FAQ") > -1:
               faq_arr = fetch_faq(help_convos[message.chat_id]['game'])
-              del help_convos[message.chat_id]
+              print "faq_arr:%s" % (faq_arr)
             
-              if message.body == u"Yes":  
-                print "faq_arr:%s" % (faq_arr)
-              
-                messages = []
-                for entry in faq_arr:
-                  messages.append(
-                    TextMessage(
-                      to = message.from_user,
-                      chat_id = message.chat_id,
-                      body = entry,
-                      type_time = 4000,
-                    )
-                  )
-                
+              messages = []
+              for entry in faq_arr:
                 messages.append(
                   TextMessage(
                     to = message.from_user,
                     chat_id = message.chat_id,
-                    body = "Select a game you need help with...",
-                    keyboards = default_keyboard()
+                    body = entry,
+                    type_time = 4000,
                   )
                 )
               
-                delayed_kik_send(messages, 5000)
-                self.set_status(200)
-                return
-              
-              elif message.body == u"No":
-                kik.send_messages([
-                  TextMessage(
-                    to = message.from_user,
-                    chat_id = message.chat_id,
-                    body = "Select a game you need help with...",
-                    keyboards = default_keyboard()
-                  )
-                ])
-              
-                self.set_status(200)              
-                return
+              delayed_kik_send(messages, 5000)            
+              del help_convos[message.chat_id]      
+          
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
+                keyboards = default_keyboard()
+              )
+            ])
+                                    
+            self.set_status(200)              
+            return
+                
           
           # -=-=-=-=-=-=-=-=-=- HELP CONNECT -=-=-=-=-=-=-=-
           if message.from_user in gameHelpList:
-            
-            # -=-=-=-=-=-=-=-=-=- HELP DISCONNECT -=-=-=-=-=-=-=-
-            if message.body == "!end":
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Select a game you need help with...",
-                  keyboards = default_keyboard()
-                )
-              ])
-
-              if message.from_user in gameHelpList:
-                _obj = slack_webhooks[gameHelpList[message.from_user]]
-                print "%d\t_obj FOR gameHelpList[\'%s\'] : (%s) %s" % (int(time.time()), message.from_user, gameHelpList[message.from_user], _obj)
-                modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (message.chat_id), message.from_user)    
-                
-                
-              del gameHelpList[message.from_user]
-              self.set_status(200)   
-              return
-          # -=-=-=-=-=-=-=-=-=- HELP CONNECT CON't -=-=-=-=-=-=-=-
-            else:  
-            
-              help_convos[message.chat_id] = {
-                'chat_id': message.chat_id,
-                'username': message.from_user,
-                'game': gameHelpList[message.from_user],
-                'ignore_streak': 0,
-                'started': int(time.time()),
-                'messages': []
-              }
-            
-              _obj = slack_webhooks[gameHelpList[message.from_user]]
-              print "%d\t_obj FOR slack_webhooks[gameHelpList[%s]] : %s" % (int(time.time()), message.from_user, _obj)
-              modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
-            
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
-                  type_time = 250,
-                )
-              ])
-              time.sleep(3)
-              
-              
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
-                  type_time = 2500,
-                )
-              ])
-              time.sleep(3)
-              
-              
-            
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Your question has been added to the %s queue and will be answered shortly." % (gameHelpList[message.from_user]),
-                  type_time = 1500,
-                ),
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Pro tip: you can keep asking questions, each will be added to your session and answered shortly.",
-                  type_time = 1500,
-                ),
-              ])
+            help_convos[message.chat_id] = {
+              'chat_id': message.chat_id,
+              'username': message.from_user,
+              'game': gameHelpList[message.from_user],
+              'ignore_streak': 0,
+              'started': int(time.time()),
+              'messages': []
+            }
           
-              del gameHelpList[message.from_user]
-              self.set_status(200)            
-              return
+            _obj = slack_webhooks[gameHelpList[message.from_user]]
+            print "%d\t_obj FOR slack_webhooks[gameHelpList[%s]] : %s" % (int(time.time()), message.from_user, _obj)
+            modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
+          
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
+                type_time = 250,
+              )
+            ])
+            time.sleep(3)
+            
+            
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
+                type_time = 2500,
+              )
+            ])
+            time.sleep(3)
+            
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Your question has been added to the %s queue and will be answered shortly." % (gameHelpList[message.from_user]),
+                type_time = 1500,
+              )
+            ])
+            time.sleep(2)
+            
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Pro tip: Keep asking questions, each will be added to your queue! Type Cancel to end the conversation.",
+                type_time = 2000,
+              ),
+            ])
+        
+            del gameHelpList[message.from_user]
+            self.set_status(200)            
+            return
 
             
           if message.chat_id in help_convos:
             help_convos[message.chat_id]['ignore_streak'] += 1
             help_convos[message.chat_id]['messages'].append(message.body)
             
-            if help_convos[message.chat_id]['ignore_streak'] == Const.MAX_REPLIES:
-              print "%d\t-=- TOO MANY UNREPLIED... CLOSE OUT SESSION -=-" % (int(time.time()))
+            if help_convos[message.chat_id]['ignore_streak'] >= Const.MAX_REPLIES:
+              print "%d\t-=- TOO MANY UNREPLIED (%d)... CLOSE OUT SESSION -=-" % (int(time.time()), help_convos[message.chat_id]['ignore_streak'])
 
               kik.send_messages([
                 TextMessage(
                   to = message.from_user,
                   chat_id = message.chat_id,
-                  body = u"Sorry this is taking so long... Would you like to read some general details about %s?" % (help_convos[message.chat_id]['game']),
+                  body = u"Sorry! GameBots is taking so long to answer your question. What would you like to do?",
                   type_time = 250,
                   keyboards = [
                     SuggestedResponseKeyboard(
                       hidden = False,
                       responses = [
-                        TextResponse("Yes"),
-                        TextResponse("No")
+                        #TextResponse("%s FAQ" % (help_convos[message.chat_id]['game'])),
+                        TextResponse("More Details"),
+                        TextResponse("Cancel")
                       ]
                     )
                   ]
                 )
               ])
-              
               
               self.set_status(200)            
               return
@@ -573,7 +553,7 @@ class KikBot(tornado.web.RequestHandler):
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "Select a game you need help with...",
+                body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
                 type_time = 250,
                 keyboards = default_keyboard()
               )
@@ -622,7 +602,7 @@ class Slack(tornado.web.RequestHandler):
 
               #print "%d\tto_user=%s, to_user=%s, chat_id=%s, message=%s" % (int(time.time()), to_user, chat_id, message)
 
-              if message == "!end":
+              if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
                 print "%d\t-=- ENDING HELP -=-"
                 end_help(to_user, chat_id, False)
 
@@ -719,9 +699,6 @@ kik = KikApi(
 kik.set_configuration(Const.KIK_CONFIGURATION)
 
 
-
-
-
 print "\n\n\n# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #"
 print "# -= Firing up KikApi WITH =- #"
 print "# -= =-=-=-=-=-=-=-=-=-=-=-= =- #"
@@ -749,5 +726,4 @@ if __name__ == "__main__":
   application.listen(int(Const.KIK_API_CONFIG['WEBHOOK']['PORT']))
   tornado.ioloop.IOLoop.instance().start()
   print "%d\ttornado start" % (int(time.time()))
-  
   
