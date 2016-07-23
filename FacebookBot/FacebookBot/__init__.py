@@ -2,19 +2,14 @@ import os
 import sys
 import json
 import MySQLdb as mdb
-import sys
 import json
 import time
 import requests
-import netifaces as ni
 import urllib2
 import logging
-import grequests
 import gevent
-import threading
 import random
 import sqlite3
-import re
 
 import pycurl
 import cStringIO
@@ -22,13 +17,15 @@ import cStringIO
 
 from datetime import date, datetime
 from urllib2 import quote
+from gevent import monkey; monkey.patch_all()
 
-import modd
 import const as Const
 
 from flask import Flask, request
 
 app = Flask(__name__)
+
+gevent.monkey.patch_all()
 
 logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler('/var/log/FacebookBot.log')
@@ -141,6 +138,7 @@ def write_message_log(sender_id, message_id, message_txt):
 
 def start_help(sender_id):
   logger.info("start_help(sender_id={sender_id})".format(sender_id=sender_id))
+  send_tracker("bot", "init", "facebook")
   
   session_obj = set_help_session({
     'id': 0,
@@ -153,7 +151,7 @@ def start_help(sender_id):
     'messages': []
   })
   
-  send_text(sender_id, "Select a game you need help with...", topic_quick_replies())
+  send_text(sender_id, "Select a game that you need help with. Type cancel anytime to end this conversation.", topic_quick_replies())
   
   return session_obj
 
@@ -233,7 +231,6 @@ def topic_quick_replies():
   _arr = []
 
   for topic in fetch_topics():
-    logger.info("QR - {topic}".format(topic=topic))
     _arr.append({
       'content_type': "text",
       'title': topic['display_name'],
@@ -370,25 +367,6 @@ def set_help_session(session_obj):
   return get_help_session(session_obj['sender_id'])
 
 
-def topic_quick_replies():
-  _arr = []
-
-  for topic in fetch_topics():
-    logger.info("QR - {topic}".format(topic=topic))
-    _arr.append({
-      'content_type': "text",
-      'title': topic['display_name'],
-      'payload': "hlp_%s" % (topic['display_name'])  
-    })
-
-  return _arr
-
-
-
-def getStreamers():
-  streamers = []
-  return streamers
-
 
 @app.route('/slack', methods=['POST'])
 def slack():
@@ -415,7 +393,7 @@ def slack():
             help_session = get_help_session(sender_id)
             help_session = set_help_session({
               'id': help_session['id'],
-              'state': 2,
+              'state': help_session['state'],
               'sender_id': help_session['sender_id'],
               'ignore_count': 0,
               'started': help_session['started'],
@@ -428,7 +406,7 @@ def slack():
               end_chat(help_session, False)
 
             else:
-              send_text(sender_id, "%s helper:\n%s" % (help_session['topic_name'], message))
+              send_text(sender_id, "%s coach:\n%s" % (help_session['topic_name'], message))
               
 
     except mdb.Error, e:
@@ -451,7 +429,7 @@ def verify():
       return "Verification token mismatch", 403
     return request.args['hub.challenge'], 200
 
-  return "Hello world", 200
+  return "OK", 200
 
 
 
@@ -462,22 +440,29 @@ def webook():
   if data['object'] == "page":
     for entry in data['entry']:
       for messaging_event in entry['messaging']:
-        if messaging_event.get("delivery"):  # delivery confirmation
+        if 'delivery' in messaging_event:  # delivery confirmation
           logger.info("-=- DELIVERY CONFIRM -=-")
-          return "ok", 200
+          return "OK", 200
           
-        if messaging_event.get("read"):  # read confirmation
+        if 'read' in messaging_event:  # read confirmation
           logger.info("-=- READ CONFIRM -=-")
           send_tracker("bot", "read", "facebook")
-          return "ok", 200
+          return "OK", 200
 
-        if messaging_event.get("optin"):  # optin confirmation
+        if 'optin' in messaging_event:  # optin confirmation
           logger.info("-=- OPT-IN -=-")
-          return "ok", 200
+          return "OK", 200
 
-        if messaging_event.get("postback"):  # user clicked/tapped "postback" button in earlier message
-          logger.info("-=- POSTBACK RESPONSE -=-")
-          return "ok", 200
+        if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+          logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
+          
+          if messaging_event['postback']['payload'] == "WELCOME_MESSAGE":
+            sender_id = messaging_event['sender']['id']
+            
+            logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+            help_session = start_help(sender_id)
+            
+          return "OK", 200
         
         
         #-- actual message
@@ -486,7 +471,8 @@ def webook():
           
           #------- IMAGE MESSAGE
           if 'attachments' in messaging_event['message']:
-            return "ok", 200
+            send_text(messaging_event['sender']['id'], "I'm sorry, I cannot understand that type of message.")
+            return "OK", 200
 
           # MESSAGE CREDENTIALS
           sender_id = messaging_event['sender']['id']        # the facebook ID of the person sending you the message
@@ -532,13 +518,13 @@ def webook():
               })
               send_text(help_session['sender_id'], "This {topic_name} help session is now closed.".format(topic_name=help_session['topic_name']))
                         
-            return "ok", 200
+            return "OK", 200
             
             
           
           #-- non-existant
           if help_state == -1:
-            logger.info("----------=CREATE SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+            logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
             help_session = start_help(sender_id)
             
           
@@ -548,7 +534,7 @@ def webook():
             logger.info("help_session={help_session}".format(help_session=help_session))
             
             if quick_reply is None:
-              send_text(sender_id, "Select a game you need help with...", topic_quick_replies())
+              send_text(sender_id, "Select a game that you need help with. Type cancel anytime to end this conversation.", topic_quick_replies())
               
             else:
               help_session = set_help_session({
@@ -560,23 +546,28 @@ def webook():
                 'ended': help_session['ended'],
                 'topic_name': quick_reply.split("_")[-1]
               })
-              send_text(sender_id, "Please describe what you need help with?")
+              send_text(sender_id, "Please describe what you need help with. Note your messages will be sent to %s coaches for support." % (help_session['topic_name']))
+              
+              send_tracker("bot", "subscribe", "facebook")
               
           
           #-- requesting help
           elif help_state == 1:
             logger.info("----------=REQUESTED SESSION=----------")
+            send_tracker("bot", "question", "facebook")
             
             slack_send(help_session['topic_name'], "Requesting help: *{sender_id}*\n_\"{message_text}\"_".format(sender_id=sender_id, message_text=message_text), sender_id)
             
             send_text(sender_id, "Locating %s coaches..." % (help_session['topic_name']))
-            # gevent.sleep(3)
+            gevent.sleep(3)
             
             send_text(sender_id, "Locating %s coaches..." % (help_session['topic_name']))
-            # gevent.sleep(3)
+            gevent.sleep(3)
             
             send_text(sender_id, "Your question has been added to the %s queue and will be answered shortly." % (help_session['topic_name']))
-            send_text(sender_id, "Pro tip: you can keep asking questions, each will be added to your session and answered shortly.")
+            gevent.sleep(2)
+            
+            send_text(sender_id, "Pro tip: Keep asking questions, each will be added to your queue! Type Cancel to end the conversation.")
             
             help_session = set_help_session({
               'id': help_session['id'],
@@ -591,7 +582,7 @@ def webook():
             
           #-- in session
           elif help_state == 2:
-            logger.info("----------=STARTED SESSION=----------")
+            logger.info("----------=IN PROGRESS SESSION=----------")
             
             if help_session['ignore_count'] >= Const.MAX_IGNORES - 1:
               logger.info("-=- TOO MANY UNREPLIED - ({count}) CLOSE OUT SESSION -=-".format(count=Const.MAX_IGNORES))
@@ -606,7 +597,7 @@ def webook():
                 'topic_name': help_session['topic_name']
               })
               
-              send_text(sender_id, "Sorry this is taking so long... Would you like to read some general details about %s?" % (help_session['topic_name']), faq_quick_replies())
+              send_text(sender_id, "Sorry! GameBots is taking so long to answer your question. What would you like to do?", faq_quick_replies())
               
             #-- continue convo
             else:
@@ -634,10 +625,9 @@ def webook():
               
             else:
               if quick_reply.split("_")[-1] == "more-details":
-                logger.info(">>>>>> SHOW FAQ")
-                
                 for entry in fetch_faq(help_session['topic_name']):
                   send_text(sender_id, entry.encode('utf-8'))
+                  gevent.sleep(5)
                   
               else:
                 pass
@@ -654,9 +644,14 @@ def webook():
                 'ended': help_session['ended'],
                 'topic_name': help_session['topic_name']
               })
+              
+              if quick_reply.split("_")[-1] == "more-details":
+                gevent.sleep(3)
+                help_session = start_help(help_session['sender_id'])
           
           #-- completed
           elif help_state == 4:
+            
             pass
           
               
@@ -672,7 +667,7 @@ def webook():
           else:
             pass
 
-  return "ok", 200
+  return "OK", 200
 
 
 def send_text(recipient_id, message_text, quick_replies=[]):
