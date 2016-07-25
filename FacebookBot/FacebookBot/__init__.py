@@ -534,6 +534,7 @@ def webook():
             logger.info("help_session={help_session}".format(help_session=help_session))
             
             if quick_reply is None:
+              send_tracker("bot", "init", "facebook")
               send_text(sender_id, "Select a game that you need help with. Type cancel anytime to end this conversation.", topic_quick_replies())
               
             else:
