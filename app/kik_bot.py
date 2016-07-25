@@ -280,7 +280,6 @@ class KikBot(tornado.web.RequestHandler):
       elif isinstance(message, StartChattingMessage):
         print "%d\t-= StartChattingMessage =-= " % (int(time.time()))
         
-        print "%d\tdelayed_kik_send"% (int(time.time()))
         kik.send_messages([
           TextMessage(
             to = message.from_user,
