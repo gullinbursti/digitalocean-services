@@ -1,0 +1,11 @@
+[Unit]
+Description=steam stats in python via tornado
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/var/opt/SteamStats.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
