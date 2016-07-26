@@ -406,7 +406,7 @@ def slack():
               end_chat(help_session, False)
 
             else:
-              send_text(sender_id, "%s coach:\n%s" % (quote(help_session['topic_name'].encode('utf-8')), message))
+              send_text(sender_id, "%s coach:\n%s" % (help_session['topic_name'], message))
               
 
     except mdb.Error, e:
