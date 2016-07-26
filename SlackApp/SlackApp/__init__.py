@@ -42,9 +42,11 @@ Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
+Const.WEBHOOK_KIKBOT = 'http://76.102.12.47:8890'
+Const.WEBHOOK_FBBOT = 'https://gamebot.tv'
+
 Const.SLACK_FORM_TOKEN = 'gh8BzyQqu0tVK2cot58iqJFN'
 Const.SLACK_AUTH_TOKEN = 'xoxb-62712469858-QAmGTuRLktyYuMI79193Kfow'
-
 
 Const.WEBHOOK_CSGO = 'https://hooks.slack.com/services/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'
 Const.WEBHOOK_DOTA2 = 'https://hooks.slack.com/services/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'
@@ -70,7 +72,7 @@ def on_message(ws, message):
           'text': "%s %s %s" % (row[5], row[6], message_json['text'])
         }
         
-        response = requests.post("http://76.102.12.47:8891/slack", data=payload)
+        response = requests.post("{webhook}/slack".format(webhook=), data=payload)
         
         
         # payload = json.dumps({
@@ -181,8 +183,8 @@ def button():
           'channel': im_channel
         })
         
-        thread = unirest.post("http://76.102.12.47:8891/im", params=payload)
-        #response = requests.post("http://76.102.12.47:8891/im", data=payload)
+        thread = unirest.post("{webhook}/im".format(webhook=Const.WEBHOOK_KIKBOT), params=payload)
+        #response = requests.post("{webhook}/im".format(webhook=Const.WEBHOOK_KIKBOT), data=payload)
         
         
         try:
@@ -251,8 +253,8 @@ def commands(command):
       #   pass
       #     
       # if payload is not None:
-      #   thread = unirest.post("http://76.102.12.47:8891/slack", params=payload)
-      #   #response = requests.post("http://76.102.12.47:8891/slack", data=payload)
+      #   thread = unirest.post("{webhook}/slack".format(webhook=Const.WEBHOOK_KIKBOT), params=payload)
+      #   #response = requests.post("{webhook}/slack".format(webhook=Const.WEBHOOK_KIKBOT), data=payload)
         
       return "_Help session closed._", 200
     
