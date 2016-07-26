@@ -113,9 +113,12 @@ def end_help(to_user, chat_id, user_action=True):
     ])
     
   if chat_id in help_convos:
-    _obj = slack_webhooks[help_convos[chat_id]['game']]
-    print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
-    modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
+    if user_action:
+      # _obj = slack_webhooks[help_convos[chat_id]['game']]
+      # print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
+      #modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
+      modd.utils.slack_im(help_convos[chat_id], "Help session closed.")
+    
     del help_convos[chat_id]
     
     
@@ -451,12 +454,9 @@ class KikBot(tornado.web.RequestHandler):
               'game': gameHelpList[message.from_user],
               'ignore_streak': 0,
               'started': int(time.time()),
-              'messages': []
+              'messages': [],
+              'im_channel': ""
             }
-          
-            _obj = slack_webhooks[gameHelpList[message.from_user]]
-            print "%d\t_obj FOR slack_webhooks[gameHelpList[%s]] : %s" % (int(time.time()), message.from_user, _obj)
-            modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
           
             kik.send_messages([
               TextMessage(
@@ -488,6 +488,11 @@ class KikBot(tornado.web.RequestHandler):
               )
             ])
             time.sleep(2)
+            
+            # _obj = slack_webhooks[gameHelpList[message.from_user]]
+            # print "%d\t_obj FOR slack_webhooks[gameHelpList[%s]] : %s" % (int(time.time()), message.from_user, _obj)
+            # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
+            modd.utils.slack_send(help_convos[message.chat_id], message.body, message.from_user)
             
             kik.send_messages([
               TextMessage(
@@ -535,9 +540,10 @@ class KikBot(tornado.web.RequestHandler):
               
             # -=-=-=-=-=-=-=-=-=- CONTIUNE SESSION -=-=-=-=-=-=-=-
             else:
-              _obj = slack_webhooks[help_convos[message.chat_id]['game']]
-              print "%d\t_obj FOR (help_convos[%s]['game'] : %s" % (int(time.time()), message.chat_id, _obj)
-              modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], "_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
+              # _obj = slack_webhooks[help_convos[message.chat_id]['game']]
+              # print "%d\t_obj FOR (help_convos[%s]['game'] : %s" % (int(time.time()), message.chat_id, _obj)
+              # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], "_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
+              modd.utils.slack_im(help_convos[message.chat_id], message.body)
               
               self.set_status(200)            
               return
@@ -624,7 +630,21 @@ class Slack(tornado.web.RequestHandler):
           
     self.set_status(200)          
     return
-          
+
+class InstantMessage(tornado.web.RequestHandler):
+  def set_default_headers(self):
+    self.set_header("Access-Control-Allow-Origin", "*")
+    self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+    
+  def post(self):
+    print "%d\t=-=-=-=-=-=-=-=-=-=-= SLACK IM =-=-=-=-=-=-=-=-=-=-=" % (int(time.time()))
+    data = tornado.escape.json_decode(self.request.body)
+    print "%d\tpayload:%s" % (int(time.time()), data)
+    
+    help_convos[data['chat_id']]['im_channel'] = data['channel']
+    
+    
 
 #subscribersForStreamer = {}
 gameHelpList = {}
@@ -653,6 +673,21 @@ slack_webhooks = fetch_slack_webhooks()
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
 
 
+Const.KIK_API_CONFIG = {
+  'USERNAME': "gamebots.beta",
+  'API_KEY': "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+  'WEBHOOK': {
+    'HOST': "http://76.102.12.47",
+    'PORT': 8890,
+    'PATH': "kik"
+  },
+
+  'FEATURES': {
+    'receiveDeliveryReceipts': True,
+    'receiveReadReceipts': True
+  }
+}
+
 # Const.KIK_API_CONFIG = {
 #   'USERNAME': "streamcard",
 #   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
@@ -668,20 +703,20 @@ slack_webhooks = fetch_slack_webhooks()
 #   }
 # }
 
-Const.KIK_API_CONFIG = {
-  'USERNAME': "game.bots",
-  'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-  'WEBHOOK': {
-    'HOST': "http://159.203.250.4",
-    'PORT': 8080,
-    'PATH': "kik"
-  },
-
-  'FEATURES': {
-    'receiveDeliveryReceipts': True,
-    'receiveReadReceipts': True
-  }
-}
+# Const.KIK_API_CONFIG = {
+#   'USERNAME': "game.bots",
+#   'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
+#   'WEBHOOK': {
+#     'HOST': "http://159.203.250.4",
+#     'PORT': 8090,
+#     'PATH': "kik"
+#   },
+# 
+#   'FEATURES': {
+#     'receiveDeliveryReceipts': True,
+#     'receiveReadReceipts': True
+#   }
+# }
 
 Const.KIK_CONFIGURATION = Configuration(
   webhook = "%s:%d/%s" % (Const.KIK_API_CONFIG['WEBHOOK']['HOST'], Const.KIK_API_CONFIG['WEBHOOK']['PORT'], Const.KIK_API_CONFIG['WEBHOOK']['PATH']),
@@ -717,7 +752,8 @@ application = tornado.web.Application([
   # (r"/kikNotify", Notify), 
   # (r"/notify", Notify),`
   # (r"/message", Message),
-  (r"/slack", Slack)
+  (r"/slack", Slack),
+  (r"/im", InstantMessage)
 ])
 
 

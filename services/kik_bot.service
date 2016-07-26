@@ -1,12 +1,12 @@
+
 [Unit]
-Description= kikbot in python via tornado
+Description= kik bot in python via tornado
 After=network.target
 
 [Service]
 Type=simple
-ExecStart= /usr/local/bin/kikbot
+ExecStart= /usr/local/bin/kik_bot
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-
