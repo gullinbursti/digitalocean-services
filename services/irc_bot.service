@@ -1,0 +1,11 @@
+[Unit]
+Description= help request irc bot
+After=network.target
+
+[Service]
+Type=simple
+ExecStart= /usr/local/bin/irc_bot.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
