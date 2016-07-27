@@ -1,100 +1,88 @@
-import socket, string
-import time, requests
 
-import MySQLdb as mysql
-
-
-DB_HOST = 'external-db.s4086.gridserver.com'
-DB_NAME = 'db4086_modd'
-DB_USER = 'db4086_modd_usr'
-DB_PASS = 'f4zeHUga.age'
+import os, sys
+import socket, requests
+import time, string, json
 
 
-SERVER = 'irc.chat.twitch.tv'
-PORT = 6667
-POST_MESSAGE = 'I recommend you to help me with gamename inside of GameBots! For details please Kik: GameBots.Player'
-LEAVE_INTERVAL = 3
+IRC_SERVER = 'irc.chat.twitch.tv'
+IRC_PORT = 6667
+BUFFER_SIZE = 4096
 
-def next_request():
-  _obj = {}
+
+def connect_server():
+  irc_socket.connect((IRC_SERVER, IRC_PORT))
   
-  try:
-    conn = mysql.connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    with conn:
-      cur = conn.cursor(mysql.cursors.DictCursor)
-      cur.execute("SELECT `id`, `channel`, `username`, `oauth_token` FROM `help_requests` WHERE `enabled` = 1 ORDER BY `added` LIMIT 1;")
-      
-      if cur.rowcount == 1:
-        row = cur.fetchone()
-        _obj = {
-          'id': row['id'],
-          'username': row['username'],
-          'password': "oauth:{token}".format(token=row['oauth_token']),
-          'channel': "#{channel}".format(channel=row['channel'])
-        }
-        print "HELP REQUESTED: ({username})-> ({channel_name})".format(username=_obj['username'], channel_name=_obj['channel'])
-        
-        cur.execute("UPDATE `help_requests` SET `enabled` = 0 WHERE `id` = %d LIMIT 1;" % (_obj['id']))
-
-  except mdb.Error, e:
-    print "MySQL Error #{errno}: {errinfo}".format(errno=e.args[0], errinfo=e.args[1])
-
-  finally:
-    if conn:
-      conn.close()
-      
-    return _obj
-  
-
-def irc_connect():
-  irc_socket.connect((SERVER, PORT))
+def disconnect_server():
+  send_command("QUIT :Bye!")
 
 def login(nickname='nickname', password='oauth:'):
-  send_command("PASS %s" % (password))
-  send_command("NICK %s" % (nickname))
+  send_command("PASS {pwrd}".format(pwrd=password))
+  send_command("NICK {nick}".format(nick=nickname))
 
 def join_channel(channel):
-  send_command("JOIN %s" % (channel))
+  send_command("JOIN #{chan}".format(chan=channel.lower()))
   
 def leave_channel(channel):
-  send_command("PART %s" % (channel))
+  send_command("PART #{chan}".format(chan=channel.lower()))
 
 def send_message(channel, message):
-  send_command("PRIVMSG %s :%s" % (channel, message))
+  send_command("PRIVMSG #{chan} :{msg}".format(chan=channel.lower(), msg=message))
 
 def send_command(command):
-  # print "[::] sending command - %s" % (command)
-  irc_socket.send("%s\n" % (command))
-
-
-
-# request_obj = {
-#   'username': "streamcard_tv",
-#   'password': "oauth:hexvgjgs5jsz99lfwddin2ij3a4f1m",
-#   'channel': "#matty_devdev"
-# }
-
-
-request_obj = next_request()
-if request_obj:
-  irc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-  irc_connect()
-  login(request_obj['username'], request_obj['password'])
-  join_channel(request_obj['channel'])
-
-
-  messages = []
-  while not "PART" in messages:
-    buff = irc_socket.recv(1024)
-    messages = string.split(buff)
+  print "[::] sending command - {cmd}".format(cmd=command)
+  
+  try:
+    irc_socket.send("{cmd}\r\n".format(cmd=command))
     
-    if len(messages) > 0:
-      if messages[0] == "PING":
-        send_command("PONG %s" % (messages[1]))
-      
-      if messages[1] == "JOIN":
-        send_message(request_obj['channel'], POST_MESSAGE)
-        time.sleep(LEAVE_INTERVAL)
-        leave_channel("%s" % (request_obj['channel']))
-      
+  except socket.error:
+    print "socket.error!"
+
+
+
+#-- define socket
+irc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+connect_server()
+
+#-- initiate irc
+login(sys.argv[1], "oauth:{token}".format(token=sys.argv[2]))
+
+
+
+messages = []
+timestamp = 0
+
+#-- hasn't left
+while "PART" not in messages:
+  messages = string.split(irc_socket.recv(BUFFER_SIZE))
+  
+  #-- leave flag
+  if "PONG" in messages and messages[-1][1:] == str(timestamp):
+    timestamp = 0
+    leave_channel(sys.argv[3])
+   
+  #-- received something
+  if len(messages) > 0:
+    print messages
+ 
+  #-- connected, join channel
+  if messages[0][1:] == "tmi.twitch.tv" and messages[1] == "001":
+    join_channel(sys.argv[3])
+
+  #-- pong back
+  if messages[0] == "PING":
+    send_command("PONG {msg}".format(msg=messages[1]))
+
+  #-- join flag
+  if messages[1] == "JOIN":
+    pass
+
+  #-- deliver message after getting names list
+  if len(messages) >= 2 and messages[-2] == "/NAMES":
+    send_message(sys.argv[3], "I recommend you to help me with {game_name} inside of GameBots! For details please Kik: GameBots.Player".format(game_name=sys.argv[4]))
+    time.sleep(1)
+    timestamp = int(time.time())
+    send_command("PING %d" % (timestamp))
+    
+    
+#-- drop connection
+disconnect_server()
