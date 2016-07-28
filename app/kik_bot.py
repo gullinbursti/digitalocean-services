@@ -122,6 +122,9 @@ def end_help(to_user, chat_id, user_action=True):
     del help_convos[chat_id]
     
     
+  
+    
+    
   time.sleep(3)
   cancel_session(to_user, chat_id)
   
@@ -673,6 +676,38 @@ slack_webhooks = fetch_slack_webhooks()
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
 
 
+# Const.KIK_API_CONFIG = {
+#   'USERNAME': "streamcard",
+#   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
+#   'WEBHOOK': {
+#     'HOST': "http://76.102.12.47",
+#     'PORT': 8070,
+#     'PATH': "kik"
+#   },
+# 
+#   'FEATURES': {
+#     'receiveDeliveryReceipts': True,
+#     'receiveReadReceipts': True
+#   }
+# }
+
+
+# Const.KIK_API_CONFIG = {
+#   'USERNAME': "game.bots",
+#   'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
+#   'WEBHOOK': {
+#     'HOST': "http://159.203.250.4",
+#     'PORT': 8080,
+#     'PATH': "kik"
+#   },
+# 
+#   'FEATURES': {
+#     'receiveDeliveryReceipts': True,
+#     'receiveReadReceipts': True
+#   }
+# }
+
+
 Const.KIK_API_CONFIG = {
   'USERNAME': "gamebots.beta",
   'API_KEY': "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
@@ -688,35 +723,7 @@ Const.KIK_API_CONFIG = {
   }
 }
 
-# Const.KIK_API_CONFIG = {
-#   'USERNAME': "streamcard",
-#   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
-#   'WEBHOOK': {
-#     'HOST': "http://76.102.12.47",
-#     'PORT': 8890,
-#     'PATH': "kik"
-#   },
-# 
-#   'FEATURES': {
-#     'receiveDeliveryReceipts': True,
-#     'receiveReadReceipts': True
-#   }
-# }
 
-# Const.KIK_API_CONFIG = {
-#   'USERNAME': "game.bots",
-#   'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-#   'WEBHOOK': {
-#     'HOST': "http://159.203.250.4",
-#     'PORT': 8090,
-#     'PATH': "kik"
-#   },
-# 
-#   'FEATURES': {
-#     'receiveDeliveryReceipts': True,
-#     'receiveReadReceipts': True
-#   }
-# }
 
 Const.KIK_CONFIGURATION = Configuration(
   webhook = "%s:%d/%s" % (Const.KIK_API_CONFIG['WEBHOOK']['HOST'], Const.KIK_API_CONFIG['WEBHOOK']['PORT'], Const.KIK_API_CONFIG['WEBHOOK']['PATH']),

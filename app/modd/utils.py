@@ -29,7 +29,8 @@ def sendTracker(category, action, label):
   print "sendTracker(category=%s, action=%s, label=%s)" % (category, action, label)
   
   
-  _response = urllib2.urlopen("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)))
+  _response = requests.get("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)))
+  # _response = urllib2.urlopen("http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (str(category), str(action), str(label)))
   
   
   
