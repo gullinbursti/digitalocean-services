@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import MySQLdb as mdb
 import json
 import time
 import requests
@@ -72,7 +71,7 @@ def on_message(ws, message):
           'text': "%s %s %s" % (row[5], row[6], message_json['text'])
         }
         
-        response = requests.post("{webhook}/slack".format(webhook=), data=payload)
+        response = requests.post("{webhook}/slack".format(webhook=Const.WEBHOOK_KIKBOT), data=payload)
         
         
         # payload = json.dumps({
