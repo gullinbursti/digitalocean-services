@@ -10,23 +10,33 @@ BUFFER_SIZE = 4096
 
 
 def connect_server():
-  irc_socket.connect((IRC_SERVER, IRC_PORT))
+  try:
+    irc_socket.connect((IRC_SERVER, IRC_PORT))
+    
+  except socket.error:
+    print "socket.error!"
+    
   
 def disconnect_server():
   send_command("QUIT :Bye!")
+  
 
 def login(nickname='nickname', password='oauth:'):
   send_command("PASS {pwrd}".format(pwrd=password))
   send_command("NICK {nick}".format(nick=nickname))
+  
 
 def join_channel(channel):
   send_command("JOIN #{chan}".format(chan=channel.lower()))
   
+  
 def leave_channel(channel):
   send_command("PART #{chan}".format(chan=channel.lower()))
+  
 
 def send_message(channel, message):
   send_command("PRIVMSG #{chan} :{msg}".format(chan=channel.lower(), msg=message))
+  
 
 def send_command(command):
   print "[::] sending command - {cmd}".format(cmd=command)
@@ -38,24 +48,20 @@ def send_command(command):
     print "socket.error!"
 
 
+messages = []
+timestamp = 0
 
 #-- define socket
 irc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connect_server()
-
-#-- initiate irc
 login(sys.argv[1], "oauth:{token}".format(token=sys.argv[2]))
 
-
-
-messages = []
-timestamp = 0
 
 #-- hasn't left
 while "PART" not in messages:
   messages = string.split(irc_socket.recv(BUFFER_SIZE))
   
-  #-- leave flag
+  #-- leave after PONG
   if "PONG" in messages and messages[-1][1:] == str(timestamp):
     timestamp = 0
     leave_channel(sys.argv[3])
@@ -64,7 +70,7 @@ while "PART" not in messages:
   if len(messages) > 0:
     print messages
  
-  #-- connected, join channel
+  #-- welcome message, join channel
   if messages[0][1:] == "tmi.twitch.tv" and messages[1] == "001":
     join_channel(sys.argv[3])
 
