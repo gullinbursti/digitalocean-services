@@ -9,6 +9,8 @@
 		<dict>
 			<key>filename</key>
 			<string>.ftpssh_settings</string>
+			<key>lastUsed</key>
+			<date>2016-07-30T00:43:22Z</date>
 		</dict>
 		<dict>
 			<key>expanded</key>
@@ -35,35 +37,33 @@
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
+		<key>.ftpssh_settings</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>19</integer>
+				<key>line</key>
+				<integer>6</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+		</dict>
 		<key>FacebookBot/FacebookBot/__init__.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>138</integer>
+				<integer>40</integer>
 				<key>line</key>
-				<integer>425</integer>
+				<integer>82</integer>
 			</dict>
-			<key>columnSelection</key>
-			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>12</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>2</integer>
-				<key>line</key>
-				<integer>425</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>138</integer>
-				<key>line</key>
-				<integer>425</integer>
-			</dict>
+			<integer>69</integer>
 		</dict>
 		<key>FacebookBot/FacebookBot/const.py</key>
 		<dict>
@@ -93,16 +93,32 @@
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
+		<key>sites-available/FacebookBot.conf</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>18</integer>
+				<key>line</key>
+				<integer>17</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>FacebookBot/FacebookBot/__init__.py</string>
+		<string>sites-available/FacebookBot.conf</string>
+		<string>.ftpssh_settings</string>
 		<string>FacebookBot/FacebookBot/const.py</string>
 		<string>FacebookBot/facebookbot.wsgi</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{1597, -157}, {1339, 874}}</string>
+	<string>{{10, 4}, {1230, 874}}</string>
 </dict>
 </plist>

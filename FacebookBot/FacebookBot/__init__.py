@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+
 import os
 import sys
 import json
@@ -283,11 +286,16 @@ def help_session_state(sender_id):
   try:
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     cur = conn.cursor()
-    cur.execute("SELECT state FROM help_sessions WHERE sender_id = \'{sender_id}\' AND state < 4 ORDER BY added DESC LIMIT 1".format(sender_id=sender_id))
+    #cur.execute("SELECT state FROM help_sessions WHERE sender_id = \'{sender_id}\' AND state < 4 ORDER BY added DESC LIMIT 1".format(sender_id=sender_id))
+    cur.execute("SELECT state FROM help_sessions WHERE sender_id = \'{sender_id}\' ORDER BY added DESC LIMIT 1".format(sender_id=sender_id))
     row = cur.fetchone()
 
     if row is not None:
-      help_state = row[0]
+      if row[0] < 4:
+        help_state = row[0]
+        
+      else:
+        help_state = -1
 
     conn.close()
     logger.info("help_state={help_state}".format(help_state=help_state))
@@ -400,13 +408,13 @@ def slack():
               'ended': help_session['ended'],
               'topic_name': help_session['topic_name']
             })
-
+            
             if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
               logger.info("-=- ENDING HELP -=- ({timestamp})".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
-              end_chat(help_session, False)
-
+              end_help(help_session, False)
+            
             else:
-              send_text(sender_id, "%s coach:\n%s" % (help_session['topic_name'], message))
+              send_text(sender_id, "{topic_name} coach:\n{message}".format(topic_name=help_session['topic_name'], message=message))
               
 
     except mdb.Error, e:
@@ -559,13 +567,10 @@ def webook():
             
             slack_send(help_session['topic_name'], "Requesting help: *{sender_id}*\n_\"{message_text}\"_".format(sender_id=sender_id, message_text=message_text), sender_id)
             
-            send_text(sender_id, "Locating %s coaches..." % (help_session['topic_name']))
+            send_text(sender_id, "Locating {topic_name} coaches...".format(topic_name=help_session['topic_name']))
             gevent.sleep(3)
             
-            send_text(sender_id, "Locating %s coaches..." % (help_session['topic_name']))
-            gevent.sleep(3)
-            
-            send_text(sender_id, "Your question has been added to the %s queue and will be answered shortly." % (help_session['topic_name']))
+            send_text(sender_id, "Your question has been added to the {topic_name} queue and will be answered shortly.".format(topic_name=help_session['topic_name']))
             gevent.sleep(2)
             
             send_text(sender_id, "Pro tip: Keep asking questions, each will be added to your queue! Type Cancel to end the conversation.")
@@ -646,9 +651,9 @@ def webook():
                 'topic_name': help_session['topic_name']
               })
               
-              if quick_reply.split("_")[-1] == "more-details":
-                gevent.sleep(3)
-                help_session = start_help(help_session['sender_id'])
+              # if quick_reply.split("_")[-1] == "more-details":
+              #   gevent.sleep(3)
+              #   help_session = start_help(help_session['sender_id'])
           
           #-- completed
           elif help_state == 4:
@@ -672,7 +677,7 @@ def webook():
 
 
 def send_text(recipient_id, message_text, quick_replies=[]):
-  logger.info("sending message to {recipient}: {text}".format(recipient=recipient_id, text=message_text))
+  #logger.info("send_text(recipient_id={recipient}, message_text={text}, quick_replies={quick_replies})".format(recipient=recipient_id, text=message_text, quick_replies=quick_replies))
   data = {
     "recipient": {
       "id": recipient_id
