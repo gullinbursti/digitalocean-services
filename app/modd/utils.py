@@ -13,8 +13,6 @@ import pycurl
 import cStringIO
 
 
-
-
 def lan_ip():
   return "0.0.0.0"
 
@@ -24,18 +22,17 @@ class AsyncHTTPHandler(urllib2.HTTPHandler):
     print "response.geturl(%s)" % (response.geturl())
     return response
 
-
 def sendTracker(category, action, label):
   print "sendTracker(category=%s, action=%s, label=%s)" % (category, action, label)
   
   
-  buf = cStringIO.StringIO()
-  c = pycurl.Curl()
-  c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (category, action, label))
-  c.setopt(c.WRITEFUNCTION, buf.write)
-  c.setopt(c.CONNECTTIMEOUT, 5)
-  c.setopt(c.TIMEOUT, 8)
-  c.setopt(c.FAILONERROR, True)
+  # buf = cStringIO.StringIO()
+  # c = pycurl.Curl()
+  # c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (category, action, label))
+  # c.setopt(c.WRITEFUNCTION, buf.write)
+  # c.setopt(c.CONNECTTIMEOUT, 5)
+  # c.setopt(c.TIMEOUT, 8)
+  # c.setopt(c.FAILONERROR, True)
    
 #-- POST REQ -->
   #c.setopt(c.POSTFIELDS, 'pizza=Quattro+Stagioni&extra=cheese')
@@ -43,13 +40,13 @@ def sendTracker(category, action, label):
 #-- HEADER -->
   #c.setopt(c.HTTPHEADER, ['Accept: text/html', 'Accept-Charset: UTF-8'])
    
-  try:
-    c.perform()
-    print "buf.getVal()=%s" % (buf.getValue())
-    buf.close()
-  
-  except:
-    print("GA ERROR!")
+  # try:
+  #   c.perform()
+  #   print "buf.getVal()=%s" % (buf.getValue())
+  #   buf.close()
+  # 
+  # except:
+  #   print("GA ERROR!")
   
   return True
 
@@ -79,11 +76,17 @@ def sendTracker(category, action, label):
     
     # print "--> AsyncHTTPHandler :: _o=%s" % (_o)
   return
+  
+def slack_im(convo, message):
+  print "slack_im(convo=%s, message=%s)" % (convo, message)
+
+  message_body = "*{from_user}* from _Kik_ says:\n_\"{message}\"_".format(from_user=convo['username'], message=message)
+  response = requests.get("https://slack.com/api/chat.postMessage?token=xoxb-62712469858-QAmGTuRLktyYuMI79193Kfow&channel={im_channel}&text={message_body}&as_user=true&pretty=1".format(im_channel=convo['im_channel'], message_body=message_body))
+  return
 
 
 def slack_send(channel, webhook, message_txt, from_user="game.bots"):
   print "slack_send(channel=%s, webhook=%s, message_txt=%s, from_user=%s)" % (channel, webhook, message_txt, from_user)
-  
   
   payload = json.dumps({
     'channel': "#" + channel, 
