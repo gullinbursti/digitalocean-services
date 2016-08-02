@@ -41,7 +41,7 @@ Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
-Const.WEBHOOK_KIKBOT = 'http://76.102.12.47:8890'
+Const.WEBHOOK_KIKBOT = 'http://159.203.250.4:8080'
 Const.WEBHOOK_FBBOT = 'https://gamebot.tv'
 
 Const.SLACK_FORM_TOKEN = 'gh8BzyQqu0tVK2cot58iqJFN'

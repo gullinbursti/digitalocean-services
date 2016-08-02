@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>../curl-webhooks.txt</string>
+	<string>SlackApp/SlackApp/__init__.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -34,9 +34,7 @@
 			<key>filename</key>
 			<string>../curl-webhooks.txt</string>
 			<key>lastUsed</key>
-			<date>2016-07-30T00:58:19Z</date>
-			<key>selected</key>
-			<true/>
+			<date>2016-08-02T18:28:20Z</date>
 		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
@@ -55,37 +53,21 @@
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>88</integer>
+			<integer>0</integer>
 		</dict>
 		<key>SlackApp/SlackApp/__init__.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>26</integer>
+				<integer>49</integer>
 				<key>line</key>
-				<integer>69</integer>
+				<integer>46</integer>
 			</dict>
-			<key>columnSelection</key>
-			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>241</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>20</integer>
-				<key>line</key>
-				<integer>69</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>44</integer>
-				<key>line</key>
-				<integer>69</integer>
-			</dict>
+			<integer>21</integer>
 		</dict>
 		<key>SlackApp/SlackApp/const.py</key>
 		<dict>
