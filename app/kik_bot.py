@@ -51,7 +51,7 @@ def default_keyboard():
     SuggestedResponseKeyboard(
       hidden = False,
       responses = [
-        #TextResponse(u"Pokemon Go"),
+        #TextResponse(u"Pokémon Go"),
         TextResponse(u"Pokemon Go"),
         TextResponse("Dota 2"),
         TextResponse("League of Legends"),
@@ -147,8 +147,8 @@ def fetch_slack_webhooks():
     
     for row in c.fetchall():
       _obj[row[0]] = {
-        'channel_name': row[1],
-        'webhook':row[2]
+        'channel_name'  : row[1],
+        'webhook'       : row[2]
       }
     
     conn.close()
@@ -274,9 +274,6 @@ def end_help(to_user, chat_id, user_action=True):
   
   if chat_id in help_convos:
     if user_action:
-      # _obj = slack_webhooks[help_convos[chat_id]['game']]
-      # print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
-      #modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
       modd.utils.slack_im(help_convos[chat_id], "Help session closed.")
     
     del help_convos[chat_id]
@@ -343,14 +340,9 @@ class KikBot(tornado.web.RequestHandler):
             to = message.from_user,
             chat_id = message.chat_id,
             body = "I'm sorry, I cannot understand that type of message.",
-            type_time = 20
+            type_time = 250
           ),
-          TextMessage(
-            to = message.from_user,
-            chat_id = message.chat_id,
-            body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
-            keyboards = default_keyboard()
-          )
+          default_text_reply(message=message, delay=500)
         ])
         
         self.set_status(200)
@@ -371,83 +363,8 @@ class KikBot(tornado.web.RequestHandler):
         print "%d\t-= StartChattingMessage =-= " % (int(time.time()))
         
         welcome_intro_seq(message)
-        
-        # kik.send_messages([
-        #   TextMessage(
-        #     to = message.from_user,
-        #     chat_id = message.chat_id,
-        #     body = u"Welcome to GameBots!",
-        #     type_time = 250,
-        #   ),
-        #   TextMessage(
-        #     to = message.from_user,
-        #     chat_id = message.chat_id,
-        #     body = u"Become a better eSports player with GameBots live chat support.",
-        #     type_time = 300,
-        #     delay = 1500
-        #   ),
-        #   TextMessage(
-        #     to = message.from_user,
-        #     chat_id = message.chat_id,
-        #     body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
-        #     type_time = 500,
-        #     delay = 3000,
-        #     keyboards = default_keyboard()
-        #   )
-        # ])
-        
-        
-        # requests.post(
-        #   'https://api.kik.com/v1/message',
-        #   auth=('game.bots', '0fb46005-dd00-49c3-a4a5-239a0bdc1e79'),
-        #   headers={
-        #     'Content-Type': 'application/json'
-        #   },
-        #   data=json.dumps({
-        #     'messages': [
-        #       {
-        #         'body': 'bar', 
-        #         'to': 'jamiealbn', 
-        #         'type': 'text', 
-        #         'chatId': 'c64af52a1bb4bc75588e3fcea588661857c60c6f952c20ba90407b332933bd0f',
-        #         "keyboards": [
-        #           {
-        #             "to": "jamiealbn",
-        #             "hidden": False,
-        #             "type": "suggested",
-        #             "responses": [
-        #               {
-        #                 "type": "text",
-        #                 "body": "Good :)"
-        #               },
-        #               {
-        #                 "type": "text",
-        #                 "body": "Not so good :("
-        #               }
-        #             ]
-        #           },
-        #           {
-        #             "type": "suggested",
-        #             "hidden": False,
-        #             "responses": [
-        #               {
-        #                 "type": "text",
-        #                 "body": "Excellent :D"
-        #               },
-        #               {
-        #                 "type": "text",
-        #                 "body": "Super bad D:"
-        #               }
-        #             ]
-        #           }
-        #         ]
-        #       }
-        #     ]
-        #   })
-        # )
-        
-        # self.set_status(200)
-        # return
+        self.set_status(200)
+        return
         
       
       # -=-=-=-=-=-=-=-=- TEXT MESSAGE -=-=-=-=-=-=-=-=-
@@ -510,10 +427,8 @@ class KikBot(tornado.web.RequestHandler):
           
           
           # -=-=-=-=-=-=-=-=-=- FAQ BUTTONS -=-=-=-=-=-=-=-=-=-
-          #elif message.body.find("FAQ") > -1 or message.body == u"Ask Another Question":
           elif message.body == u"More Details":
             if message.chat_id in help_convos:
-              # if message.body.find("FAQ") > -1:
               faq_arr = fetch_faq(help_convos[message.chat_id]['game'])
               print "faq_arr:%s" % (faq_arr)
               
@@ -550,22 +465,22 @@ class KikBot(tornado.web.RequestHandler):
             
             #-- data obj/ now in active session
             help_convos[message.chat_id] = {
-              'chat_id': message.chat_id,
-              'username': message.from_user,
-              'game': gameHelpList[message.from_user],
-              'ignore_streak': 0,
-              'started': int(time.time()),
-              'messages': [],
-              'im_channel': ""
+              'chat_id'       : message.chat_id,
+              'username'      : message.from_user,
+              'game'          : gameHelpList[message.from_user],
+              'ignore_streak' : 0,
+              'started'       : int(time.time()),
+              'messages'      : [],
+              'replies'       : [],
+              'im_channel'    : ""
             }
   
-            kik.send_broadcast([
+            kik.send_messages([
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
                 body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
-                type_time = 250,
-                delay = 0
+                type_time = 250
               ),
               
               TextMessage(
@@ -576,10 +491,8 @@ class KikBot(tornado.web.RequestHandler):
                 delay = 1500
               )
             ])
-
             
-            # _obj = slack_webhooks[help_convos[message.chat_id]['game']]
-            # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], message.body, message.from_user)
+            
             modd.utils.slack_send(help_convos[message.chat_id], message.body, message.from_user)
             
             del gameHelpList[message.from_user]
@@ -645,14 +558,14 @@ class KikBot(tornado.web.RequestHandler):
           #-- anything else, prompt with 4 topics
           if len(gameHelpList) == 0 and len(help_convos) == 0:
             kik.send_messages([
-              default_text_reply(message)
+              default_text_reply(message=message)
             ])
             
             self.set_status(200)
             return
         
-    self.set_status(200)
-    return
+      self.set_status(200)
+      return
         
 
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
@@ -664,7 +577,7 @@ class Slack(tornado.web.RequestHandler):
     self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
   
   def post(self):
-    print "%d\t=-=-=-=-=-=-=-=-=-=-= SLACK RESPONSE =-=-=-=-=-=-=-=-=-=-=" % (int(time.time()))
+    print "%d\t=-=-=-=-=-=-=-=-=-=-= SLACK RESPONSE =-=-=-=-=-=-=-=-=-=-=\n%s" % (int(time.time()), self.get_argument('text', ""))
     
     if self.get_argument('token', "") == "IJApzbM3rVCXJhmkSzPlsaS9":
       _arr = self.get_argument('text', "").split(' ')
@@ -676,42 +589,48 @@ class Slack(tornado.web.RequestHandler):
       message = " ".join(_arr).replace("'", "")
       to_user = ""
       
-      try:
-        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
-        with conn:
-          cur = conn.cursor(mdb.cursors.DictCursor)
-          cur.execute("SELECT `username` FROM `kikbot_logs` WHERE `chat_id` = '%s' ORDER BY `added` DESC LIMIT 1;" % (chat_id))
+      if len(help_convos[chat_id]['replies']) > 0 and help_convos[chat_id]['replies'][-1] == message:
+        pass
+        
+      else:
+        try:
+          conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+          with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute("SELECT `username` FROM `kikbot_logs` WHERE `chat_id` = '%s' ORDER BY `added` DESC LIMIT 1;" % (chat_id))
           
-          if cur.rowcount == 1:
-            row = cur.fetchone()
+            if cur.rowcount == 1:
+              row = cur.fetchone()
             
-            print "%d\thelp_convos:%s" % (int(time.time()), help_convos)
-            if chat_id in help_convos:
-              help_convos[chat_id]['ignore_streak'] = -1
-              to_user = row['username']
+              print "%d\thelp_convos:%s" % (int(time.time()), help_convos)
+              if chat_id in help_convos:
+                help_convos[chat_id]['ignore_streak'] = -1
+                to_user = row['username']
               
-              #print "%d\tto_user=%s, to_user=%s, chat_id=%s, message=%s" % (int(time.time()), to_user, chat_id, message)
+                #print "%d\tto_user=%s, to_user=%s, chat_id=%s, message=%s" % (int(time.time()), to_user, chat_id, message)
               
-              if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
-                print "%d\t-=- ENDING HELP -=-"
-                end_help(to_user, chat_id, False)
+                if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
+                  print "%d\t-=- ENDING HELP -=-"
+                  end_help(to_user, chat_id, False)
               
-              else:
-                kik.send_messages([
-                  TextMessage(
-                    to = to_user,
-                      chat_id = chat_id,
-                      body = "%s coach:\n%s" % (help_convos[chat_id]['game'], message),
-                      type_time = 250,
-                    )
-                ])
+                else:
+                  help_convos[chat_id]['replies'].append(message)
+                  
+                  kik.send_messages([
+                    TextMessage(
+                      to = to_user,
+                        chat_id = chat_id,
+                        body = "%s coach:\n%s" % (help_convos[chat_id]['game'], message),
+                        type_time = 250,
+                      )
+                  ])
       
-      except mdb.Error, e:
-        print "%d\tError %d: %s" % (e.args[0], e.args[1])
+        except mdb.Error, e:
+          print "%d\tError %d: %s" % (e.args[0], e.args[1])
       
-      finally:
-        if conn:
-          conn.close()
+        finally:
+          if conn:
+            conn.close()
     
     self.set_status(200)
     return
@@ -748,49 +667,49 @@ topics = fetch_topics()
 
 
 ##Const.KIK_API_CONFIG = {
-##   'USERNAME': "streamcard",
-##   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
-##   'WEBHOOK': {
-##     'HOST': "http://76.102.12.47",
-##     'PORT': 8080,
-##     'PATH': "kik"
+##   'USERNAME' : "streamcard",
+##   'API_KEY'  : "aa503b6f-dcda-4817-86d0-02cfb110b16a",
+##   'WEBHOOK'  : {
+##     'HOST' : "http://76.102.12.47",
+##     'PORT' : 8080,
+##     'PATH' : "kik"
 ##   },
 ##
 ##   'FEATURES': {
-##     'receiveDeliveryReceipts': True,
-##     'receiveReadReceipts': True
+##     'receiveDeliveryReceipts'  : True,
+##     'receiveReadReceipts'      : True
 ##   }
 ## }
 
 
 Const.KIK_API_CONFIG = {
-  'USERNAME': "game.bots",
-  'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-  'WEBHOOK': {
-    'HOST': "http://159.203.250.4",
-    'PORT': 8080,
-    'PATH': "kik"
+  'USERNAME'  : "game.bots",
+  'API_KEY'   : "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
+  'WEBHOOK'   : {
+    'HOST'  : "http://159.203.250.4",
+    'PORT'  : 8080,
+    'PATH'  : "kik"
   },
 
   'FEATURES': {
-    'receiveDeliveryReceipts': True,
-    'receiveReadReceipts': True
+    'receiveDeliveryReceipts' : True,
+    'receiveReadReceipts'     : True
   }
 }
 
 
 # Const.KIK_API_CONFIG = {
-#   'USERNAME': "gamebots.beta",
-#   'API_KEY': "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
-#   'WEBHOOK': {
-#     'HOST': "http://76.102.12.47",
-#     'PORT': 8080,
-#     'PATH': "kik"
+#   'USERNAME'  : "gamebots.beta",
+#   'API_KEY'   : "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+#   'WEBHOOK'   : {
+#     'HOST'  : "http://76.102.12.47",
+#     'PORT'  : 8080,
+#     'PATH'  : "kik"
 #   },
 #   
 #   'FEATURES': {
-#     'receiveDeliveryReceipts': True,
-#     'receiveReadReceipts': True
+#     'receiveDeliveryReceipts' : True,
+#     'receiveReadReceipts'     : True
 #   }
 # }
 
