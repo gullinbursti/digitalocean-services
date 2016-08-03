@@ -10,6 +10,7 @@ import urllib2
 import logging
 import random
 import sqlite3
+import re
 
 import websocket
 import thread
@@ -57,8 +58,8 @@ def on_message(ws, message):
   logger.info("WS:MESSAGE :::::::::::::{message}".format(message=message))
   message_json = json.loads(message)
   
-  # message contains a user / channel / text
-  if 'user' in message_json and 'channel' in message_json and 'text' in message_json:  
+  #-- message contains a user / channel / text
+  if 'user' in message_json and 'channel' in message_json and 'text' in message_json:
     try:
       conn = sqlite3.connect("{script_path}/data/sqlite3/slackbot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
       cur = conn.cursor()
@@ -70,18 +71,9 @@ def on_message(ws, message):
           'token': "IJApzbM3rVCXJhmkSzPlsaS9",
           'text': "%s %s %s" % (row[5], row[6], message_json['text'])
         }
-        
+      
         response = requests.post("{webhook}/slack".format(webhook=Const.WEBHOOK_KIKBOT), data=payload)
-        
-        
-        # payload = json.dumps({
-        #   'id': int(time.time()),
-        #   'type': "message",
-        #   'channel': message_json['channel'],
-        #   'text': message_json['text']
-        # })
-        # ws.send(payload)
-
+            
       conn.close()
 
     except sqlite3.Error as er:
@@ -89,6 +81,8 @@ def on_message(ws, message):
 
     finally:
       pass
+        
+  return
     
     
 def on_error(ws, error):
@@ -145,9 +139,9 @@ def button():
   if data['token'] == Const.SLACK_FORM_TOKEN:
     if action == "yes":
       user_id = data['user']['id']
-      username = data['user']['name']    
+      username = data['user']['name']
       org_message = data['original_message']['attachments'][0]['text']
-      topic_name = data['original_message']['text'].split(" ")[2]
+      topic_name = re.match(".*requesting\ (.*)\ help.*", data['original_message']['text']).groups()[0]
       response_url = data['response_url']
     
       messenger = ""
@@ -159,12 +153,10 @@ def button():
         
       elif data['callback_id'].split("_")[0] == "kik":
         messenger = "Kik"
-    
-    
+        
     
       response_txt = "{username} has checked out *{from_user}*\'s question:\n_\"{org_message}\"_".format(username=username, from_user=from_user, org_message=org_message)
       dm_txt = quote("Now replying to *{from_user}* from _{messenger}_:\n_\"{org_message}\"_".format(from_user=from_user, messenger=messenger, org_message=org_message))
-      
       
       
       response = requests.get("https://slack.com/api/chat.postMessage?token={auth_token}&channel={user_id}&text={message}&as_user=true&pretty=1".format(auth_token=Const.SLACK_AUTH_TOKEN, user_id=user_id, message=dm_txt))
