@@ -64,7 +64,7 @@ def default_keyboard():
   return keyboard
   
 
-def default_text_reply(message, delay=0, type_time=0):
+def default_text_reply(message, delay=0, type_time=500):
   print "default_text_reply(message=%s)" % (message)
   
   return TextMessage(
@@ -105,41 +105,7 @@ def default_wait_reply(message):
       type_time = 500
     )
 
-<<<<<<< HEAD
-def end_help(to_user, chat_id, user_action=True):
-  print "%d\tend_help(to_user=\'%s\', chat_id=\'%s\', user_action=%d)" % (int(time.time()), to_user, chat_id, user_action)
-  
-  if not user_action:
-    kik.send_messages([
-      TextMessage(
-        to = to_user,
-        chat_id = chat_id,
-        body = u"This %s help session is now closed." % (help_convos[chat_id]['game']),
-        type_time = 250,
-      )
-    ])
-    
-  if chat_id in help_convos:
-    if user_action:
-      # _obj = slack_webhooks[help_convos[chat_id]['game']]
-      # print "%d\t_obj FOR help_convos[\'%s\'][\'%s\'] : %s" % (int(time.time()), chat_id, help_convos[chat_id]['game'], _obj)
-      #modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Help session closed_ : *%s*" % (chat_id), to_user)
-      modd.utils.slack_im(help_convos[chat_id], "Help session closed.")
-    
-    del help_convos[chat_id]
-    
-    
-  
-    
-    
-  time.sleep(3)
-  cancel_session(to_user, chat_id)
-  
-  return
-
-=======
  
->>>>>>> v1.0.1-resubmit
 
 #--:-- Model / Data Retrieval --:--#
 #-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
@@ -221,36 +187,58 @@ def fetch_faq(topic_name):
   return _arr
 
   
-  #--:-- Session Subpaths / In-Session Seqs --:--#
-  #-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
+#--:-- Session Subpaths / In-Session Seqs --:--#
+#-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
 
-def welcome_intro_seq(message):
-  participants = message.participants
-  participants.remove(message.from_user)
+def welcome_intro_seq(message, is_mention=False):
+  print "%d\twelcome_intro_seq(message=%s, is_mention=%d)" % (int(time.time()), message, is_mention)
   
-  print ("%s\tMENTION:\nCHAT ID:%s\nFROM:%s\nPARTICIPANT:%s" % (int(time.time()), mmessage.chat_id, message.from_user, participants[0]))
   modd.utils.sendTracker("bot", "init", "kik")
   
-  kik.send_messages([
-    TextMessage(
-      to = message.from_user,
-      chat_id = message.chat_id,
-      body = u"Welcome to GameBots looks like a friend has mentioned me!",
-      type_time = 333,
-      delay = 1750
-    ),
+  if is_mention:
+    participants = message.participants
+    participants.remove(message.from_user)
     
-    TextMessage(
-      to = message.from_user,
-      chat_id = message.chat_id,
-      body = u"Become a better eSports player with GameBots live chat support.",
-      type_time = 333,
-      delay = 2500
-    ),
-    default_txt_reply(message=message, delay=3500, type_time=333)
-  ])
+    print ("%d\tMENTION PARTICIPANT:%s" % (int(time.time()), participants[0]))
+    
+    kik.send_messages([
+      TextMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        body = u"Welcome to GameBots, looks like a friend has mentioned me!",
+        type_time = 500
+      ),
+    
+      TextMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        body = u"Become a better eSports player with GameBots live chat support.",
+        type_time = 500,
+        delay = 1250
+      ),
+      default_text_reply(message=message, delay=2750)
+    ])
+    
+    
+  else:
+    kik.send_messages([
+      TextMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        body = u"Welcome to GameBots!",
+        type_time = 333
+      ),
+    
+      TextMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        body = u"Become a better eSports player with GameBots live chat support.",
+        type_time = 500,
+        delay = 1000
+      ),
+      default_text_reply(message=message, delay=2500)
+    ])
 
-  
   return
 
 
@@ -299,7 +287,7 @@ def end_help(to_user, chat_id, user_action=True):
   return
 
 
-def cancel_session(to_user, chat_id, slack_channel=""):
+def cancel_session(to_user, chat_id):
   print "%d\tcancel_session(to_user=\'%s\', chat_id=\'%s\')" % (int(time.time()), to_user, chat_id)
   
   #-- send to kik user
@@ -307,19 +295,13 @@ def cancel_session(to_user, chat_id, slack_channel=""):
     TextMessage(
       to = to_user,
       chat_id = chat_id,
-      body = "Ok, Thanks for using GameBots!",#body = "Sounds good! Your GameBot is always here if you need help, just send me a message.",
+      body = "Ok, Thanks for using GameBots!",
       type_time = 250,
     )
   ])
   
-  if len(slack_channel) > 0 :
-    pass;
-
-    
-  
   if to_user in gameHelpList:
     del gameHelpList[to_user]
-  
   
   if chat_id in help_convos:
     del help_convos[chat_id]
@@ -339,7 +321,6 @@ class KikBot(tornado.web.RequestHandler):
   
   def post(self):
     print "%d\tself.request.headers.get('X-Kik-Signature')=%s" % (int(time.time()), self.request.headers.get('X-Kik-Signature'))
-    #print "%d\tself.request.body=%s" % (int(time.time()), self.request.body)
     print "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
     
     if not kik.verify_signature(self.request.headers.get('X-Kik-Signature'), self.request.body):
@@ -347,10 +328,11 @@ class KikBot(tornado.web.RequestHandler):
       self.set_status(403)
       return
     
+    
+    
     data_json = tornado.escape.json_decode(self.request.body)
     messages = messages_from_json(data_json["messages"])
     
-    #print "%d\t:: len(messages)=%d" % (int(time.time()), len(messages))
     for message in messages:
       
       # -=-=-=-=-=-=-=-=- UNSUPPORTED TYPE -=-=-=-=-=-=-=-=-
@@ -388,38 +370,84 @@ class KikBot(tornado.web.RequestHandler):
       elif isinstance(message, StartChattingMessage):
         print "%d\t-= StartChattingMessage =-= " % (int(time.time()))
         
-        kik.send_messages([
-          TextMessage(
-            to = message.from_user,
-            chat_id = message.chat_id,
-            body = u"Welcome to GameBots!",
-            type_time = 250,
-          )
-        ])
+        welcome_intro_seq(message)
         
-        time.sleep(2)
+        # kik.send_messages([
+        #   TextMessage(
+        #     to = message.from_user,
+        #     chat_id = message.chat_id,
+        #     body = u"Welcome to GameBots!",
+        #     type_time = 250,
+        #   ),
+        #   TextMessage(
+        #     to = message.from_user,
+        #     chat_id = message.chat_id,
+        #     body = u"Become a better eSports player with GameBots live chat support.",
+        #     type_time = 300,
+        #     delay = 1500
+        #   ),
+        #   TextMessage(
+        #     to = message.from_user,
+        #     chat_id = message.chat_id,
+        #     body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
+        #     type_time = 500,
+        #     delay = 3000,
+        #     keyboards = default_keyboard()
+        #   )
+        # ])
         
-        kik.send_messages([
-          TextMessage(
-            to = message.from_user,
-            chat_id = message.chat_id,
-            body = u"Become a better eSports player with GameBots live chat support."
-          )
-        ])
         
-        time.sleep(2)
+        # requests.post(
+        #   'https://api.kik.com/v1/message',
+        #   auth=('game.bots', '0fb46005-dd00-49c3-a4a5-239a0bdc1e79'),
+        #   headers={
+        #     'Content-Type': 'application/json'
+        #   },
+        #   data=json.dumps({
+        #     'messages': [
+        #       {
+        #         'body': 'bar', 
+        #         'to': 'jamiealbn', 
+        #         'type': 'text', 
+        #         'chatId': 'c64af52a1bb4bc75588e3fcea588661857c60c6f952c20ba90407b332933bd0f',
+        #         "keyboards": [
+        #           {
+        #             "to": "jamiealbn",
+        #             "hidden": False,
+        #             "type": "suggested",
+        #             "responses": [
+        #               {
+        #                 "type": "text",
+        #                 "body": "Good :)"
+        #               },
+        #               {
+        #                 "type": "text",
+        #                 "body": "Not so good :("
+        #               }
+        #             ]
+        #           },
+        #           {
+        #             "type": "suggested",
+        #             "hidden": False,
+        #             "responses": [
+        #               {
+        #                 "type": "text",
+        #                 "body": "Excellent :D"
+        #               },
+        #               {
+        #                 "type": "text",
+        #                 "body": "Super bad D:"
+        #               }
+        #             ]
+        #           }
+        #         ]
+        #       }
+        #     ]
+        #   })
+        # )
         
-        kik.send_messages([
-          TextMessage(
-            to = message.from_user,
-            chat_id = message.chat_id,
-            body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
-            keyboards = default_keyboard()
-          )
-        ])
-        
-        self.set_status(200)
-        return
+        # self.set_status(200)
+        # return
         
       
       # -=-=-=-=-=-=-=-=- TEXT MESSAGE -=-=-=-=-=-=-=-=-
@@ -458,17 +486,14 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
         if message.mention is not None:
           if message.body == "Start Chatting":
-            self.set_status(200)
-            return
-          
+            pass
+            
           #-- other mention type -- toss messages at 'em
           else:
             welcome_intro_seq(message)
-          
-            
-            self.set_status(200)
-            return
-        
+                      
+          self.set_status(200)
+          return
         else:
           
           # -=-=-=-=-=-=-=-=- DEFAULT GAME BTNS -=-=-=-=-=-=-=-=-
@@ -510,9 +535,12 @@ class KikBot(tornado.web.RequestHandler):
               kik.send_messages([
                 messages[0]
               ])
+              
+              time.sleep(2)
+              end_help(message.from_user, message.chat_id)
+                            
             
-            
-            #-- gimme ouuta here
+            #-- gimme outta here
             self.set_status(200)
             return
           
@@ -530,21 +558,7 @@ class KikBot(tornado.web.RequestHandler):
               'messages': [],
               'im_channel': ""
             }
-          
-<<<<<<< HEAD
-            kik.send_messages([
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "Locating %s coaches..." % (gameHelpList[message.from_user]),
-                type_time = 250,
-              )
-            ])
-            time.sleep(3)
-            
-=======
->>>>>>> v1.0.1-resubmit
-            
+  
             kik.send_broadcast([
               TextMessage(
                 to = message.from_user,
@@ -564,26 +578,10 @@ class KikBot(tornado.web.RequestHandler):
             ])
 
             
-            _obj = slack_webhooks[help_convos[message.chat_id]['game']]
-            modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], message.body, message.from_user)
-            
-<<<<<<< HEAD
-            # _obj = slack_webhooks[gameHelpList[message.from_user]]
-            # print "%d\t_obj FOR slack_webhooks[gameHelpList[%s]] : %s" % (int(time.time()), message.from_user, _obj)
-            # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], u"_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
+            # _obj = slack_webhooks[help_convos[message.chat_id]['game']]
+            # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], message.body, message.from_user)
             modd.utils.slack_send(help_convos[message.chat_id], message.body, message.from_user)
             
-            kik.send_messages([
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "Pro tip: Keep asking questions, each will be added to your queue! Type Cancel to end the conversation.",
-                type_time = 2000,
-              ),
-            ])
-        
-=======
->>>>>>> v1.0.1-resubmit
             del gameHelpList[message.from_user]
             self.set_status(200)
             return
@@ -624,15 +622,9 @@ class KikBot(tornado.web.RequestHandler):
               return
               
             
+            
             # -=-=-=-=-=-=-=-=-=- CONTIUNE SESSION -=-=-=-=-=-=-=-
             else:
-<<<<<<< HEAD
-              # _obj = slack_webhooks[help_convos[message.chat_id]['game']]
-              # print "%d\t_obj FOR (help_convos[%s]['game'] : %s" % (int(time.time()), message.chat_id, _obj)
-              # modd.utils.slack_send(_obj['channel_name'], _obj['webhook'], "_Requesting help:_ *%s*\n\"%s\"" % (message.chat_id, message.body), message.from_user)
-              modd.utils.slack_im(help_convos[message.chat_id], message.body)
-=======
->>>>>>> v1.0.1-resubmit
               
               #-- respond with waiting msg
               kik.send_messages([default_wait_reply(message)])
@@ -648,24 +640,19 @@ class KikBot(tornado.web.RequestHandler):
             return
           
           
+          
           # -=-=-=-=-=-=-=-=- BUTTON PROMPT -=-=-=-=-=-=-=-=
-          #-- anytintg elsem  prompt with 4 topics
+          #-- anything else, prompt with 4 topics
           if len(gameHelpList) == 0 and len(help_convos) == 0:
             kik.send_messages([
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
-                type_time = 250,
-                keyboards = default_keyboard()
-              )
+              default_text_reply(message)
             ])
             
             self.set_status(200)
             return
         
-        self.set_status(200)
-        return
+    self.set_status(200)
+    return
         
 
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
@@ -729,23 +716,16 @@ class Slack(tornado.web.RequestHandler):
     self.set_status(200)
     return
 
-<<<<<<< HEAD
-=======
 
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
 
 
->>>>>>> v1.0.1-resubmit
 class InstantMessage(tornado.web.RequestHandler):
   def set_default_headers(self):
     self.set_header("Access-Control-Allow-Origin", "*")
     self.set_header("Access-Control-Allow-Headers", "x-requested-with")
     self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-<<<<<<< HEAD
-    
-=======
   
->>>>>>> v1.0.1-resubmit
   def post(self):
     print "%d\t=-=-=-=-=-=-=-=-=-=-= SLACK IM =-=-=-=-=-=-=-=-=-=-=" % (int(time.time()))
     data = tornado.escape.json_decode(self.request.body)
@@ -753,73 +733,19 @@ class InstantMessage(tornado.web.RequestHandler):
     
     help_convos[data['chat_id']]['im_channel'] = data['channel']
     
-<<<<<<< HEAD
-    
-=======
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 
->>>>>>> v1.0.1-resubmit
 
-#subscribersForStreamer = {}
 gameHelpList = {}
 help_convos = {}
 
-# streamerArray = getStreamers()
-# for s in streamerArray:
-#    subscribersForStreamer[s.lower()] = []
-#
-
-
 topics = fetch_topics()
-slack_webhooks = fetch_slack_webhooks()
+#slack_webhooks = fetch_slack_webhooks()
 
 
-# x = urllib2.urlopen("http://beta.modd.live/api/subscriber_list.php?type=kik").read()
-#
-# r = x.split("\n")
-# for row in r:
-#    c = row.split(",")
-#    if len(c) == 3 and c[0].lower() in subscribersForStreamer:
-#       subscribersForStreamer[c[0].lower()].append({'kikUser':c[1],'chat_id':c[2]})
-
-
-
-
-<<<<<<< HEAD
-# Const.KIK_API_CONFIG = {
-#   'USERNAME': "streamcard",
-#   'API_KEY': "aa503b6f-dcda-4817-86d0-02cfb110b16a",
-#   'WEBHOOK': {
-#     'HOST': "http://76.102.12.47",
-#     'PORT': 8070,
-#     'PATH': "kik"
-#   },
-# 
-#   'FEATURES': {
-#     'receiveDeliveryReceipts': True,
-#     'receiveReadReceipts': True
-#   }
-# }
-
-
-# Const.KIK_API_CONFIG = {
-#   'USERNAME': "game.bots",
-#   'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-#   'WEBHOOK': {
-#     'HOST': "http://159.203.250.4",
-#     'PORT': 8080,
-#     'PATH': "kik"
-#   },
-# 
-#   'FEATURES': {
-#     'receiveDeliveryReceipts': True,
-#     'receiveReadReceipts': True
-#   }
-# }
-=======
 
 ##Const.KIK_API_CONFIG = {
 ##   'USERNAME': "streamcard",
@@ -836,15 +762,13 @@ slack_webhooks = fetch_slack_webhooks()
 ##   }
 ## }
 
->>>>>>> v1.0.1-resubmit
-
 
 Const.KIK_API_CONFIG = {
-  'USERNAME': "gamebots.beta",
-  'API_KEY': "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+  'USERNAME': "game.bots",
+  'API_KEY': "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
   'WEBHOOK': {
-    'HOST': "http://76.102.12.47",
-    'PORT': 8890,
+    'HOST': "http://159.203.250.4",
+    'PORT': 8080,
     'PATH': "kik"
   },
 
@@ -855,8 +779,6 @@ Const.KIK_API_CONFIG = {
 }
 
 
-<<<<<<< HEAD
-=======
 # Const.KIK_API_CONFIG = {
 #   'USERNAME': "gamebots.beta",
 #   'API_KEY': "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
@@ -883,7 +805,6 @@ Const.KIK_API_CONFIG = {
 
 #-=:=- Start + Config Kik -=:=-#
 #-=:=--=:=--=:=--=:=--=:=--=:=--=:=--=:=--=:=--=:=-#
->>>>>>> v1.0.1-resubmit
 
 Const.KIK_CONFIGURATION = Configuration(
   webhook = "%s:%d/%s" % (Const.KIK_API_CONFIG['WEBHOOK']['HOST'], Const.KIK_API_CONFIG['WEBHOOK']['PORT'], Const.KIK_API_CONFIG['WEBHOOK']['PATH']),
