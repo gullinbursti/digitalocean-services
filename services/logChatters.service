@@ -1,0 +1,12 @@
+[Unit]
+Description= log number of chatters in our server in python via tornado
+After=network.target
+
+[Service]
+Type=simple
+ExecStart= /opt/modd/logChatters2.sh
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
