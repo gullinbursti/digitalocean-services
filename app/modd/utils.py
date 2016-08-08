@@ -2,6 +2,7 @@
 
 import json
 
+import signal
 import cStringIO
 import requests
 import pycurl
@@ -11,26 +12,24 @@ def lan_ip():
   return "0.0.0.0"
 
 
+def timeout_handler(signal, frame):
+  print "timeout_handler(signal={signal}, frame={frame})".format(signal=signal, frame=frame)
+  #raise Exception('Time is up!')
+
+def reset_timeout():
+  signal.alarm.timeout(180)
+  signal.signal(signal.SIGALRM, timeout_handler)
+  
+
+
 def sendTracker(category, action, label):
   print "sendTracker(category=%s, action=%s, label=%s)" % (category, action, label)
+  
+  response = requests.get("http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label=label".format(category=category, action=action, label=label))
+  if response.status_code != 200:
+    print "GA ERROR!!"
     
-  buf = cStringIO.StringIO()
-  c = pycurl.Curl()
-  c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?category=%s&action=%s&label=%s" % (category, action, label))
-  c.setopt(c.WRITEFUNCTION, buf.write)
-  c.setopt(c.CONNECTTIMEOUT, 5)
-  c.setopt(c.TIMEOUT, 8)
-  c.setopt(c.FAILONERROR, True)
-   
-  try:
-    c.perform()
-    print "buf.getVal()=%s" % (buf.getValue())
-    buf.close()
-  
-  except:
-    print("GA ERROR!")
-  
-  return True
+  return response.status_code == 200
   
   
 def slack_im(convo, message):
