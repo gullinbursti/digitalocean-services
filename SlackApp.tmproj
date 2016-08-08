@@ -60,14 +60,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>1</integer>
 				<key>line</key>
-				<integer>177</integer>
+				<integer>45</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>151</integer>
+			<integer>34</integer>
 		</dict>
 		<key>SlackApp/SlackApp/const.py</key>
 		<dict>
@@ -86,13 +86,11 @@
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>../curl-webhooks.txt</string>
 		<string>SlackApp/SlackApp/__init__.py</string>
-		<string>SlackApp/SlackApp/const.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{-13, 4}, {1230, 874}}</string>
+	<string>{{1554, -161}, {1230, 874}}</string>
 </dict>
 </plist>
