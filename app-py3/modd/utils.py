@@ -25,7 +25,7 @@ def reset_timeout():
 def sendTracker(category, action, label):
   print("sendTracker(category=%s, action=%s, label=%s)" % (category, action, label))
   
-  response = requests.get("http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label=label".format(category=category, action=action, label=label))
+  response = requests.get("http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label={label}".format(category=category, action=action, label=label))
   if response.status_code != 200:
     print("GA ERROR!!")
     

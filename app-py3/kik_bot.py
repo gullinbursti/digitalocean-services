@@ -415,7 +415,7 @@ class KikBot(tornado.web.RequestHandler):
               conn.commit()
 
             except sqlite3.Error as err:
-                logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=err.message))
+                print("::::::[cur.execute] sqlite3.Error - {message}".format(message=err.message))
             
             conn2 = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
             try:
@@ -436,7 +436,7 @@ class KikBot(tornado.web.RequestHandler):
           conn.close()
 
         except sqlite3.Error as err:
-          logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=err.message))
+          print("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=err.message))
 
         finally:
           pass
@@ -847,36 +847,36 @@ topics = fetch_topics()
 ## }
 
 
-# Const.KIK_API_CONFIG = {
-#   'USERNAME'  : "game.bots",
-#   'API_KEY'   : "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-#   'WEBHOOK'   : {
-#     'HOST'  : "http://159.203.250.4",
-#     'PORT'  : 8080,
-#     'PATH'  : "kik"
-#   },
-# 
-#   'FEATURES'  : {
-#     'receiveDeliveryReceipts' : True,
-#     'receiveReadReceipts'     : True
-#   }
-# }
-
-
 Const.KIK_API_CONFIG = {
-  'USERNAME'  : "gamebots.beta",
-  'API_KEY'   : "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+  'USERNAME'  : "game.bots",
+  'API_KEY'   : "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
   'WEBHOOK'   : {
-    'HOST'  : "http://76.102.12.47",
+    'HOST'  : "http://159.203.250.4",
     'PORT'  : 8080,
     'PATH'  : "kik"
   },
-  
+
   'FEATURES'  : {
     'receiveDeliveryReceipts' : True,
     'receiveReadReceipts'     : True
   }
 }
+
+
+# Const.KIK_API_CONFIG = {
+#   'USERNAME'  : "gamebots.beta",
+#   'API_KEY'   : "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+#   'WEBHOOK'   : {
+#     'HOST'  : "http://76.102.12.47",
+#     'PORT'  : 8080,
+#     'PATH'  : "kik"
+#   },
+#   
+#   'FEATURES'  : {
+#     'receiveDeliveryReceipts' : True,
+#     'receiveReadReceipts'     : True
+#   }
+# }
 
 
 
