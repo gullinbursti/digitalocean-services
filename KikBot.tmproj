@@ -3,12 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app/modd/utils.py</string>
+	<string>app-py3/modd/utils.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>_bkup</string>
 			<key>regexFolderFilter</key>
@@ -17,8 +15,6 @@
 			<string>_bkup</string>
 		</dict>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>_tmp</string>
 			<key>regexFolderFilter</key>
@@ -31,8 +27,6 @@
 			<string>.DS_Store</string>
 		</dict>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>app</string>
 			<key>regexFolderFilter</key>
@@ -43,6 +37,14 @@
 		<dict>
 			<key>expanded</key>
 			<true/>
+			<key>name</key>
+			<string>app-py3</string>
+			<key>regexFolderFilter</key>
+			<string>!.*/(\.[^/]*|CVS|_darcs|_MTN|\{arch\}|blib|.*~\.nib|.*\.(framework|app|pbproj|pbxproj|xcode(proj)?|bundle))$</string>
+			<key>sourceDirectory</key>
+			<string>app-py3</string>
+		</dict>
+		<dict>
 			<key>name</key>
 			<string>bin</string>
 			<key>regexFolderFilter</key>
@@ -59,8 +61,6 @@
 			<string>README.md</string>
 		</dict>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>services</string>
 			<key>regexFolderFilter</key>
@@ -72,63 +72,88 @@
 			<key>filename</key>
 			<string>.ftpssh_settings</string>
 		</dict>
+		<dict>
+			<key>expanded</key>
+			<true/>
+			<key>name</key>
+			<string>_install</string>
+			<key>regexFolderFilter</key>
+			<string>!.*/(\.[^/]*|CVS|_darcs|_MTN|\{arch\}|blib|.*~\.nib|.*\.(framework|app|pbproj|pbxproj|xcode(proj)?|bundle))$</string>
+			<key>sourceDirectory</key>
+			<string>_install</string>
+		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
-		<key>app/const.py</key>
+		<key>_bkup/kikbot.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>21</integer>
+				<key>line</key>
+				<integer>391</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>48</integer>
+		</dict>
+		<key>_install/kik/kik/messages/receipts.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
 				<integer>0</integer>
 				<key>line</key>
-				<integer>0</integer>
+				<integer>19</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
-		<key>app/kik_bot.py</key>
+		<key>app-py3/kik_bot.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>33</integer>
+				<integer>10</integer>
 				<key>line</key>
-				<integer>35</integer>
+				<integer>318</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>102</integer>
+			<integer>293</integer>
 		</dict>
-		<key>app/modd/utils.py</key>
+		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>107</integer>
 				<key>line</key>
-				<integer>8</integer>
+				<integer>38</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>0</integer>
+			<integer>8</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>app/const.py</string>
-		<string>app/kik_bot.py</string>
-		<string>app/modd/utils.py</string>
+		<string>app-py3/kik_bot.py</string>
+		<string>app-py3/modd/utils.py</string>
+		<string>_install/kik/kik/messages/receipts.py</string>
+		<string>_bkup/kikbot.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{10, 4}, {1230, 874}}</string>
+	<string>{{38, 2}, {1230, 874}}</string>
 </dict>
 </plist>

@@ -36,8 +36,8 @@ Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
-Const.MAX_REPLIES = 3
-Const.INACTIVITY_THRESHOLD = 12
+Const.MAX_REPLIES = 4
+Const.INACTIVITY_THRESHOLD = 8000
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
@@ -52,19 +52,19 @@ def default_keyboard():
     SuggestedResponseKeyboard(
       hidden = False,
       responses = [
+        #TextResponse("Become a Moderator"),
         TextResponse("Pokémon Go"),
-        # TextResponse(u"Pokemon Go"),
         TextResponse("Dota 2"),
         TextResponse("League of Legends"),
-        TextResponse("CS:GO"),
+        #TextResponse("CS:GO"),
         TextResponse("Cancel")
       ]
     )
   ]
   
   return keyboard  
-  
-  
+
+
 def default_friend_picker(min=1, max=5, message="Pick some friends!"):
   keyboard = [
     SuggestedResponseKeyboard(
@@ -205,19 +205,88 @@ def fetch_faq(topic_name):
   return _arr
 
 
-def annul_idle_activity(chat_id):
-  print("annul_idle_activity(chat_id={chat_id})".format(chat_id=chat_id))
 
-  if help_convos[chat_id]['idle_timer'] is not None:
-    t = help_convos[chat_id]['idle_timer']
-    t.cancel()
+
+#--:-- Idle Activity timeout --:--#
+#-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
+
+def idle_activity_timer_starts(chat_id, is_selfOffing=False):
+  print("on_idle_timer(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=False))
+
+  #-- if timer exists, end it plz
+  idle_activity_ends(chat_id, is_selfOffing)
+  
+  #-- remake a new idle timer
+  t = threading.Timer(Const.INACTIVITY_THRESHOLD, idle_activity_ends, [chat_id]).start()
+  help_convos[chat_id]['last_message'] = datetime.now()
+  help_convos[chat_id]['idle_timer'] = t
+  
+  s_epoch = epoch(time.time()).shift('US/Pacific').epoch
+  help_convos[chat_id]['s_epoch'] = s_epoch
+  help_convos[chat_id]['h_epoch'] = s_epoch
     
+  self.set_status(200)
+  return
+
+
+def idle_activity_tics(chat_id):
+  print("idle_activity_tics(chat_id={chat_id})".format(chat_id=chat_id))
+  
+  #-- exists
   if chat_id in help_convos:
-    t = threading.Timer(Const.INACTIVITY_THRESHOLD, annul_idle_activity, [chat_id]).start()
-    help_convos[chat_id]['last_message'] = datetime.now()
+    
+    #-- epoch updates
+    t_epoch = epoch(time.time()).shift('US/Pacific').epoch
+    help_convos[chat_id]['t_epoch'] = t_epoch
+    
+    #-- past the limit, end it!
+    if (help[convos[chat_id]['s_epoch']] - t_epoch) + Const.INACTIVITY_THRESHOLD < t_epoch:
+      idle_activity_ends(chat_id)
+      
+  # self.set_status(200)
+  return
+    
+  
+def idle_activity_timer_restarts(chat_id, is_selfOffing=False):
+  print("idle_activity_timer_restarts(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=False))
+
+  #-- if timer exists, end it plz 
+  idle_activity_ends(chat_id, is_selfOffing)
+
+  #-- remake a new idle timer
+  if chat_id in helpConvos:
+    s_epoch = epoch(time.time()).shift('US/Pacific').epoch
+    t = threading.Timer(Const.INACTIVITY_THRESHOLD, idle_activity_tics, [chat_id]).start()
+    
     help_convos[chat_id]['idle_timer'] = t
-
-
+    help_convos[chat_id]['s_epoch'] = s_epoch
+    help_convos[chat_id]['h_epoch'] = s_epoch
+    
+  # self.set_status(200)
+  return s_epoch
+  
+  
+  
+def idle_activity_ends(chat_id, is_selfOffing=True):
+  print("idle_activity_ends(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=is_selfOffing))
+  
+  if chat_id in help_convos:
+    if help_convos[chat_id]['idle_timer'] is not None:
+      t = help_convos[chat_id]['idle_timer']
+      t.cancel()
+      
+      
+    if is_selfOffing:
+      modd.utils.slack_im(help_convos[chat_id], "I've seem to have gone idle… connected for ")
+      
+      #-- skipp actually ending it
+      #//end_chat(c)
+      
+  # self.set_status(200)
+  return
+  
+  
+  
 
 #--:-- Session Subpaths / In-Session Seqs --:--#
 #-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
@@ -225,25 +294,16 @@ def annul_idle_activity(chat_id):
 def welcome_intro_seq(message, is_mention=False):
   print("welcome_intro_seq(message=%s, is_mention=%d)" % (message, is_mention))
   
-  modd.utils.sendTracker("bot", "init", "kik")
+  modd.utils.send_evt_tracker(action="welcome", label=message.chat_id)
   
   if is_mention:
     print("MENTION PARTICIPANT:%s" % (message.participants[-1]))
     
     kik.send_messages([
-      TextMessage(
+      VideoMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Welcome to GameBots, looks like a friend has mentioned me!",
-        type_time = 500
-      ),
-    
-      TextMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        body = "Become a better eSports player with GameBots live chat support.",
-        type_time = 500,
-        delay = 1250
+        video_url = "http://app5.kikphotos.pw/gamebots-00.mp4"
       ),
       TextMessage(
         to = message.from_user,
@@ -262,23 +322,14 @@ def welcome_intro_seq(message, is_mention=False):
       )
     ])
     
-    
   else:
     kik.send_messages([
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Welcome to GameBots!",
-        type_time = 333
-      ),
-    
-      TextMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        body = "Become a better eSports player with GameBots live chat support.",
-        type_time = 500,
-        delay = 1000
-      ),
+        body = "Welcome to GameBots! - Super fast chat help for gamers! Select a game that you need help with...",
+        type_time = 333, 
+      ), 
       default_text_reply(message=message, delay=2500)
     ])
 
@@ -287,15 +338,27 @@ def welcome_intro_seq(message, is_mention=False):
 
 def start_help(message):
     print("start_help(message=%s)" % (message))
-    modd.utils.sendTracker("bot", "question", "kik")
+    modd.utils.send_evt_tracker(action="question", label=message.chat_id)
     gameHelpList[message.from_user] = message.body
     
     kik.send_messages([
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Please describe what you need help with. Note your messages will be sent to %s coaches for support." % (message.body),
-        type_time = 333
+        body = "What level are you on?",
+        type_time = 500,
+        keyboards = [
+          SuggestedResponseKeyboard(
+            hidden = False,
+            responses = [
+              TextResponse("Level 1"),
+              TextResponse("Level 2-6"),
+              TextResponse("Level 7-15"),
+              TextResponse("Level 16+"),
+              TextResponse("Cancel")
+            ]
+          )
+        ]
       )
     ])
     
@@ -319,10 +382,9 @@ def end_help(to_user, chat_id, user_action=True):
     if user_action:
       modd.utils.slack_im(help_convos[chat_id], "Help session closed.")
     
-    if help_convos[chat_id]['idle_timer'] is not None:
-      help_convos[chat_id]['idle_timer'].cancel()
-      help_convos[chat_id]['idle_timer'] = None
-      
+      #-- if timer exists, end it plz
+      idle_activity_ends(chat_id, False)
+    
     del help_convos[chat_id]
   
   time.sleep(3)
@@ -450,7 +512,7 @@ class KikBot(tornado.web.RequestHandler):
       elif isinstance(message, ReadReceiptMessage):
         # print "-= ReadReceiptMessage =-= "
         
-        modd.utils.sendTracker("bot", "read", "kik")
+        modd.utils.send_evt_tracker(action="read", label=message.chat_id)
         self.set_status(200)
         return
          
@@ -471,10 +533,16 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
         if message.mention is not None:
           if message.body == "Start Chatting":
+            modd.utils.send_evt_tracker(action="reply", label=message.chat_id)
+            
             self.set_status(200)            
             return
 
           else:
+            
+            #-- start the idle timeout - phasers to kill!
+            #idle_activity_timer_starts(message.chat_id, True)
+            
             try:
               conn = sqlite3.connect("{script_path}/data/sqlite3/kikbot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
               cur = conn.cursor()
@@ -540,13 +608,30 @@ class KikBot(tornado.web.RequestHandler):
         #  annul_idle_activity(message.chat_id)
         
         
+        if message.body == "Become a Moderator":
+          TextMessage(
+            to = message.from_user,
+            chat_id = message.chat_id,
+            body = "Great, we'll get back to you",
+            type_time = 500
+          )
+          
+          if message.chat_id in help_convos:
+            del help_convos[message.chat_id]
+            
+          self.set_status(200)
+          return
+        
+        
         # -=-=-=-=-=-=-=-=- DEFAULT GAME BTNS -=-=-=-=-=-=-=-=-
         if message.body == "Pokémon Go" or message.body == "CS:GO" or message.body == "Dota 2" or message.body == "League of Legends":
           if len(gameHelpList) == 0:
+            #modd.utils.send_evt_tracker(action="signup", label=message.chat_id)
+            modd.utils.send_evt_tracker(action="opengame", label=message.body)
             start_help(message)
             
             print("SUBSCRIBING \"%s\" TO \"%s\" --> %s" % (message.from_user, quote(message.body.lower().encode('utf-8')), message.chat_id))
-            modd.utils.sendTracker("bot", "subscribe", "kik")
+            
             
             _sub = urllib.request.urlopen('http://beta.modd.live/api/streamer_subscribe.php?type=kik&channel=%s&username=%s&cid=%s' % (quote(message.body.lower().encode('utf-8')), message.from_user, message.chat_id))
             self.set_status(200)
@@ -588,6 +673,8 @@ class KikBot(tornado.web.RequestHandler):
           
         # -=-=-=-=-=-=-=-=-=- HELP CONNECT -=-=-=-=-=-=-=-
         if message.from_user in gameHelpList:
+          modd.utils.send_evt_tracker(action="subscribe", label=message.chat_id)
+          
           
           #-- data obj/ now in active session
           help_convos[message.chat_id] = {
@@ -629,57 +716,57 @@ class KikBot(tornado.web.RequestHandler):
             
           
           
-          # -=-=-=-=-=-=-=-=-=- HAS EXISTING SESSION -=-=-=-=-=-=-=-
-          if message.chat_id in help_convos:
+        # -=-=-=-=-=-=-=-=-=- HAS EXISTING SESSION -=-=-=-=-=-=-=-
+        if message.chat_id in help_convos:
+          
+          #-- inc message count & log
+          help_convos[message.chat_id]['ignore_streak'] += 1
+          help_convos[message.chat_id]['messages'].append(message.body)
+          help_convos[message.chat_id]['last_message'] = int(time.time())
+          
+          # -=-=-=-=-=-=-=-=-=- SESSION GOING INACTIVE -=-=-=-=-=-=-=-
+          if help_convos[message.chat_id]['ignore_streak'] >= Const.MAX_REPLIES:
+            print("-=- TOO MANY UNREPLIED (%d)... CLOSE OUT SESSION -=-" % (help_convos[message.chat_id]['ignore_streak']))
             
-            #-- inc message count & log
-            help_convos[message.chat_id]['ignore_streak'] += 1
-            help_convos[message.chat_id]['messages'].append(message.body)
-            help_convos[message.chat_id]['last_message'] = int(time.time())
-            
-            # -=-=-=-=-=-=-=-=-=- SESSION GOING INACTIVE -=-=-=-=-=-=-=-
-            if help_convos[message.chat_id]['ignore_streak'] >= Const.MAX_REPLIES:
-              print("-=- TOO MANY UNREPLIED (%d)... CLOSE OUT SESSION -=-" % (help_convos[message.chat_id]['ignore_streak']))
-              
-              #-- closing out session w/ 2 opts
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Sorry! GameBots is taking so long to answer your question. What would you like to do?",
-                  type_time = 250,
-                  keyboards = [
-                    SuggestedResponseKeyboard(
-                      hidden = False,
-                      responses = [
-                        TextResponse("More Details"),
-                        TextResponse("Cancel")
-                      ]
-                    )
-                  ]
-                )
-              ])
-              
-              self.set_status(200)
-              return
-              
-            
-            
-            # -=-=-=-=-=-=-=-=-=- CONTIUNE SESSION -=-=-=-=-=-=-=-
-            else:
-              
-              #-- respond with waiting msg
-              kik.send_messages([default_wait_reply(message)])
-
-              
-              #-- route to slack api, guy
-              modd.utils.slack_im(help_convos[message.chat_id], message.body)
-              
-              self.set_status(200)
-              return
+            #-- closing out session w/ 2 opts
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Sorry! GameBots is taking so long to answer your question. What would you like to do?",
+                type_time = 250,
+                keyboards = [
+                  SuggestedResponseKeyboard(
+                    hidden = False,
+                    responses = [
+                      TextResponse("More Details"),
+                      TextResponse("Cancel")
+                    ]
+                  )
+                ]
+              )
+            ])
             
             self.set_status(200)
             return
+            
+          
+          
+          # -=-=-=-=-=-=-=-=-=- CONTIUNE SESSION -=-=-=-=-=-=-=-
+          else:
+            
+            #-- respond with waiting msg
+            kik.send_messages([default_wait_reply(message)])
+
+            
+            #-- route to slack api, guy
+            modd.utils.slack_im(help_convos[message.chat_id], message.body)
+            
+            self.set_status(200)
+            return
+          
+          self.set_status(200)
+          return
           
           
           
@@ -718,49 +805,43 @@ class Slack(tornado.web.RequestHandler):
       message = " ".join(_arr).replace("'", "")
       to_user = ""
       
-      #-- at least 1 msg & last one isn't the same
-      if (len(help_convos[chat_id]['replies']) == 1 and help_convos[chat_id]['replies'][0] == message) or (len(help_convos[chat_id]['replies']) > 1 and help_convos[chat_id]['replies'][-1] == message): 
-        pass
-        
-      else:
+      if chat_id in help_convos:
         conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
-        #conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
         try:
-          
           with conn.cursor() as cur:
           #cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute("SELECT `username`, `body` FROM `kikbot_logs` WHERE `chat_id` = %s ORDER BY `added` DESC LIMIT 1;", (chat_id))
-      
+    
             if cur.rowcount == 1:
               row = cur.fetchone()
-        
+      
               print("help_convos:%s" % (help_convos))
-              if chat_id in help_convos and row['body'] != message:
-                help_convos[chat_id]['ignore_streak'] = -1
-                to_user = row['username']
-          
-                #print "to_user=%s, to_user=%s, chat_id=%s, message=%s" % (to_user, chat_id, message)
-          
-                if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
-                  print("-=- ENDING HELP -=-")
-                  end_help(to_user, chat_id, False)
-          
-                else:
-                  help_convos[chat_id]['replies'].append(message)
-                  #annul_idle_activity(chat_id)
               
-                  kik.send_messages([
-                    TextMessage(
-                      to = to_user,
-                      chat_id = chat_id,
-                      body = "%s coach:\n%s" % (help_convos[chat_id]['game'], message),
-                      type_time = 250
-                    )
-                  ])
+              help_convos[chat_id]['ignore_streak'] = -1
+              to_user = row['username']
+      
+              #print "to_user=%s, to_user=%s, chat_id=%s, message=%s" % (to_user, chat_id, message)
+      
+              if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
+                print("-=- ENDING HELP -=-")
+                end_help(to_user, chat_id, False)
+      
+              else:
+                help_convos[chat_id]['replies'].append(message)
+                #annul_idle_activity(chat_id)
+          
+                kik.send_messages([
+                  TextMessage(
+                    to = to_user,
+                    chat_id = chat_id,
+                    body = "%s coach:\n%s" % (help_convos[chat_id]['game'], message),
+                    type_time = 250
+                  )
+                ])
     
         except pymysql.Error as err:
           print("MySQL DB error:%s" % (err))
-    
+  
         finally:
           if conn:
             conn.close()
@@ -935,4 +1016,3 @@ if __name__ == "__main__":
   application.listen(int(Const.KIK_API_CONFIG['WEBHOOK']['PORT']))
   tornado.ioloop.IOLoop.instance().start()
   print("tornado start" % (int(time.time())))
-  

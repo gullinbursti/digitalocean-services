@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import json
+import time
 
-import signal
 import io
 import requests
 import pycurl
@@ -12,18 +12,8 @@ def lan_ip():
   return "0.0.0.0"
 
 
-def timeout_handler(signal, frame):
-  print("timeout_handler(signal={signal}, frame={frame})".format(signal=signal, frame=frame))
-  #raise Exception('Time is up!')
-
-def reset_timeout():
-  signal.alarm.timeout(180)
-  signal.signal(signal.SIGALRM, timeout_handler)
-  
-
-
-def sendTracker(category, action, label):
-  print("sendTracker(category=%s, action=%s, label=%s)" % (category, action, label))
+def send_evt_tracker(category="kikbot", action="", label="", valu=int(time.time())):
+  print("send_evt_tracker(category=%s, action=%s, label=%s, valu=%d)" % (category, action, label, valu))
   
   response = requests.get("http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label={label}".format(category=category, action=action, label=label))
   if response.status_code != 200:
@@ -48,6 +38,7 @@ def slack_send(convo, message_txt, from_user="game.bots"):
     b'Dota 2'             : "https://hooks.slack.com/services/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",
     b'League of Legends'  : "https://hooks.slack.com/services/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",
     b'CS:GO'              : "https://hooks.slack.com/services/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"
+    #b'Become a Moderator' : "https://hooks.slack.com/services/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"
   }
 
   payload = json.dumps({
