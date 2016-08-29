@@ -3,10 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/modd/utils.py</string>
+	<string>app-py3/kik_bot.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
+			<key>expanded</key>
+			<true/>
 			<key>name</key>
 			<string>_bkup</string>
 			<key>regexFolderFilter</key>
@@ -87,19 +89,65 @@
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
+		<key>_bkup/kikEcho.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>20</integer>
+				<key>line</key>
+				<integer>330</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>307</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>262</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>20</integer>
+				<key>line</key>
+				<integer>330</integer>
+			</dict>
+		</dict>
 		<key>_bkup/kikbot.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>21</integer>
+				<integer>13</integer>
 				<key>line</key>
-				<integer>391</integer>
+				<integer>666</integer>
 			</dict>
+			<key>columnSelection</key>
+			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>48</integer>
+			<integer>179</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>10</integer>
+				<key>line</key>
+				<integer>666</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>13</integer>
+				<key>line</key>
+				<integer>666</integer>
+			</dict>
 		</dict>
 		<key>_install/kik/kik/messages/receipts.py</key>
 		<dict>
@@ -120,40 +168,24 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>10</integer>
+				<integer>4</integer>
 				<key>line</key>
-				<integer>318</integer>
+				<integer>983</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>293</integer>
-		</dict>
-		<key>app-py3/modd/utils.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>107</integer>
-				<key>line</key>
-				<integer>38</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>8</integer>
+			<integer>968</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>app-py3/kik_bot.py</string>
-		<string>app-py3/modd/utils.py</string>
-		<string>_install/kik/kik/messages/receipts.py</string>
-		<string>_bkup/kikbot.py</string>
+		<string>_bkup/kikEcho.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{38, 2}, {1230, 874}}</string>
+	<string>{{200, 4}, {1230, 874}}</string>
 </dict>
 </plist>

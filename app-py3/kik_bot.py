@@ -809,7 +809,6 @@ class Slack(tornado.web.RequestHandler):
         conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
         try:
           with conn.cursor() as cur:
-          #cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute("SELECT `username`, `body` FROM `kikbot_logs` WHERE `chat_id` = %s ORDER BY `added` DESC LIMIT 1;", (chat_id))
     
             if cur.rowcount == 1:
@@ -819,8 +818,6 @@ class Slack(tornado.web.RequestHandler):
               
               help_convos[chat_id]['ignore_streak'] = -1
               to_user = row['username']
-      
-              #print "to_user=%s, to_user=%s, chat_id=%s, message=%s" % (to_user, chat_id, message)
       
               if message == "!end" or message.lower() == "cancel" or message.lower() == "quit":
                 print("-=- ENDING HELP -=-")
@@ -879,20 +876,69 @@ class Message(tornado.web.RequestHandler):
     self.set_header("Access-Control-Allow-Origin", "*")
     self.set_header("Access-Control-Allow-Headers", "x-requested-with")
     self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-  
-  def get(self):
-    print("=-=-=-=-=-=-=-=-=-=-= DIRECT MESSAGE =-=-=-=-=-=-=-=-=-=-=")
-    print("self.get_argument('chat_id'):%s" % (self.get_argument('chat_id', "")))
+      
+  def post(self):
+    print("-=-=-=-=-=-=-=-=-=-= MESSAGE BROADCAST =-=-=-=-=-=-=-=-=-=-=")
+    username = self.get_body_argument('recipient', "")
+    body = self.get_body_argument('body', "")
+    url = self.get_body_argument('url', "")
+    image_url = self.get_body_argument('image_url', "")
+    video_url = self.get_body_argument('video_url', "")
+    message_type = self.get_body_argument('type', "")
+    message_method = self.get_body_argument('method', "")
     
-    if self.get_argument('chat_id', ""):
-      kik.send_messages([
-        TextMessage(
-          to = "KdwgZ",
-          chat_id = "f01aad68aea6c6b0c38866449d72d30222fa5d093630a0c7501f7e018da8bf83",#self.get_argument('chat_id', ""),
-          body = "YOO",#self.get_argument('message', ""),
-          type_time = 250
-        )
-      ])
+    conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+    try:
+      with conn.cursor() as cur:
+        cur.execute("SELECT `chat_id` FROM `kikbot_logs` WHERE `username` = '%s' ORDER BY `added` DESC LIMIT 1;" % (username))
+
+        if cur.rowcount == 1:
+          row = cur.fetchone()
+  
+          print("RECIPIENT: %s (%s)" % (username, row['chat_id']))
+          if message_type == "TextMessage":
+            print("BODY : %s" % (body))
+            kik_message = TextMessage(
+              to = username,
+              chat_id = row['chat_id'],
+              body = body
+            )
+
+          elif message_type == "LinkMessage":
+            print("BODY : %s" % (body))
+            print("IMG_URL : %s" % (image_url))
+            print("URL : %s" % (url))
+            kik_message = LinkMessage(
+              to = username,
+              chat_id = row['chat_id'],
+              title = body,
+              pic_url = image_url,
+              url = url,
+              attribution = CustomAttribution(
+                name = 'gamebots.chat', 
+                icon_url = 'http://gamebots.chat/img/icon/favicon-32x32.png'
+              )
+            )
+
+          elif message_type == "VideoMessage":
+            print("ID_URL : " % (video_url))
+            kik_message = VideoMessage(
+              to = username,
+              chat_id = row['chat_id'],
+              video_url = video_url,
+              autoplay = False,
+              muted = False,
+              loop = False
+            )
+
+          kik.send_messages([kik_message])
+          
+    except pymysql.Error as err:
+      print("MySQL DB error:%s" % (err))
+
+    finally:
+      if conn:
+        conn.close()
         
     self.set_status(200)
     return
