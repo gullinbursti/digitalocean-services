@@ -103,7 +103,7 @@ def default_friend_picker(min=1, max=5, message="Pick some friends!"):
 def default_attribution():
   attribution = CustomAttribution(
     name = "gamebots.chat", 
-    icon_url = "http://gamebots.chat/img/icon/favicon-32x32.png"
+    icon_url = "http://gamebots.chat/img/icon/favicon-96x96.png"
   )
   
   return attribution
@@ -192,7 +192,7 @@ def message_for_topic_level(message, topic_name, level="Intro"):
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `image_url`, `video_url` FROM `topic_content` WHERE `topic_name` = %s AND `level` = %s LIMIT 1;", (topic_name, level))
+      cur.execute("SELECT `youtube_id`, `image_url`, `video_url` FROM `topic_content` WHERE `topic_name` = %s AND `level` = %s ORDER BY RAND() LIMIT 1;", (topic_name, level))
 
       if cur.rowcount == 1:
         row = cur.fetchone()
@@ -202,15 +202,17 @@ def message_for_topic_level(message, topic_name, level="Intro"):
           to = message.from_user,
           chat_id = message.chat_id,
           title = "{topic_name} - {level}".format(topic_name=topic_name, level=level),
-          pic_url = row['image_url'],
+          text = "{video_url}".format(video_url=row['video_url']),
           url = row['video_url'],
+          pic_url = row['image_url'],
           attribution = default_attribution(),
+          delay = 500,
           keyboards = [
             SuggestedResponseKeyboard(
               hidden = False,
               responses = [
                 TextResponse("Another Clip"),
-                TextResponse("Enter Server"),
+                #TextResponse("Enter Server"),
                 TextResponse("No Thanks")
               ]
             )
@@ -407,17 +409,9 @@ def start_help(message):
       to = message.from_user,
       chat_id = message.chat_id,
       body = "Locating %s coaches..." % (help_convos[message.chat_id]['game']),
-      type_time = 250,
-      delay = 1500
+      type_time = 250
     ),
     message_for_topic_level(message, help_convos[message.chat_id]['game'], help_convos[message.chat_id]['level'])
-    # TextMessage(
-    #   to = message.from_user,
-    #   chat_id = message.chat_id,
-    #   body = "Pro tip: Keep asking questions, each will be added to your queue! Type Cancel to end the conversation.",
-    #   type_time = 1500,
-    #   delay = 1500
-    # )
   ])
   modd.utils.send_evt_tracker(action="Sent", label=message.chat_id)
   
@@ -736,12 +730,26 @@ class KikBot(tornado.web.RequestHandler):
           return
         
         
+        # -=-=-=-=-=-=-=-=- NO THANKS BTN -=-=-=-=-=-=-=-=-
+        elif message.body == "No Thanks":
+          kik.send_messages([
+            TextMessage(
+              to = message.from_user, 
+              chat_id = message.chat_id,
+              body = "Sure thing!", 
+              type_time = 250
+            )
+          ])
+          self.set_status(200)
+          return
+          
+          
         # -=-=-=-=-=-=-=-=- GAME SERVER BTN -=-=-=-=-=-=-=-=-
         elif message.body == "Enter Server":
           if message.chat_id in help_convos:
             modd.utils.send_evt_tracker(action="Button", label=message.chat_id)
             modd.utils.send_evt_tracker(action="Sent", label=message.chat_id)
-            
+
           self.set_status(200)
           return
           
@@ -772,8 +780,10 @@ class KikBot(tornado.web.RequestHandler):
             for entry in faq_arr:
               messages.append(
                 TextMessage(
-                  to = message.from_user, chat_id = message.chat_id,
-                  body = entry, type_time = 2500, delay = 0
+                  to = message.from_user, 
+                  chat_id = message.chat_id,
+                  body = entry, 
+                  type_time = 2500
                 )
               )
               
@@ -1004,10 +1014,7 @@ class Message(tornado.web.RequestHandler):
               title = body,
               pic_url = image_url,
               url = url,
-              attribution = CustomAttribution(
-                name = 'gamebots.chat', 
-                icon_url = 'http://gamebots.chat/img/icon/favicon-32x32.png'
-              )
+              attribution = default_attribution()
             )
 
           elif message_type == "VideoMessage":
