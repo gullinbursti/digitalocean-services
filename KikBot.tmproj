@@ -7,8 +7,6 @@
 	<key>documents</key>
 	<array>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>_bkup</string>
 			<key>regexFolderFilter</key>
@@ -73,6 +71,8 @@
 		<dict>
 			<key>filename</key>
 			<string>.ftpssh_settings</string>
+			<key>lastUsed</key>
+			<date>2016-09-01T11:44:27Z</date>
 		</dict>
 		<dict>
 			<key>expanded</key>
@@ -119,36 +119,6 @@
 				<integer>330</integer>
 			</dict>
 		</dict>
-		<key>_bkup/kikbot.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>13</integer>
-				<key>line</key>
-				<integer>666</integer>
-			</dict>
-			<key>columnSelection</key>
-			<false/>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>179</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>10</integer>
-				<key>line</key>
-				<integer>666</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>13</integer>
-				<key>line</key>
-				<integer>666</integer>
-			</dict>
-		</dict>
 		<key>_install/kik/kik/messages/receipts.py</key>
 		<dict>
 			<key>caret</key>
@@ -168,24 +138,38 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>4</integer>
+				<integer>24</integer>
 				<key>line</key>
-				<integer>983</integer>
+				<integer>1062</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>968</integer>
+			<integer>1095</integer>
+		</dict>
+		<key>app-py3/modd/utils.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>8</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>app-py3/kik_bot.py</string>
-		<string>_bkup/kikEcho.py</string>
+		<string>app-py3/modd/utils.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{200, 4}, {1230, 874}}</string>
+	<string>{{1819, -6}, {1230, 874}}</string>
 </dict>
 </plist>

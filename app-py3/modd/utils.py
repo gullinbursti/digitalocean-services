@@ -12,16 +12,16 @@ def lan_ip():
   return "0.0.0.0"
 
 
-def send_evt_tracker(category="kikbot", action="", label="", valu=int(time.time())):
-  print("send_evt_tracker(category=%s, action=%s, label=%s, valu=%d)" % (category, action, label, valu))
+def send_evt_tracker(category="kikbot", action="", label="", value=int(time.time())):
+  print("send_evt_tracker(category=%s, action=%s, label=%s, value=%d)" % (category, action, label, value))
   
-  response = requests.get("http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label={label}".format(category=category, action=action, label=label))
+  response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}".format(category=category, action=action, label=label, value=value))
   if response.status_code != 200:
     print("GA ERROR!!")
     
   return response.status_code == 200
   
-  
+   
 def slack_im(convo, message):
   print("slack_im(convo=%s, message=%s)" % (convo, message))
 
@@ -37,7 +37,8 @@ def slack_send(convo, message_txt, from_user="game.bots"):
     b'Pok\xc3\xa9mon Go'  : "https://hooks.slack.com/services/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",
     b'Dota 2'             : "https://hooks.slack.com/services/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",
     b'League of Legends'  : "https://hooks.slack.com/services/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",
-    b'CS:GO'              : "https://hooks.slack.com/services/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"
+    b'CS:GO'              : "https://hooks.slack.com/services/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",
+    b'Hearthstone'        : "https://hooks.slack.com/services/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"
     #b'Become a Moderator' : "https://hooks.slack.com/services/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"
   }
 
