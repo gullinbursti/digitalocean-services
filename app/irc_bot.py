@@ -1,14 +1,13 @@
-
 import os, sys
 import socket, requests
 import time, string, json
 
 
-IRC_SERVER = "irc.chat.twitch.tv"
+IRC_SERVER = 'irc.chat.twitch.tv'
 IRC_PORT = 6667
 BUFFER_SIZE = 4096
 
-MESSAGE_POST = u"I recommend you to help me with {game_name}! For details please visit hearthstonehelp\xb7com"
+IRC_MESSAGE = "You have been requested for {game_name} help inside GameBots"
 
 
 def connect_server():
@@ -86,7 +85,7 @@ while "PART" not in messages:
 
   #-- deliver message after getting names list
   if len(messages) >= 2 and messages[-2] == "/NAMES":
-    send_message(sys.argv[3], MESSAGE_POST.encode('utf-8').format(game_name=sys.argv[4]))
+    send_message(sys.argv[3], IRC_MESSAGE.format(game_name=sys.argv[4].lower()))
     time.sleep(1)
     timestamp = int(time.time())
     send_command("PING %d" % (timestamp))
