@@ -32,14 +32,17 @@ from kik.messages import messages_from_json, StartChattingMessage, TextMessage, 
 Const.SLACK_TOKEN = 'IJApzbM3rVCXJhmkSzPlsaS9'
 Const.NOTIFY_TOKEN = '1b9700e13ea17deb5a487adac8930ad2'
 Const.CONNECT_TOKEN = '48a60e9010e9f235adcebbc2cc19604f'
+Const.BROADCAST_TOKEN = 'f7d3612391b5ba4d89d861bea6283726'
 
 Const.DB_HOST = 'external-db.s4086.gridserver.com'
 Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
-Const.MAX_REPLIES = 4
+Const.MAX_REPLIES = 40
 Const.INACTIVITY_THRESHOLD = 8000
+
+Const.DEFAULT_AVATAR = "http://i.imgur.com/rddWfbV.png";
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
@@ -54,7 +57,8 @@ def topics_keyboard():
     SuggestedResponseKeyboard(
       hidden = False,
       responses = [
-        #TextResponse("Pokémon Go"),
+        TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
+        TextResponse(u"\U0001F46B CHAT NOW"),
         TextResponse("Hearthstone"),
         TextResponse("Dota 2"),
         TextResponse("League of Legends"),
@@ -90,9 +94,10 @@ def topic_content_keyboard(hidden=False):
     SuggestedResponseKeyboard(
       hidden = hidden,
       responses = [
-        TextResponse("Another Clip"),
-        TextResponse("Chat with Player"),
-        TextResponse("No Thanks")
+        TextResponse(u"\U0001F3AC ANOTHER CLIP"),
+        TextResponse(u"\U0001F46B CHAT NOW"),
+        TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
+        TextResponse(u"\U0001F47E GET GAME HELP")
       ]
     )
   ]
@@ -100,7 +105,7 @@ def topic_content_keyboard(hidden=False):
   return keyboard
 
 
-def default_friend_picker(min=1, max=5, message="Pick some friends!"):
+def default_friend_picker(min=1, max=20, message="Pick friends"):
   keyboard = [
     SuggestedResponseKeyboard(
       responses = [
@@ -109,7 +114,7 @@ def default_friend_picker(min=1, max=5, message="Pick some friends!"):
           min = min,
           max = max
         ),
-        TextResponse("Cancel")
+        TextResponse("No Thanks")
       ]
     )
   ]
@@ -118,11 +123,15 @@ def default_friend_picker(min=1, max=5, message="Pick some friends!"):
   
   
 def default_attribution():
+  return custom_attribution()
+  
+  
+def custom_attribution(name="gamebots.chat"):
   attribution = CustomAttribution(
-    name = "gamebots.chat", 
+    name = name, 
     icon_url = "http://gamebots.chat/img/icon/favicon-96x96.png"
   )
-  
+
   return attribution
   
 
@@ -145,9 +154,9 @@ def default_content_reply(message, topic, level):
   print("default_content_reply(message={message}, topic={topic}, level={level})".format(message=message, topic=topic, level=level))
   
   kik.send_messages([
-    message_for_topic_level(to_user=message.from_user, chat_id=message.chat_id, topic_name=topic, level=level, hidden=True)
+    message_for_topic_level(to_user=message.from_user, chat_id=message.chat_id, topic_name=topic, level=level)
   ])
-    
+  
 
 def default_wait_reply(message):
   print("default_wait_reply(message=%s)" % (message))
@@ -160,7 +169,6 @@ def default_wait_reply(message):
       keyboards = topic_content_keyboard(True)
     )
   ])
-  
 
 
 #--:-- Model / Data Retrieval --:--#
@@ -191,40 +199,65 @@ def fetch_faq(topic_name):
 
 
 def send_player_help_message(message, topic_name, level="Intro"):
-  print("fetch_player_help(message={message}, topic_name={topic_name}, level={level})".format(message=message, topic_name=topic_name, level=level))
+  print("send_player_help_message(message={message}, topic_name={topic_name}, level={level})".format(message=message, topic_name=topic_name, level=level))
+  player_help_for_topic_level(message.from_user, message.chat_id, topic_name, level, 1, True)
+      
+      
+def player_help_for_topic_level(username="", chat_id="", topic_name="", level="", amt=20, is_summary=False):
+  print("player_help_for_topic_level(username={username}, chat_id={chat_id}, topic_name={topic_name}, level={level}, amt={amt})".format(username=username, chat_id=chat_id, topic_name=topic_name, level=level, amt=amt))
+  
+  if topic_name == "":
+    topic_name = ""
   
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `id`, `username`, `topic_name`, `level` FROM `kikbot_sessions` WHERE `topic_name` = %s AND `chat_id` != %s ORDER BY RAND() LIMIT 1;", (topic_name, message.chat_id))
-
-      if cur.rowcount == 1:
-        row = cur.fetchone()
-        
+      #cur.execute("SELECT `id`, `chat_id`, `username`, `topic_name`, `level` FROM `kikbot_sessions` WHERE `topic_name` = %s AND `chat_id` != %s ORDER BY RAND() LIMIT %s;", (topic_name, chat_id, amt))
+      cur.execute("SELECT `id`, `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, amt))
+      
+      for row in cur:
         try:
-          avatar = kik.get_user(row['username']).profile_pic_url
-          
+          avatar = kik.get_user(username).profile_pic_url
+        
         except KikError as err:
-          avatar = "https://i.imgur.com/avKU6FJ.jpg"
-          
+          avatar = Const.DEFAULT_AVATAR
+        
         finally:
           if not avatar or avatar == "":
-            avatar = "https://i.imgur.com/avKU6FJ.jpg"
-          
+            avatar = Const.DEFAULT_AVATAR
+        
           print("row[]={row}, avatar={avatar}".format(row=row, avatar=avatar))
-          
-          kik.send_messages([
-            LinkMessage(
-              to = message.from_user,
-              chat_id = message.chat_id,
-              pic_url = avatar,
-              url = "http://gamebots.chat/player_help.php?sid={sid}".format(sid=row['id']),
-              title = row['username'],
-              text = "{topic_name} - {level}".format(topic_name=row['topic_name'], level=row['level']),
-              attribution = default_attribution()
-            )
-          ])
-
+        
+          try:
+            if is_summary:
+              kik.send_messages([
+                LinkMessage(
+                  to = username,
+                  chat_id = chat_id,
+                  pic_url = avatar,
+                  url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
+                  #title = "{topic_name}: {level}".format(topic_name=row['topic_name'], level=row['level']),
+                  text = "Chat with {username}".format(username=row['username']),
+                  attribution = custom_attribution("CHAT NOW"),
+                  keyboards = topic_content_keyboard()
+                )
+              ])
+              
+            else:
+              kik.send_messages([
+                LinkMessage(
+                  to = row['username'],
+                  chat_id = row['chat_id'],
+                  pic_url = avatar,
+                  url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
+                  #title = "{topic_name}: {level}".format(topic_name=row['topic_name'], level=row['level']),
+                  text = "Chat with {username}".format(username=username),
+                  attribution = custom_attribution("CHAT NOW")
+                )
+              ])
+            
+          except KikError as err:
+            pass
 
   except pymysql.Error as err:
     print("MySQL DB error:%s" % (err))
@@ -233,7 +266,6 @@ def send_player_help_message(message, topic_name, level="Intro"):
     if conn:
       conn.close()
       
-
 
 def topic_level_for_chat_id(chat_id):
   print("topic_level_for_chat_id(chat_id={chat_id})".format(chat_id=chat_id))
@@ -311,11 +343,11 @@ def message_for_topic_level(to_user, chat_id, topic_name, level="Intro", delay=1
         _message = LinkMessage(
           to = to_user,
           chat_id = chat_id,
-          url = "http://gamebots.chat/topic_content.php?tid={tid}".format(tid=row['id']),
-          title = "Watch Video",
-          text = row['video_title'],
+          url = "http://gamebots.chat/topic_content.php?tid={tid}&user={to_user}".format(tid=row['id'], to_user=to_user),
+          title = "{topic_name}: {level}".format(topic_name=topic_name, level=level),
+          text = "Watch Video",
           delay = delay,
-          attribution = default_attribution(),
+          attribution = custom_attribution("PLAY NOW"),
           keyboards = topic_content_keyboard(hidden=hidden)
         )
 
@@ -326,7 +358,6 @@ def message_for_topic_level(to_user, chat_id, topic_name, level="Intro", delay=1
     if conn:
       conn.close()
       
-  modd.utils.send_evt_tracker(category=to_user, action="Video Sent", label=chat_id)
   return _message
   
 
@@ -426,7 +457,7 @@ def welcome_intro_seq(message, is_mention=False):
         to = message.from_user,
         chat_id = message.chat_id,
         video_url = "http://cdn.snapcontacts.pw/videos/gamebots_intro-landscape.mp4",
-        attribution = default_attribution()
+        attribution = custom_attribution("WATCH NOW")
       ),
       TextMessage(
         to = message.from_user,
@@ -451,26 +482,59 @@ def welcome_intro_seq(message, is_mention=False):
         to = message.from_user,
         chat_id = message.chat_id,
         video_url = "http://cdn.snapcontacts.pw/videos/gamebots_intro-landscape.mp4",
-        attribution = default_attribution()
+        attribution = custom_attribution("WATCH NOW"),
+        autoplay = True
+      ),
+      VideoMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        video_url = "http://cdn.snapcontacts.pw/videos/Hearthstone_Quick.mp4",
+        attribution = custom_attribution("WATCH NOW")
+      ),
+      VideoMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        video_url = "http://cdn.snapcontacts.pw/videos/Overwatch_Quick.mp4",
+        attribution = custom_attribution("WATCH NOW")
+      ),
+      VideoMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        video_url = "http://cdn.snapcontacts.pw/videos/CS-GO_Quick.mp4",
+        attribution = custom_attribution("WATCH NOW")
       ),
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Welcome to GameBots. The fastest way to find game help.",
-        type_time = 1275, 
-        delay = 2750,
-        keyboards = topics_keyboard()
+        body = "Want 1000 free GameBot coins! Pick friends to enter.",
+        type_time = 575, 
+        delay = 2150,
+        keyboards = [
+          SuggestedResponseKeyboard(
+            hidden = False,
+            responses = [
+              TextResponse("Get Coins"),
+              TextResponse("Chat Now")
+#              TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
+#              TextResponse(u"\U0001F46B CHAT NOW"),
+#              TextResponse(u"\U0001F47E GET GAME HELP")
+            ]
+          )
+        ]
       )
     ])
     
-  modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
+  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+    
   return
 
 
 def start_help(message):
   print("start_help(message=%s)" % (message))
-  
-  modd.utils.send_evt_tracker(category=message.from_user, action="Session", label=message.chat_id)
+  modd.utils.send_evt_tracker(category="Session", action=message.chat_id, label=message.from_user)
   
   #-- data obj/ now in active session
   help_convos[message.chat_id] = {
@@ -489,23 +553,6 @@ def start_help(message):
   }
   
   
-  conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
-  try:
-    with conn.cursor() as cur:
-      cur = conn.cursor()
-
-      cur.execute("INSERT INTO `kikbot_sessions` (`username`, `topic_name`, `level`, `chat_id`, `added`) VALUES (%s, %s, %s, %s, UTC_TIMESTAMP())", (message.from_user, help_convos[message.chat_id]['game'], help_convos[message.chat_id]['level'], message.chat_id))
-      conn.commit()
-      help_convos[message.chat_id]['session_id'] = cur.lastrowid
-      cur.close()
-
-  except pymysql.Error as err:
-      print("MySQL DB error:%s" % (err))
-
-  finally:
-    if conn:
-      conn.close()
-      
   kik.send_messages([    
     TextMessage(
       to = message.from_user,
@@ -515,11 +562,29 @@ def start_help(message):
     ),
     message_for_topic_level(message.from_user, message.chat_id, help_convos[message.chat_id]['game'], help_convos[message.chat_id]['level'])
   ])
-  modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
   
+  conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+  try:
+    with conn.cursor() as cur:
+      cur = conn.cursor()
+
+      cur.execute("INSERT INTO `kikbot_sessions` (`username`, `topic_name`, `level`, `chat_id`, `added`) VALUES (%s, %s, %s, %s, UTC_TIMESTAMP())", (message.from_user, help_convos[message.chat_id]['game'], help_convos[message.chat_id]['level'], message.chat_id))
+      conn.commit()
+      help_convos[message.chat_id]['session_id'] = cur.lastrowid
+      cur.close()
+      
+      player_help_for_topic_level(message.from_user, message.chat_id, gameHelpList[message.from_user], message.body)
+
+  except pymysql.Error as err:
+      print("MySQL DB error:%s" % (err))
+
+  finally:
+    if conn:
+      conn.close()
   
   del gameHelpList[message.from_user]
   modd.utils.slack_send(help_convos[message.chat_id], message.body, message.from_user)
+  
   return
 
 
@@ -535,7 +600,6 @@ def end_help(to_user, chat_id, user_action=True):
         type_time = 250,
       )
     ])
-    modd.utils.send_evt_tracker(category=to_user, action="Sent", label=chat_id)
   
   if chat_id in help_convos:
     if user_action:
@@ -564,7 +628,6 @@ def cancel_session(to_user, chat_id):
       type_time = 250,
     )
   ])
-  modd.utils.send_evt_tracker(category=to_user, action="Sent", label=chat_id)
   
   if to_user in gameHelpList:
     del gameHelpList[to_user]
@@ -606,21 +669,59 @@ class KikBot(tornado.web.RequestHandler):
       # -=-=-=-=-=-=-=-=- UNSUPPORTED TYPE -=-=-=-=-=-=-=-=-
       if isinstance(message, LinkMessage) or isinstance(message, PictureMessage) or isinstance(message, VideoMessage) or isinstance(message, ScanDataMessage) or isinstance(message, StickerMessage) or isinstance(message, UnknownMessage):
         print("=-= IGNORING MESSAGE =-=\n%s " % (message))
+#        kik.send_messages([
+#          TextMessage(
+#            to = message.from_user,
+#            chat_id = message.chat_id,
+#            body = "GameBots chat key successfully unlocked. One moment please…",
+#            type_time = 500,
+#            keyboards = [
+#              SuggestedResponseKeyboard(
+#                hidden = False,
+#                responses = [
+#                  TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
+#                  TextResponse(u"\U0001F46B CHAT NOW"),
+#                  TextResponse(u"\U0001F47E GET GAME HELP")
+#                ]
+#              )
+#            ]
+#          ),
+#        ])
+        default_text_reply(message=message)
+        
+        self.set_status(200)
+        return
+        
+      
+      # -=-=-=-=-=-=-=-=- FRIEND PICKER MESSAGE -=-=-=-=-=-=-=-=-
+      elif isinstance(message, FriendPickerMessage):  
+        modd.utils.send_evt_tracker(category="friend", action=message.chat_id, label=message.from_user)
+        
+        conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+        try:
+          with conn.cursor() as cur:
+            cur = conn.cursor()
+            cur.execute("INSERT IGNORE INTO `kikbot_logs` (`username`, `chat_id`, `body`) VALUES (%s, %s, %s)", (message.from_user, message.chat_id, "__{PICKER}__%s" % (",".join(message.picked).encode('utf-8'))))
+            conn.commit()
+            cur.close()
+          
+        except pymysql.Error as err:
+            print("MySQL DB error:%s" % (err))
+      
+        finally:
+          if conn:
+            conn.close()
+            
         kik.send_messages([
           TextMessage(
             to = message.from_user,
             chat_id = message.chat_id,
-            body = "I'm sorry, I cannot understand that type of message.",
-            type_time = 250
-          ),
+            body = "Thanks. 1000 coins have been added to your account. Type \"Next\" to continue.",
+            type_time = 500
+          )
         ])
-        default_text_reply(message=message)
         
-        modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
         
-        self.set_status(200)
-        return
-      
       
       # -=-=-=-=-=-=-=-=- DELIVERY RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
       elif isinstance(message, DeliveryReceiptMessage):
@@ -672,8 +773,7 @@ class KikBot(tornado.web.RequestHandler):
       # -=-=-=-=-=-=-=-=- READ RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
       elif isinstance(message, ReadReceiptMessage):
         # print "-= ReadReceiptMessage =-= "
-        
-        modd.utils.send_evt_tracker(category=message.from_user, action="Read", label=message.chat_id)
+        modd.utils.send_evt_tracker(category="read", action=message.chat_id, label=message.from_user)
         self.set_status(200)
         return
          
@@ -682,7 +782,27 @@ class KikBot(tornado.web.RequestHandler):
       elif isinstance(message, StartChattingMessage):
         print("-= StartChattingMessage =-= ")
         
-        modd.utils.send_evt_tracker(category=message.from_user, action="Start Chat", label=message.chat_id)
+        modd.utils.send_evt_tracker(category="Start Chat", action=message.chat_id, label=message.from_user)
+        conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+        try:
+          with conn.cursor() as cur:
+            cur = conn.cursor()
+            cur.execute("INSERT IGNORE INTO `kikbot_logs` (`id`, `username`, `chat_id`, `body`, `added`) VALUES (NULL, %s, %s, %s, NOW())", (message.from_user, message.chat_id, "__{START-CHATTING}__"))
+            conn.commit()
+            cur.close()
+          
+        except pymysql.Error as err:
+            print("MySQL DB error:%s" % (err))
+      
+        finally:
+          if conn:
+            conn.close()
+        
+        
+        response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=botlandia&category=kikbot&action=start-chat&label={username}&value=0&cid={cid}".format(username=message.from_user, cid=message.chat_id))
+        response = requests.get("http://beta.modd.live/api/user_tracker.php?username={username}&chat_id={chat_id}".format(username=message.from_user, chat_id=message.chat_id))
+        
+        
         welcome_intro_seq(message)
         self.set_status(200)
         return
@@ -695,12 +815,33 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
         if message.mention is not None:
           if message.body == "Start Chatting":
-            modd.utils.send_evt_tracker(category=message.from_user, action="Subscribe", label=message.chat_id)
+            modd.utils.send_evt_tracker(category="Subscribe", action=message.chat_id, label=message.from_user)
+            
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Want a FREE CS:GO SKIN?",
+                type_time = 575, 
+                delay = 2150,
+                keyboards = [
+                  SuggestedResponseKeyboard(
+                    hidden = False,
+                    responses = [
+                      TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
+                      TextResponse(u"\U0001F46B CHAT NOW"),
+                      TextResponse(u"\U0001F47E GET GAME HELP")
+                    ]
+                  )
+                ]
+              )
+            ])
             
             self.set_status(200)            
             return
 
           else:
+            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
             
             #-- start the idle timeout - phasers to kill!
             #idle_activity_timer_starts(message.chat_id, True)
@@ -749,8 +890,6 @@ class KikBot(tornado.web.RequestHandler):
             if conn:
               conn.close()
         
-        
-          modd.utils.send_evt_tracker(category=message.from_user, action="Reply", label=message.chat_id)
           
           print("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
           print("-=- help_convos -=- %s" % (help_convos))
@@ -790,8 +929,7 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- DEFAULT TOPIC BTNS -=-=-=-=-=-=-=-=-
         if message.body in topic_names:
           if message.from_user not in gameHelpList:
-            modd.utils.send_evt_tracker(category=message.from_user, action="Subscribe", label=message.chat_id)
-            
+            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
             gameHelpList[message.from_user] = message.body
           
             kik.send_messages([
@@ -803,7 +941,6 @@ class KikBot(tornado.web.RequestHandler):
                 keyboards = levels_keyboard()
               )
             ])
-            modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
           
           self.set_status(200)
           return
@@ -812,15 +949,53 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- LEVEL GAME BTNS -=-=-=-=-=-=-=-=-    
         elif message.body in topic_levels:
           if message.from_user in gameHelpList:
-            modd.utils.send_evt_tracker(category=message.from_user, action="Button", label=message.chat_id)
+            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
             start_help(message)
             
+          self.set_status(200)
+          return
+        
+        
+      
+        # -=-=-=-=-=-=-=-=- GET COINS BTN -=-=-=-=-=-=-=-=-      
+        elif message.body == "Get Coins":
+          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+          kik.send_messages([
+            PictureMessage(
+              to = message.from_user, 
+              chat_id = message.chat_id,
+              pic_url = "http://i.imgur.com/lBTsEXo.png",
+              keyboards = default_friend_picker(),
+              attribution = custom_attribution("Pick friends for 1000 free GameBot coins!"), 
+            )
+          ])
+          
+          self.set_status(200)
+          return
+          
+          
+          
+        # -=-=-=-=-=-=-=-=- CHAT NOW BTN -=-=-=-=-=-=-=-=-      
+        elif message.body == "Chat Now":
+          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+          kik.send_messages([
+            PictureMessage(
+              to = message.from_user, 
+              chat_id = message.chat_id,
+              pic_url = "http://i.imgur.com/cqmCllh.png",
+              keyboards = default_friend_picker(),
+              attribution = custom_attribution("Help our community grow. Pick friends."), 
+            )
+          ])
+          
           self.set_status(200)
           return
           
           
         # -=-=-=-=-=-=-=-=- ANOTHER TOPIC VIDEO BTN -=-=-=-=-=-=-=-=-      
-        elif message.body == "Another Clip":
+        elif message.body == u"\U0001F4FA ANOTHER CLIP":
+          modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+          
           topic_level = topic_level_for_chat_id(message.chat_id)
           if topic_level is not None:
             default_content_reply(message, topic_level['topic'], topic_level['level'])
@@ -830,33 +1005,43 @@ class KikBot(tornado.web.RequestHandler):
           
           
         # -=-=-=-=-=-=-=-=- CHAT W/ PLAYER BTN -=-=-=-=-=-=-=-=-      
-        elif message.body == "Chat with Player":
-          modd.utils.send_evt_tracker(category=message.from_user, action="Player-Help", label=message.chat_id)
-          player = send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=help_convos[message.chat_id]['level'])
+        elif message.body == u"\U0001F46B CHAT NOW":
+          modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="chat", action=message.chat_id, label=message.from_user)
+          
+          if message.chat_id in help_convos:
+            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=help_convos[message.chat_id]['level'])
+            player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name=help_convos[message.chat_id]['game'], level=help_convos[message.chat_id]['level'])
+            
+          else:
+            send_player_help_message(message=message, topic_name="Hearthstone", level="Intro")
+            player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name="Hearthstone", level="Intro")
+            
           self.set_status(200)
           return
         
         
-        # -=-=-=-=-=-=-=-=- NO THANKS BTN -=-=-=-=-=-=-=-=-
-        elif message.body == "No Thanks":
+        # -=-=-=-=-=-=-=-=- GAME HELP BTN -=-=-=-=-=-=-=-=-
+        elif message.body == u"\U0001F47E GET GAME HELP" or message.body == "No Thanks":
+          modd.utils.send_evt_tracker(category="no-thanks", action=message.chat_id, label=message.from_user)
+          default_text_reply(message=message)
+          self.set_status(200)
+          return
+          
+          
+        # -=-=-=-=-=-=-=-=- CS:GO SKIN BTN -=-=-=-=-=-=-=-=-
+        elif message.body == u"\U0001F3C6 FREE CS:GO SKIN":
+          modd.utils.send_evt_tracker(category="reward", action=message.chat_id, label=message.from_user)
+          
           kik.send_messages([
-            TextMessage(
+            PictureMessage(
               to = message.from_user, 
               chat_id = message.chat_id,
-              body = "Very well, tap the keyboard icon after entering a message to request another tip.", 
-              type_time = 250
+              pic_url = "http://i.imgur.com/N7YDEqH.png",
+              keyboards = default_friend_picker(),
+              attribution = custom_attribution("Invite 5 friends to claim reward."), 
             )
           ])
-          self.set_status(200)
-          return
-          
-          
-        # -=-=-=-=-=-=-=-=- GAME SERVER BTN -=-=-=-=-=-=-=-=-
-        elif message.body == "Enter Server":
-          if message.chat_id in help_convos:
-            modd.utils.send_evt_tracker(category=message.from_user, action="Button", label=message.chat_id)
-            modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
-
           self.set_status(200)
           return
           
@@ -864,7 +1049,6 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- RELOAD BOT BTN -=-=-=-=-=-=-=-=-
         elif message.body == "Reload Bot":
           if message.from_user in gameHelpList:
-            modd.utils.send_evt_tracker(category=message.from_user, action="Button", label=message.chat_id)
             del gameHelpList[message.from_user]
             
           if message.chat_id in help_convos:
@@ -879,7 +1063,6 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=-=- FAQ BUTTONS -=-=-=-=-=-=-=-=-=-
         elif message.body == "More Details":
           if message.chat_id in help_convos:
-            modd.utils.send_evt_tracker(category=message.from_user, action="Button", label=message.chat_id)
             faq_arr = fetch_faq(help_convos[message.chat_id]['game'])
             print("faq_arr:%s" % (faq_arr))
             
@@ -958,19 +1141,18 @@ class KikBot(tornado.web.RequestHandler):
           
           # -=-=-=-=-=-=-=-=-=- CONTIUNE SESSION -=-=-=-=-=-=-=-
           else:
-            
+          
             #-- respond with waiting msg
             topic_level = topic_level_for_chat_id(message.chat_id)
             if topic_level is not None:
               default_content_reply(message, topic_level['topic'], topic_level['level'])
-              
-            #-- route to slack api, guy
-            modd.utils.send_evt_tracker(category=message.from_user, action="Reply", label=message.chat_id)
-            modd.utils.slack_im(help_convos[message.chat_id], message.body)
             
+            #-- route to slack api, guy
+            modd.utils.slack_im(help_convos[message.chat_id], message.body)
+          
             self.set_status(200)
             return
-          
+        
           self.set_status(200)
           return
           
@@ -978,9 +1160,8 @@ class KikBot(tornado.web.RequestHandler):
           
         # -=-=-=-=-=-=-=-=- BUTTON PROMPT -=-=-=-=-=-=-=-=
         #-- anything else, prompt with 4 topics
-        if len(gameHelpList) == 0 and len(help_convos) == 0:
+        if message.from_user not in gameHelpList and message.chat_id not in help_convos:
           default_text_reply(message=message)
-          modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
           
           self.set_status(200)
           return
@@ -1041,16 +1222,17 @@ class ConnectPlayer(tornado.web.RequestHandler):
         PictureMessage(
           to = to_user,
           chat_id = chat_id,
-          pic_url = "https://i.imgur.com/an3ZVee.jpg",
+          pic_url = "http://profilepics.kik.com/acV09p0BEgu3dBSU7MdAJh-3pMs/orig.jpg",
+          
           attribution = CustomAttribution(
-            name = "Hearthstone", 
+            name = "Chat now", 
             icon_url = "http://gamebots.chat/img/icon/favicon-96x96.png"
           )
         ),
         TextMessage(
           to = to_user,
           chat_id = chat_id,
-          body = "Hearthstone level intro\nNeed level help now\nkik.me/JamieTwitch89"
+          body = "I am new to Overwatch, can someone help?\nkik.me/alexamaria.i?s=1"
         )
       ])
         
@@ -1110,11 +1292,10 @@ class Slack(tornado.web.RequestHandler):
                   TextMessage(
                     to = to_user,
                     chat_id = chat_id,
-                    body = "%s coach:\n%s" % (help_convos[chat_id]['game'], message),
+                    body = "%s player:\n%s" % (help_convos[chat_id]['game'], message),
                     type_time = 250
                   )
                 ])
-                modd.utils.send_evt_tracker(category=message.from_user, action="Sent", label=message.chat_id)
     
         except pymysql.Error as err:
           print("MySQL DB error:%s" % (err))
@@ -1159,67 +1340,29 @@ class Message(tornado.web.RequestHandler):
       
   def post(self):
     print("-=-=-=-=-=-=-=-=-=-= MESSAGE BROADCAST =-=-=-=-=-=-=-=-=-=-=")
-    username = self.get_body_argument('recipient', "")
-    body = self.get_body_argument('body', "")
-    url = self.get_body_argument('url', "")
-    image_url = self.get_body_argument('image_url', "")
-    video_url = self.get_body_argument('video_url', "")
-    message_type = self.get_body_argument('type', "")
-    message_method = self.get_body_argument('method', "")
     
-    conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
-    try:
-      with conn.cursor() as cur:
-        cur.execute("SELECT `chat_id` FROM `kikbot_logs` WHERE `username` = '%s' ORDER BY `added` DESC LIMIT 1;" % (username))
-
-        if cur.rowcount == 1:
-          row = cur.fetchone()
-  
-          print("RECIPIENT: %s (%s)" % (username, row['chat_id']))
-          if message_type == "TextMessage":
-            print("BODY : %s" % (body))
-            kik_message = TextMessage(
-              to = username,
-              chat_id = row['chat_id'],
-              body = body
-            )
-
-          elif message_type == "LinkMessage":
-            print("BODY : %s" % (body))
-            print("IMG_URL : %s" % (image_url))
-            print("URL : %s" % (url))
-            kik_message = LinkMessage(
-              to = username,
-              chat_id = row['chat_id'],
-              title = body,
-              pic_url = image_url,
-              url = url,
-              attribution = default_attribution()
-            )
-
-          elif message_type == "VideoMessage":
-            print("ID_URL : " % (video_url))
-            kik_message = VideoMessage(
-              to = username,
-              chat_id = row['chat_id'],
-              video_url = video_url,
-              autoplay = False,
-              muted = False,
-              loop = False
-            )
-
-          kik.send_messages([kik_message])
-          
-    except pymysql.Error as err:
-      print("MySQL DB error:%s" % (err))
-
-    finally:
-      if conn:
-        conn.close()
+    if self.get_argument('token', "") == Const.BROADCAST_TOKEN:
+      kik.send_messages([
+        PictureMessage(
+          to = self.get_argument('username', ""),
+          chat_id = self.get_argument('chat_id', ""),
+          pic_url = self.get_argument('img_url', ""),
+          keyboards = default_friend_picker(),
+          attribution = CustomAttribution(
+            name = self.get_argument('attribution', ""), 
+            icon_url = "http://gamebots.chat/img/icon/favicon-96x96.png"
+          )
+        )
+      ])
         
-    self.set_status(200)
+      self.set_status(200)
+        
+    else:
+      self.set_status(403)
+    
     return
-
+    
+    
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
@@ -1235,7 +1378,7 @@ help_convos = {}
 #   'USERNAME' : "streamcard",
 #   'API_KEY'  : "aa503b6f-dcda-4817-86d0-02cfb110b16a",
 #   'WEBHOOK'  : {
-#     'HOST' : "http://76.102.12.47",
+#     'HOST' : "http://98.248.37.68",
 #     'PORT' : 8080,
 #     'PATH' : "kik-bot"
 #   },
@@ -1247,36 +1390,36 @@ help_convos = {}
 # }
 
 
-# Const.KIK_API_CONFIG = {
-#   'USERNAME'  : "game.bots",
-#   'API_KEY'   : "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
-#   'WEBHOOK'   : {
-#     'HOST'  : "http://159.203.250.4",
-#     'PORT'  : 8080,
-#     'PATH'  : "kik-bot"
-#   },
-# 
-#   'FEATURES'  : {
-#     'receiveDeliveryReceipts' : True,
-#     'receiveReadReceipts'     : True
-#   }
-# }
-
-
-Const.KIK_API_CONFIG = {
-  'USERNAME'  : "gamebots.beta",
-  'API_KEY'   : "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+Const.KIK_API_CONFIG = { 
+  'USERNAME'  : "game.bots",
+  'API_KEY'   : "0fb46005-dd00-49c3-a4a5-239a0bdc1e79",
   'WEBHOOK'   : {
-    'HOST'  : "http://76.102.12.47",
+    'HOST'  : "http://159.203.250.4",
     'PORT'  : 8080,
     'PATH'  : "kik-bot"
   },
-  
+
   'FEATURES'  : {
     'receiveDeliveryReceipts' : True,
     'receiveReadReceipts'     : True
   }
 }
+
+
+# Const.KIK_API_CONFIG = {
+#   'USERNAME'  : "gamebots.beta",
+#   'API_KEY'   : "570a2b17-a0a3-4678-a9cd-fa21edf8bb8a",
+#   'WEBHOOK'   : {
+#     'HOST'  : "http://98.248.37.68",
+#     'PORT'  : 8080,
+#     'PATH'  : "kik-bot"
+#   },
+#   
+#   'FEATURES'  : {
+#     'receiveDeliveryReceipts' : True,
+#     'receiveReadReceipts'     : True
+#   }
+# }
 
 
 
@@ -1321,6 +1464,7 @@ print("# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 #-- url webhooks
 application = tornado.web.Application([
+  (r"/kik", KikBot),
   (r"/kik-bot", KikBot),
   (r"/topic-notify", TopicNotify),
   (r"/connect-player", ConnectPlayer),

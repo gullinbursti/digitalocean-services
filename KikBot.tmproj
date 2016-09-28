@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/kik_bot.py</string>
+	<string>app-py3/modd/utils.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -75,8 +75,6 @@
 			<date>2016-09-01T11:44:27Z</date>
 		</dict>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>_install</string>
 			<key>regexFolderFilter</key>
@@ -89,20 +87,6 @@
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
-		<key>_install/kik/kik/messages/link.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>31</integer>
-				<key>line</key>
-				<integer>28</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>0</integer>
-		</dict>
 		<key>_install/kik/kik/messages/receipts.py</key>
 		<dict>
 			<key>caret</key>
@@ -117,44 +101,28 @@
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
-		<key>app-py3/kik_bot.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>10</integer>
-				<key>line</key>
-				<integer>815</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>792</integer>
-		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>117</integer>
 				<key>line</key>
-				<integer>8</integer>
+				<integer>19</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>0</integer>
+			<integer>3</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>app-py3/kik_bot.py</string>
-		<string>_install/kik/kik/messages/link.py</string>
 		<string>app-py3/modd/utils.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{210, 4}, {1230, 874}}</string>
+	<string>{{1556, -85}, {1230, 874}}</string>
 </dict>
 </plist>
