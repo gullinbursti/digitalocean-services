@@ -24,45 +24,6 @@ def send_evt_tracker(category="", action="", label="", value=0):
   return response.status_code == 200
   
   
-def send_botanalytics(chat_id, txt_message):
-  print("send_botanalytics(chat_id={chat_id}, txt_message={txt_message})".format(chat_id=chat_id, txt_message=txt_message))
-  
-  payload = {
-    'recipient' : chat_id,
-    'timestamp' : int(time.time()),
-    'token'     : "9d75077d09e99dd37293112b82ef7b43",
-    'message'   : txt_message
-  }
-  
-  response = requests.post("http://botanalytics.co/api/v1/track", headers={ 'Content-Type' : 'application/json' }, data=json.dumps(payload))
-  print(response.text)
-  
-def send_dashbot(to_user, from_user, chat_id, msg_type, body, direction="outgoing"):
-  print("send_dashbot(to_user={to_user}, from_user={from_user}, chat_id={chat_id}, msg_type={msg_type}, body={body}, direction={direction})".format(to_user=to_user, from_user=from_user, chat_id=chat_id, msg_type=msg_type, body=body, direction=direction))
-  
-  params = {
-    'platform'  : "kik",
-    'v'         : "0.7.3-rest",
-    'type'      : direction,
-    'apiKey'    : "gFCj3t6ZfNyUa8ryOpewPqmzFIg54iofhD6sKUQq"
-  }
-  
-  payload = {
-    'apiKey'    :"gFCj3t6ZfNyUa8ryOpewPqmzFIg54iofhD6sKUQq",
-    'username'  : from_user,
-    'message'   : {
-      'type'    : msg_type,
-      'body'    : body,
-      'to'      : to_user,
-      'chatId'  : chat_id
-    }
-  }
-  
-  response = requests.post("https://tracker.dashbot.io/track", params=params, data=json.dumps(payload))
-  print(response.text)
-  
-  
-   
 def slack_im(convo, message):
   print("slack_im(convo=%s, message=%s)" % (convo, message))
 

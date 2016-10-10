@@ -42,7 +42,7 @@ Const.DB_PASS = 'f4zeHUga.age'
 Const.MAX_REPLIES = 40
 Const.INACTIVITY_THRESHOLD = 8000
 
-Const.DEFAULT_AVATAR = "http://i.imgur.com/rddWfbV.png";
+Const.DEFAULT_AVATAR = "http://i.imgur.com/ddyXamr.png";
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
@@ -103,6 +103,21 @@ def topic_content_keyboard(hidden=False):
   ]
 
   return keyboard
+  
+  
+def welcome_keyboard(hidden=False):
+  keyboard = [
+    SuggestedResponseKeyboard(
+      hidden = hidden,
+      responses = [
+        TextResponse("Next Video (50 coins)"),
+        TextResponse("Next Player (100 coins)"),
+        TextResponse("Steam (1000 coins)")
+      ]
+    )
+  ]
+
+  return keyboard
 
 
 def default_friend_picker(min=1, max=20, message="Pick friends"):
@@ -142,8 +157,8 @@ def default_text_reply(message, delay=0, type_time=500):
     TextMessage(
       to = message.from_user,
       chat_id = message.chat_id,
-      body = "Select a game that you need help with. Type cancel anytime to end this conversation.",
-      keyboards = topics_keyboard(),
+      body = "Chat now with over a million players.",
+      keyboards = welcome_keyboard(),
       type_time = type_time,
       delay = delay
     )
@@ -203,7 +218,7 @@ def send_player_help_message(message, topic_name, level="Intro"):
   player_help_for_topic_level(message.from_user, message.chat_id, topic_name, level, 1, True)
       
       
-def player_help_for_topic_level(username="", chat_id="", topic_name="", level="", amt=20, is_summary=False):
+def player_help_for_topic_level(username="", chat_id="", topic_name="", level="", amt=2, to_self=False):
   print("player_help_for_topic_level(username={username}, chat_id={chat_id}, topic_name={topic_name}, level={level}, amt={amt})".format(username=username, chat_id=chat_id, topic_name=topic_name, level=level, amt=amt))
   
   if topic_name == "":
@@ -212,53 +227,47 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      #cur.execute("SELECT `id`, `chat_id`, `username`, `topic_name`, `level` FROM `kikbot_sessions` WHERE `topic_name` = %s AND `chat_id` != %s ORDER BY RAND() LIMIT %s;", (topic_name, chat_id, amt))
-      cur.execute("SELECT `id`, `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, amt))
+      cur.execute("SELECT `id`, `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s AND `username` != %s GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, username, amt))
       
       for row in cur:
-        try:
-          avatar = kik.get_user(username).profile_pic_url
-        
-        except KikError as err:
-          avatar = Const.DEFAULT_AVATAR
-        
-        finally:
-          if not avatar or avatar == "":
-            avatar = Const.DEFAULT_AVATAR
-        
+        if to_self:
+          avatar = "http://cdn.kik.com/user/pic/{username}".format(username=row['username'])
           print("row[]={row}, avatar={avatar}".format(row=row, avatar=avatar))
-        
-          try:
-            if is_summary:
-              kik.send_messages([
-                LinkMessage(
-                  to = username,
-                  chat_id = chat_id,
-                  pic_url = avatar,
-                  url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
-                  #title = "{topic_name}: {level}".format(topic_name=row['topic_name'], level=row['level']),
-                  text = "Chat with {username}".format(username=row['username']),
-                  attribution = custom_attribution("CHAT NOW"),
-                  keyboards = topic_content_keyboard()
-                )
-              ])
-              
-            else:
-              kik.send_messages([
-                LinkMessage(
-                  to = row['username'],
-                  chat_id = row['chat_id'],
-                  pic_url = avatar,
-                  url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
-                  #title = "{topic_name}: {level}".format(topic_name=row['topic_name'], level=row['level']),
-                  text = "Chat with {username}".format(username=username),
-                  attribution = custom_attribution("CHAT NOW")
-                )
-              ])
+          
+          kik.send_messages([
+            LinkMessage(
+              to = username,
+              chat_id = chat_id,
+              pic_url = avatar,
+              # url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
+              # url = "http://gamebots.chat/profile.php?lid={lid}&from_user={from_user}&username={to_user}&img={img}".format(lid=row['id'], from_user=username, to_user=row['username'], img=""),
+              url = "http://gamebots.chat/bot.html?t=p&u={from_user}&r={to_user}".format(from_user=username, to_user=row['username']),
+              title = "{username}".format(username=row['username']),
+              text = "Keep tapping Chat Now for more coins.",
+              attribution = custom_attribution("CHAT NOW"),
+              keyboards = welcome_keyboard()
+            )
+          ])
+          
+        else:
+          avatar = "http://cdn.kik.com/user/pic/{username}".format(username=username)
+          print("row[]={row}, avatar={avatar}".format(row=row, avatar=avatar))
+          
+          kik.send_messages([
+            LinkMessage(
+              to = row['username'],
+              chat_id = row['chat_id'],
+              pic_url = avatar,
+              # url = "http://gamebots.chat/player_help.php?lid={lid}".format(lid=row['id']),
+              #url = "http://gamebots.chat/profile.php?lid={lid}&from_user={from_user}&username={to_user}&img={img}".format(lid=row['id'], from_user=username, to_user=row['username'], img=""),
+              url = "http://gamebots.chat/bot.html?t=p&u={from_user}&r={to_user}".format(from_user=row['username'], to_user=username),
+              title = "{username}".format(username=username),
+              text = "Keep tapping Chat Now for more coins.",
+              attribution = custom_attribution("CHAT NOW"),
+              keyboards = welcome_keyboard()
+            )
+          ])
             
-          except KikError as err:
-            pass
-
   except pymysql.Error as err:
     print("MySQL DB error:%s" % (err))
 
@@ -334,7 +343,7 @@ def message_for_topic_level(to_user, chat_id, topic_name, level="Intro", delay=1
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `id`, `youtube_id`, `video_title`, `video_url` FROM `topic_content` WHERE `topic_name` = %s AND `level` = %s ORDER BY RAND() LIMIT 1;", (topic_name, level))
+      cur.execute("SELECT `id`, `youtube_id`, `video_title`, `image_url`, `video_url` FROM `topic_content` WHERE `topic_name` = %s AND `level` = %s ORDER BY RAND() LIMIT 1;", (topic_name, level))
 
       if cur.rowcount == 1:
         row = cur.fetchone()
@@ -343,12 +352,16 @@ def message_for_topic_level(to_user, chat_id, topic_name, level="Intro", delay=1
         _message = LinkMessage(
           to = to_user,
           chat_id = chat_id,
-          url = "http://gamebots.chat/topic_content.php?tid={tid}&user={to_user}".format(tid=row['id'], to_user=to_user),
-          title = "{topic_name}: {level}".format(topic_name=topic_name, level=level),
-          text = "Watch Video",
+          pic_url = row['image_url'],
+          # url = "http://gamebots.chat/topic_content.php?tid={tid}&username={to_user}&img={video_img}&youtube_id={youtube_id}&title={title}".format(tid=row['id'], to_user=to_user, video_img=row['image_url'], youtube_id=row['youtube_id'], title=row['video_title']),
+          #url = "http://gamebots.chat/video.php?tid={tid}&username={to_user}&img={video_img}&youtube_id={youtube_id}&title={title}".format(tid=row['id'], to_user=to_user, video_img=row['image_url'], youtube_id=row['youtube_id'], title=row['video_title']),
+          #url = "http://gamebots.chat/bot.html?t=v&u={from_user}&y={youtube_id}&g={topic_name}&l={level}".format(from_user=to_user, youtube_id=row['youtube_id'], topic_name=topic_name, level=level),
+          url = "http://gamebots.chat/bot.html?t=v&u={from_user}&y={youtube_id}&g={topic_name}&l={level}".format(from_user=to_user, youtube_id=row['youtube_id'], topic_name="", level=""),
+          title = "{topic_name} - {level}".format(topic_name=topic_name, level=level),
+          text = "Keep tapping Watch Now for more coins.",
           delay = delay,
-          attribution = custom_attribution("PLAY NOW"),
-          keyboards = topic_content_keyboard(hidden=hidden)
+          attribution = custom_attribution("WATCH NOW"),
+          keyboards = welcome_keyboard()
         )
 
   except pymysql.Error as err:
@@ -360,87 +373,6 @@ def message_for_topic_level(to_user, chat_id, topic_name, level="Intro", delay=1
       
   return _message
   
-
-
-#--:-- Idle Activity timeout --:--#
-#-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
-
-def idle_activity_timer_starts(chat_id, is_selfOffing=False):
-  print("on_idle_timer(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=False))
-
-  #-- if timer exists, end it plz
-  idle_activity_ends(chat_id, is_selfOffing)
-  
-  #-- remake a new idle timer
-  t = threading.Timer(Const.INACTIVITY_THRESHOLD, idle_activity_ends, [chat_id]).start()
-  help_convos[chat_id]['last_message'] = datetime.now()
-  help_convos[chat_id]['idle_timer'] = t
-  
-  s_epoch = epoch(time.time()).shift('US/Pacific').epoch
-  help_convos[chat_id]['s_epoch'] = s_epoch
-  help_convos[chat_id]['h_epoch'] = s_epoch
-    
-  self.set_status(200)
-  return
-
-
-def idle_activity_tics(chat_id):
-  print("idle_activity_tics(chat_id={chat_id})".format(chat_id=chat_id))
-  
-  #-- exists
-  if chat_id in help_convos:
-    
-    #-- epoch updates
-    t_epoch = epoch(time.time()).shift('US/Pacific').epoch
-    help_convos[chat_id]['t_epoch'] = t_epoch
-    
-    #-- past the limit, end it!
-    if (help[convos[chat_id]['s_epoch']] - t_epoch) + Const.INACTIVITY_THRESHOLD < t_epoch:
-      idle_activity_ends(chat_id)
-      
-  # self.set_status(200)
-  return
-    
-  
-def idle_activity_timer_restarts(chat_id, is_selfOffing=False):
-  print("idle_activity_timer_restarts(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=False))
-
-  #-- if timer exists, end it plz 
-  idle_activity_ends(chat_id, is_selfOffing)
-
-  #-- remake a new idle timer
-  if chat_id in helpConvos:
-    s_epoch = epoch(time.time()).shift('US/Pacific').epoch
-    t = threading.Timer(Const.INACTIVITY_THRESHOLD, idle_activity_tics, [chat_id]).start()
-    
-    help_convos[chat_id]['idle_timer'] = t
-    help_convos[chat_id]['s_epoch'] = s_epoch
-    help_convos[chat_id]['h_epoch'] = s_epoch
-    
-  # self.set_status(200)
-  return s_epoch
-  
-  
-  
-def idle_activity_ends(chat_id, is_selfOffing=True):
-  print("idle_activity_ends(chat_id={chat_id}, is_selfOffing={is_selfOffing})".format(chat_id=chat_id, is_selfOffing=is_selfOffing))
-  
-  if chat_id in help_convos:
-    if help_convos[chat_id]['idle_timer'] is not None:
-      t = help_convos[chat_id]['idle_timer']
-      t.cancel()
-      
-      
-    if is_selfOffing:
-      modd.utils.slack_im(help_convos[chat_id], "I've seem to have gone idle… connected for ")
-      
-      #-- skipp actually ending it
-      #//end_chat(c)
-      
-  # self.set_status(200)
-  return
-  
-  
   
 
 #--:-- Session Subpaths / In-Session Seqs --:--#
@@ -449,85 +381,65 @@ def idle_activity_ends(chat_id, is_selfOffing=True):
 def welcome_intro_seq(message, is_mention=False):
   print("welcome_intro_seq(message=%s, is_mention=%d)" % (message, is_mention))
   
+  topic_names = [
+    #"Pokémon Go",
+    "Hearthstone",
+    "CS:GO",
+    "Dota 2",
+    "League of Legends"
+  ]
+  
+  topic_levels = [
+    "Level 1",
+    "Level 2-6",
+    "Level 7-15",
+    "Level 16+"
+  ]
+  
   if is_mention:
     print("MENTION PARTICIPANT:%s" % (message.participants[-1]))
     
     kik.send_messages([
-      VideoMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        video_url = "http://cdn.snapcontacts.pw/videos/gamebots_intro-landscape.mp4",
-        attribution = custom_attribution("WATCH NOW")
-      ),
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Welcome to GameBots. The fastest way to find game help.\nTap REPLY to start chatting.",
-        keyboards = [
-          SuggestedResponseKeyboard(
-            hidden = False,
-            responses = [
-              TextResponse("Start Chatting")
-            ]
-          )
-        ],
+        body = "Chat with millions of players with GameBots! Connect Steam to win daily rewards.",
         type_time = 500,
-        delay = 2750
+        keyboards = welcome_keyboard()
       )
     ])
     
   else:
     kik.send_messages([
-      VideoMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        video_url = "http://cdn.snapcontacts.pw/videos/gamebots_intro-landscape.mp4",
-        attribution = custom_attribution("WATCH NOW"),
-        autoplay = True
-      ),
-      VideoMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        video_url = "http://cdn.snapcontacts.pw/videos/Hearthstone_Quick.mp4",
-        attribution = custom_attribution("WATCH NOW")
-      ),
-      VideoMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        video_url = "http://cdn.snapcontacts.pw/videos/Overwatch_Quick.mp4",
-        attribution = custom_attribution("WATCH NOW")
-      ),
-      VideoMessage(
-        to = message.from_user,
-        chat_id = message.chat_id,
-        video_url = "http://cdn.snapcontacts.pw/videos/CS-GO_Quick.mp4",
-        attribution = custom_attribution("WATCH NOW")
-      ),
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Want 1000 free GameBot coins! Pick friends to enter.",
-        type_time = 575, 
-        delay = 2150,
-        keyboards = [
-          SuggestedResponseKeyboard(
-            hidden = False,
-            responses = [
-              TextResponse("Get Coins"),
-              TextResponse("Chat Now")
-#              TextResponse(u"\U0001F3C6 FREE CS:GO SKIN"),
-#              TextResponse(u"\U0001F46B CHAT NOW"),
-#              TextResponse(u"\U0001F47E GET GAME HELP")
-            ]
-          )
-        ]
+        body = "Chat with millions of players with GameBots! Connect Steam to win daily rewards.",
+        type_time = 500, 
+        delay = 2150
+      ),
+    ])
+    
+    default_content_reply(message, random.choice(topic_names), random.choice(topic_levels))
+    send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))
+    kik.send_messages([
+      LinkMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        pic_url = "https://i.imgur.com/CctmFz0.png",
+        url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
+        #title = "{topic_name}: {level}".format(topic_name=row['topic_name'], level=row['level']),
+        text = "Connect Steam account for more features. (1000 coins)",
+        attribution = custom_attribution("CHAT NOW"),
+        keyboards = welcome_keyboard()
       )
     ])
     
   modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
-  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
-  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
-  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="steam-button", action=message.chat_id, label=message.from_user)
+  modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
+  
     
   return
 
@@ -557,7 +469,7 @@ def start_help(message):
     TextMessage(
       to = message.from_user,
       chat_id = message.chat_id,
-      body = "Here is a quick video clip. Watch now and I will connect you with a live player shortly.",
+      body = "Tap below to watch {topic_name} videos & chat with live players.".format(topic_name=help_convos[message.chat_id]['game']),
       type_time = 500
     ),
     message_for_topic_level(message.from_user, message.chat_id, help_convos[message.chat_id]['game'], help_convos[message.chat_id]['level'])
@@ -712,15 +624,33 @@ class KikBot(tornado.web.RequestHandler):
           if conn:
             conn.close()
             
+            
+        for friend in message.picked:
+          modd.utils.send_evt_tracker(category="friend-picker", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+            
         kik.send_messages([
           TextMessage(
             to = message.from_user,
             chat_id = message.chat_id,
-            body = "Thanks. 1000 coins have been added to your account. Type \"Next\" to continue.",
+            body = "One moment..",
             type_time = 500
           )
         ])
+        modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
         
+        # response = requests.get("http://api.snapcontacts.pw/kik_user.php?amt={tot}&tick=1".format(tot=20))
+        # mentions = ", @".join(response.json())
+        # 
+        # kik.send_messages([
+        #   TextMessage(
+        #     to = message.from_user,
+        #     chat_id = message.chat_id,
+        #     body = "@{mentions}".format(mentions=mentions),
+        #     type_time = len(mentions) * 10
+        #   )
+        # ])
         
       
       # -=-=-=-=-=-=-=-=- DELIVERY RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
@@ -929,14 +859,17 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- DEFAULT TOPIC BTNS -=-=-=-=-=-=-=-=-
         if message.body in topic_names:
           if message.from_user not in gameHelpList:
+            modd.utils.send_evt_tracker(category="{topic_name}-select".format(topic_name=message.body), action=message.chat_id, label=message.from_user)
+            modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
             modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+            
             gameHelpList[message.from_user] = message.body
           
             kik.send_messages([
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "What level are you on?",
+                body = "Select Level...",
                 type_time = 500,
                 keyboards = levels_keyboard()
               )
@@ -944,29 +877,55 @@ class KikBot(tornado.web.RequestHandler):
           
           self.set_status(200)
           return
+        
+        
+        
+        
+        
+          
+        # -=-=-=-=-=-=-=-=- WATCH NOW BTN -=-=-=-=-=-=-=-=-
+        if message.body == "Next Video (50 coins)":
+          modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
+          # topic_level = topic_level_for_chat_id(message.chat_id)
+          # if topic_level is not None:
+          # default_content_reply(message, topic_level['topic'], topic_level['level'])
+          default_content_reply(message, random.choice(topic_names), random.choice(topic_levels))
+          
+          self.set_status(200)
+          return
+          
+          
+        # -=-=-=-=-=-=-=-=- CHAT NOW BTN -=-=-=-=-=-=-=-=-
+        if message.body == "Next Player (100 coins)":
+          modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
+          
+          if message.chat_id in help_convos:
+            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=help_convos[message.chat_id]['level'])
+            # player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name=help_convos[message.chat_id]['game'], level=help_convos[message.chat_id]['level'])
             
+          else:
+            send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))
+            # player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name="Hearthstone", level="Intro")
             
-        # -=-=-=-=-=-=-=-=- LEVEL GAME BTNS -=-=-=-=-=-=-=-=-    
-        elif message.body in topic_levels:
-          if message.from_user in gameHelpList:
-            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
-            start_help(message)
             
           self.set_status(200)
           return
-        
-        
-      
-        # -=-=-=-=-=-=-=-=- GET COINS BTN -=-=-=-=-=-=-=-=-      
-        elif message.body == "Get Coins":
-          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+          
+
+        # -=-=-=-=-=-=-=-=- STEAM BTN -=-=-=-=-=-=-=-=-
+        if message.body == "Steam (1000 coins)":
+          modd.utils.send_evt_tracker(category="steam-button", action=message.chat_id, label=message.from_user)
+          
           kik.send_messages([
-            PictureMessage(
-              to = message.from_user, 
+            LinkMessage(
+              to = message.from_user,
               chat_id = message.chat_id,
-              pic_url = "http://i.imgur.com/lBTsEXo.png",
-              keyboards = default_friend_picker(),
-              attribution = custom_attribution("Pick friends for 1000 free GameBot coins!"), 
+              pic_url = "https://i.imgur.com/CctmFz0.png",
+              url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
+              title = "Sign in through Stream",
+              text = "Connect Steam to win 1000 coins & access daily rewards",
+              attribution = custom_attribution("SIGN IN"),
+              keyboards = welcome_keyboard()
             )
           ])
           
@@ -974,17 +933,31 @@ class KikBot(tornado.web.RequestHandler):
           return
           
           
-          
+            
+            
+            
+        # -=-=-=-=-=-=-=-=- LEVEL GAME BTNS -=-=-=-=-=-=-=-=-    
+        elif message.body in topic_levels:
+          if message.from_user in gameHelpList:
+            modd.utils.send_evt_tracker(category="{level}-select".format(level=message.body), action=message.chat_id, label=message.from_user)
+            modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
+            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+            start_help(message)
+            
+          self.set_status(200)
+          return
+        
+                  
         # -=-=-=-=-=-=-=-=- CHAT NOW BTN -=-=-=-=-=-=-=-=-      
-        elif message.body == "Chat Now":
+        elif message.body == "Pick 3 Friends" or message.body == "Share":
           modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
           kik.send_messages([
-            PictureMessage(
-              to = message.from_user, 
+            TextMessage(
+              to = message.from_user,
               chat_id = message.chat_id,
-              pic_url = "http://i.imgur.com/cqmCllh.png",
-              keyboards = default_friend_picker(),
-              attribution = custom_attribution("Help our community grow. Pick friends."), 
+              body = "Help our community grow. Pick friends.",
+              type_time = 250,
+              keyboards = default_friend_picker()
             )
           ])
           
@@ -1095,6 +1068,7 @@ class KikBot(tornado.web.RequestHandler):
           self.set_status(200)
           return
           
+          
         # -=-=-=-=-=-=-=-=-=- HELP CONNECT -=-=-=-=-=-=-=-
         if message.from_user in gameHelpList:
           start_help(message)
@@ -1161,6 +1135,8 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- BUTTON PROMPT -=-=-=-=-=-=-=-=
         #-- anything else, prompt with 4 topics
         if message.from_user not in gameHelpList and message.chat_id not in help_convos:
+          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
           default_text_reply(message=message)
           
           self.set_status(200)
