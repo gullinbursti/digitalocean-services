@@ -4,11 +4,8 @@ import hashlib
 import json
 import time
 
-import io
+import grequests
 import requests
-import pycurl
-
-
 
 def lan_ip():
   return "0.0.0.0"
@@ -17,14 +14,29 @@ def lan_ip():
 def send_evt_tracker(category="", action="", label="", value=0):
   print("send_evt_tracker(category=%s, action=%s, label=%s, value=%d)" % (category, action, label, value))
   
-  response = requests.get("http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action))
-  response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=hashlib.md5(label.encode()).hexdigest(), label=label, value=value, cid=hashlib.md5(label.encode()).hexdigest()))
-  if response.status_code != 200:
-    print("GA ERROR!!")
-    
-  return response.status_code == 200
+  urls = [
+    "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
+    "http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=hashlib.md5(label.encode()).hexdigest(), label=label, value=value, cid=hashlib.md5(label.encode()).hexdigest())
+  ]
   
+  responses = (grequests.get(u) for u in urls)
+  grequests.map(responses)
   
+  # response = requests.get("http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action))
+  # response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=hashlib.md5(label.encode()).hexdigest(), label=label, value=value, cid=hashlib.md5(label.encode()).hexdigest()))
+  # if response.status_code != 200:
+  #   print("GA ERROR!!")
+  #   
+  # return response.status_code == 200
+  
+
+def async_send_evt_tracker(urls):
+  print("send_evt_tracker(len(urls)=%d)" % (len(urls)))
+  
+  responses = (grequests.get(u) for u in urls)
+  grequests.map(responses)  
+  
+
 def slack_im(convo, message):
   print("slack_im(convo=%s, message=%s)" % (convo, message))
 
