@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/kik_bot.py</string>
+	<string>app-py3/modd/utils.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -45,6 +45,8 @@
 			<string>app-py3</string>
 		</dict>
 		<dict>
+			<key>expanded</key>
+			<true/>
 			<key>name</key>
 			<string>bin</string>
 			<key>regexFolderFilter</key>
@@ -106,38 +108,53 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>10</integer>
+				<integer>57</integer>
 				<key>line</key>
-				<integer>249</integer>
+				<integer>1016</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>232</integer>
+			<integer>985</integer>
 		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>33</integer>
+				<integer>2</integer>
 				<key>line</key>
-				<integer>51</integer>
+				<integer>37</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
+			<integer>20</integer>
+		</dict>
+		<key>bin/profile_notify.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>37</integer>
+				<key>line</key>
+				<integer>36</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
 			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>16</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>app-py3/modd/utils.py</string>
 		<string>app-py3/kik_bot.py</string>
+		<string>app-py3/modd/utils.py</string>
+		<string>bin/profile_notify.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{2096, -77}, {1230, 874}}</string>
+	<string>{{1750, -135}, {1230, 874}}</string>
 </dict>
 </plist>

@@ -36,6 +36,7 @@ from kik.messages import messages_from_json, StartChattingMessage, TextMessage, 
 
 Const.SLACK_TOKEN = 'IJApzbM3rVCXJhmkSzPlsaS9'
 Const.NOTIFY_TOKEN = '1b9700e13ea17deb5a487adac8930ad2'
+Const.PAYPAL_TOKEN = '9343328d1ea69bf36158868bcdd6f5c7'
 Const.BROADCAST_TOKEN = 'f7d3612391b5ba4d89d861bea6283726'
 
 Const.DB_HOST = 'external-db.s4086.gridserver.com'
@@ -58,7 +59,7 @@ Const.DEFAULT_AVATAR = "http://i.imgur.com/ddyXamr.png";
 
 def default_keyboard(hidden=False):
   buttons = [
-    TextResponse("Connect Steam to Trade"),
+    TextResponse("Next Flip"),
     TextResponse("Next Player")
   ]
   
@@ -131,7 +132,7 @@ def default_content_reply(message, topic, level):
       print("row[]={row}".format(row=row))
       try:
         kik.send_messages([
-          _message = LinkMessage(
+          LinkMessage(
             to = message.from_user,
             chat_id = messge.chat_id,
             pic_url = row['image_url'],
@@ -155,8 +156,86 @@ def default_content_reply(message, topic, level):
       
   return _message
   
-
-
+  
+def trade_item_message(message):
+  print("trade_item_message(message=%s)" % (message))
+  
+  trade_items = [
+    {
+      'name': "USP-S | Dark Water",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpoo6m1FBRp3_bGcjhQ0927q5qOleX1DL_QhGBu5Mx2gv3--Y3nj1H6qhc4ZGn6doTAIAA2YlDV-Qe3xO7n0cLqtc7Ly3djuXQlsCmPlhy1hAYMMLLPDZXOFA/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/USP-S%20%7C%20Dark%20Water%20(Minimal%20Wear)"
+    },  {
+      'name': "SSG 08 | Big Iron",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpopamie19f0Ob3Yi5FvISJgIWIn_n9MLrdn39I18l4jeHVyoD0mlOx5UI9Y2z0dYeRIVc_aFmDr1C8x-zm0Ja6vpzOmiA2siYi7HjZmxHlgRtSLrs4lKhxtCY/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Big%20Iron%20(Factory%20New)"
+    },  {
+      'name': "Desert Eagle | Kumicho Dragon",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLAtl7PLZTjlH_9mkgIWKkPvxDLDEm2JS4Mp1mOjG-oLKhVGwogYxDDWiZtHAbFNqNwnX_wftw73nh8S46Jufz3M36HQl5CvcmRLjhhFNPbdohvyaHwmAR_seHMtxE0s/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/Desert%20Eagle%20%7C%20Kumicho%20Dragon%20(Field-Tested)"
+    },  {
+      'name': "SSG 08 | Big Iron",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpopamie19f0Ob3Yi5FvISJgIWIn_n9MLrdn39I18l4jeHVyoD0mlOx5UI9Y2z0dYeRIVc_aFmDr1C8x-zm0Ja6vpzOmiA2siYi7HjZmxHlgRtSLrs4lKhxtCY/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Big%20Iron%20(Factory%20New)"
+    },  {
+      'name': "AK-47 | Elite Build",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09G3h5SOhe7LP7LWnn9u5MRjjeyPod-l3VfkqRJoMWnxd9OQcQdoMljYqVO5xLi-g8e16JXOnSNh6XYlsGGdwUI-f1fsZg/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/AK-47%20%7C%20Elite%20Build%20(Minimal%20Wear)"
+    },  {
+      'name': "Falchion Case Key",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXX7gNTPcUxuxpJSXPbQv2S1MDeXkh6LBBOieLreQE4g_CfI20b7tjmzNXYxK-hYOmHkj9QvpIg2OyVpdus0AW1_EQ9MnezetGj61oqPA/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/Falchion%20Case%20Key"
+    },  {
+      'name': "Operation Bravo Case",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXU5A1PIYQNqhpOSV-fRPasw8rsXE1xNwVDv7WrFA5pnabNJGwSuN3gxtnawKOlMO6HzzhQucAm0uvFo4n2iw3h_UM-ZmilJNeLMlhpjfjxEoE/330x192http://steamcommunity.com/market/listings/730/Operation%20Bravo%20Case",
+      'store_url': "http://steamcommunity.com/market/listings/730/Operation%20Bravo%20Case"
+    },  {
+      'name': "Glock-18 | Water Elemental",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposbaqKAxf0Ob3djFN79f7mImagvLnML7fglRc7cF4n-T--Y3nj1H68kVvYTvzJYacIA42MFHW-QLtl7vr0ZS_vpiYm3pi7HYl5CrUy0a00AYMMLI3Fd_03w/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Water%20Elemental%20(Field-Tested)"
+    },  {
+      'name': "M4A1-S | Hyper Beast",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou-6kejhz2v_Nfz5H_uO1gb-Gw_alDLPIhm5D18d0i_rVyoHwjF2hpiwwMiukcZiQJAJvMwqGrAW-wubnjJe4uZXMwCRq6yIgsXyMnEPhiE4ZbOBs0aeeVxzAUEeAasNQ/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hyper%20Beast%20(Field-Tested)"
+    },  {
+      'name': "AK-47 | Frontside Misty",
+      'image_url': "http://steamcommunity-a.akamaihd.net/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV08u_mpSOhcjnI7TDglRc7cF4n-T--Y3nj1H6-hBrMW_3LIOWdlU_MlGDqwO6wrvq15C6vp-bnHY36SAm4XbYl0SwhgYMMLJqUag1Og/330x192",
+      'store_url': "http://steamcommunity.com/market/listings/730/AK-47%20%7C%20Frontside%20Misty%20(Field-Tested)"
+    }
+  ]
+  
+  trade_item = random.choice(trade_items)
+  
+  
+  try:
+    kik.send_messages([
+      LinkMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        pic_url = trade_item['image_url'],
+        url = trade_item['store_url'],
+        title = trade_item['name'],
+        text = "This feature is available for subscribers. Would you like to subscribe?",
+        keyboards = [
+          SuggestedResponseKeyboard(
+            hidden = False,
+            responses = [
+              TextResponse("$1.99 per month"),
+              TextResponse("Chat Now"),
+              TextResponse("Trade"),
+              TextResponse("Flip"),
+              TextResponse("Steam"),
+              TextResponse("No Thanks")
+            ]
+          )
+        ]
+      )
+    ])
+  except KikError as err:
+    print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+  
+  
+  
 #--:-- Model / Data Retrieval --:--#
 #-=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- -=:=- #
 
@@ -201,8 +280,8 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
         cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s AND `username` != %s AND `body` != '__{MENTION}__' AND `targeted` < DATE_SUB(NOW(), INTERVAL 12 HOUR) GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, username, amt))
       
       
-      # if username == "byzrm1":
-      #   cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_sessions` WHERE `id` = 3011 LIMIT 1;")  
+      if username == "alxar0":
+        cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_sessions` WHERE `id` = 4481 LIMIT 1;")  
       
       target_id = 0
       chat_ids = []
@@ -237,17 +316,7 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
                 attribution = CustomAttribution(
                   name = "{from_user}".format(from_user=username), 
                   icon_url = "http://cdn.kik.com/user/pic/{from_user}".format(from_user=username)
-                ),
-                keyboards = [
-                  SuggestedResponseKeyboard(
-                    hidden = False,
-                    responses = [
-                      TextResponse("Chat Now"),
-                      TextResponse("Next Player"),
-                      TextResponse("No Thanks")
-                    ]
-                  )
-                ]
+                )
               ),
               TextMessage(
                 to = row['username'],
@@ -258,7 +327,9 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
                     hidden = False,
                     responses = [
                       TextResponse("Chat Now"),
-                      TextResponse("Next Player"),
+                      TextResponse("Trade"),
+                      TextResponse("Flip"),
+                      TextResponse("Steam"),
                       TextResponse("No Thanks")
                     ]
                   )
@@ -351,7 +422,7 @@ def welcome_intro_seq(message, is_mention=False):
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "Welcome to GameBots! Get help & chat with live players. Select a game below.",
+          body = "Welcome to Gamebots. Chat, trade, & flip items with players on Kik.",
           type_time = 500,
           keyboards = default_keyboard()
         )
@@ -365,7 +436,7 @@ def welcome_intro_seq(message, is_mention=False):
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "Welcome to GameBots! Get help & chat with live players. Select a game below.",
+          body = "Welcome to Gamebots. Chat, trade, & flip items with players on Kik.",
           type_time = 500,
           keyboards = default_keyboard()
         ),
@@ -703,6 +774,8 @@ class KikBot(tornado.web.RequestHandler):
           "Level 16+"
         ]
         
+  
+        
         # -=-=-=-=-=-=-=-=-=- END SESSION -=-=-=-=-=-=-=-
         if message.body.lower() == "!end" or message.body.lower() == "cancel" or message.body.lower() == "quit":
           print("-=- ENDING HELP -=-")
@@ -799,7 +872,7 @@ class KikBot(tornado.web.RequestHandler):
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "Reaching out to {game_name} players. Note that our servers are getting slammed right now, so this may take a moment…".format(game_name=topic_name),
+                body = "You have selected {game_name} & will be connected to gamers shortly.".format(game_name=topic_name),
                 type_time = 500,
                 keyboards = default_keyboard()
               )
@@ -830,6 +903,33 @@ class KikBot(tornado.web.RequestHandler):
           self.set_status(200)
           return
         
+        
+        # -=-=-=-=-=-=-=-=-=- NEXT PLAYER -=-=-=-=-=-=-=-
+        if message.body == "Next Player":
+
+          if message.chat_id in help_convos:
+            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=random.choice(topic_levels))
+
+          else:
+            send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))
+
+          try:
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "Select a game for faster help…",
+                keyboards = default_keyboard()
+              )
+            ])
+          except KikError as err:
+            print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+
+          modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="player-message-next", action=message.chat_id, label=message.from_user)
+
+          self.set_status(200)
+          return        
         
         
         # -=-=-=-=-=-=-=-=- CHAT NOW BTN -=-=-=-=-=-=-=-=-
@@ -909,33 +1009,49 @@ class KikBot(tornado.web.RequestHandler):
           self.set_status(200)
           return
         
-        
-        # -=-=-=-=-=-=-=-=-=- NEXT PLAYER -=-=-=-=-=-=-=-
-        if message.body == "Next Player":
+        # -=-=-=-=-=-=-=-=-=- TRADE BUTTON -=-=-=-=-=-=-=-
+        if message.body == "Trade":
+          modd.utils.send_evt_tracker(category="trade-button", action=message.chat_id, label=message.from_user)
           
-          if message.chat_id in help_convos:
-            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=random.choice(topic_levels))
+          trade_item_message(message)
+            
+          self.set_status(200)
+          return
+
+                    
+        # -=-=-=-=-=-=-=-=-=- FLIP BUTTON -=-=-=-=-=-=-=-
+        if message.body == "Flip"or message.body == "Next Flip":
+          modd.utils.send_evt_tracker(category="flip-button", action=message.chat_id, label=message.from_user)
+          trade_item_message(message)
+            
+          self.set_status(200)
+          return
           
-          else:
-            send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))
+          
+        # -=-=-=-=-=-=-=-=-=- PAYPAL BUTTON -=-=-=-=-=-=-=-
+        if message.body == "$1.99 per month":
+          modd.utils.send_evt_tracker(category="paypal-button", action=message.chat_id, label=message.from_user)
+          paypal_requests[message.from_user] = message.chat_id
           
           try:
             kik.send_messages([
-              TextMessage(
+              LinkMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "Select a game for faster help…",
+                pic_url = "https://www.paypalobjects.com/en_US/i/btn/btn_subscribe_LG.gif",
+                url = "http://gamebots.chat/paypal.html?u={from_user}".format(from_user=message.from_user),
+                title = "TAP HERE",
+                text = "",
                 keyboards = default_keyboard()
               )
             ])
           except KikError as err:
             print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
-                      
-          modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
-          modd.utils.send_evt_tracker(category="player-message-next", action=message.chat_id, label=message.from_user)
-          
+
           self.set_status(200)
           return
+        
+        
         
         # -=-=-=-=-=-=-=-=-=- HELP CONNECT -=-=-=-=-=-=-=-
         if message.body == "Say Hi":
@@ -1003,7 +1119,7 @@ class KikBot(tornado.web.RequestHandler):
         
         
         # -=-=-=-=-=-=-=-=- STEAM BTN -=-=-=-=-=-=-=-=-
-        if message.body == "Steam (1000 coins)":
+        if message.body == "Connect Steam to Trade":
           modd.utils.send_evt_tracker(category="steam-button", action=message.chat_id, label=message.from_user)
 
           kik.send_messages([
@@ -1012,9 +1128,9 @@ class KikBot(tornado.web.RequestHandler):
               chat_id = message.chat_id,
               pic_url = "https://i.imgur.com/CctmFz0.png",
               url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
-              title = "Sign in through Stream",
-              text = "Connect Steam to win 1000 coins & access daily rewards",
-              attribution = custom_attribution("SIGN IN"),
+              title = "",
+              text = "Connect Steam to trade items with other players",
+              attribution = custom_attribution("Sign into Stream"),
               keyboards = default_keyboard()
             )
           ])
@@ -1205,17 +1321,7 @@ class ProfileNotify(tornado.web.RequestHandler):
               attribution = CustomAttribution(
                 name = "{from_user}".format(from_user=from_user), 
                 icon_url = "http://cdn.kik.com/user/pic/{from_user}".format(from_user=from_user)
-              ),
-              keyboards = [
-                SuggestedResponseKeyboard(
-                  hidden = False,
-                  responses = [
-                    TextResponse("Chat Now"),
-                    TextResponse("Next Player"),
-                    TextResponse("No Thanks")
-                  ]
-                )
-              ]
+              )
             )
           )
         
@@ -1229,7 +1335,9 @@ class ProfileNotify(tornado.web.RequestHandler):
                   hidden = False,
                   responses = [
                     TextResponse("Chat Now"),
-                    TextResponse("Next Player"),
+                    TextResponse("Trade"),
+                    TextResponse("Flip"),
+                    TextResponse("Steam"),
                     TextResponse("No Thanks")
                   ]
                 )
@@ -1261,6 +1369,42 @@ class ProfileNotify(tornado.web.RequestHandler):
     return
     
 
+# -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
+
+
+class PaypalCallback(tornado.web.RequestHandler):
+  def set_default_headers(self):
+    self.set_header("Access-Control-Allow-Origin", "*")
+    self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+      
+  def post(self):
+    print("-=-=-=-=-=-=-=-=-=-= PAYPAL CALLBACK =-=-=-=-=-=-=-=-=-=-=")
+    
+    if self.get_argument('token', "") == Const.PAYPAL_TOKEN:
+      if self.get_argument('username', "") in paypal_requests:
+        kik.send_messages([
+          TextMessage(
+            to = self.get_argument('username', ""),
+            chat_id = paypal_requests[self.get_argument('username', "")],
+            body = "Successfully purchased subscription. Your account will be verified shortly for accessing to our trading platform.",
+            keyboards = default_keyboard()
+          ),
+          TextMessage(
+            to = "support.gamebots",
+            chat_id = "a0dca296f86d49bf5e525f601ba0f3f85bd9a36bf3643f98d3ee083f5591e9ce",
+            body = "Username has purchased a weekly subscription to game bots.\nkik.me/{username}".format(username=self.get_argument('username', ""))
+          )
+        ])
+      
+      self.set_status(200)
+      
+    else:
+      self.set_status(403)
+      
+    return
+  
+  
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
 
 
@@ -1320,6 +1464,7 @@ class Message(tornado.web.RequestHandler):
 gameHelpList = {}
 help_convos = {}
 game_convos = {}
+paypal_requests = {}
 
 
 # Const.KIK_API_CONFIG = {
@@ -1415,6 +1560,7 @@ application = tornado.web.Application([
   (r"/kik", KikBot),
   (r"/kik-bot", KikBot),
   (r"/profile-notify", ProfileNotify),
+  (r"/paypal-callback", PaypalCallback),
   (r"/message", Message)
 ])
 
