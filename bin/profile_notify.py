@@ -29,7 +29,7 @@ for (dirpath, dirnames, filenames) in os.walk(queue_dir):
         reader = csv.reader(f)
         for row in reader:
           tracking_urls.append("http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=row[1], chat_id=row[2]))
-          tracking_urls.append("http://beta.modd.live/api/bot_tracker.php?src=kik&category=player-message&action={action}&label={label}&value=0&cid={cid}".format(action=hashlib.md5(row[1].encode()).hexdigest(), label=row[1], cid=hashlib.md5(row[1].encode()).hexdigest()))
+          tracking_urls.append("http://beta.modd.live/api/bot_tracker.php?src=kik&category=player-message&action={action}&label={label}&value=0&cid={cid}".format(action=row[1], label=row[2], cid=hashlib.md5(row[1].encode()).hexdigest()))
         
           messages.append({
             'target_id'     : row[0],
