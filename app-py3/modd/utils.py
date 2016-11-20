@@ -16,11 +16,13 @@ def send_evt_tracker(category="", action="", label="", value=0):
   
   urls = [
     "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
-    "http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
+    "http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
+    "http://beta.modd.live/api/bot_tracker.php?src=kik&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
   ]
   
   responses = (grequests.get(u) for u in urls)
   grequests.map(responses)
+  
   
   # response = requests.get("http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action))
   # response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=kik&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=hashlib.md5(label.encode()).hexdigest(), label=label, value=value, cid=hashlib.md5(label.encode()).hexdigest()))

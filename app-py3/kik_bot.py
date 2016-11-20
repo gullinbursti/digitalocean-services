@@ -37,6 +37,8 @@ from kik.messages import messages_from_json, StartChattingMessage, TextMessage, 
 Const.SLACK_TOKEN = 'IJApzbM3rVCXJhmkSzPlsaS9'
 Const.NOTIFY_TOKEN = '1b9700e13ea17deb5a487adac8930ad2'
 Const.PAYPAL_TOKEN = '9343328d1ea69bf36158868bcdd6f5c7'
+Const.STRIPE_TOKEN = 'b221ac2f599be9d53e738669badefe76'
+Const.PRODUCT_TOKEN = '326d665bbc91c22b4f4c18a64e577183'
 Const.BROADCAST_TOKEN = 'f7d3612391b5ba4d89d861bea6283726'
 
 Const.DB_HOST = 'external-db.s4086.gridserver.com'
@@ -59,25 +61,26 @@ Const.DEFAULT_AVATAR = "http://i.imgur.com/ddyXamr.png";
 
 def default_keyboard(hidden=False):
   buttons = [
-    TextResponse("Flip Coin (Win Items)"),
+    TextResponse("Today's Pre-Sale Game"),
+    TextResponse("Play Flip Coin"),
     TextResponse("Next Player")
   ]
   
-  conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
-  try:
-    with conn.cursor() as cur:
-      cur.execute("SELECT `game_name`, `viewer_total` FROM `top_games` WHERE `game_name` != \"Creative\" AND `game_name` != \"Gaming Talk Shows\" AND `game_name` != \"Music\" ORDER BY `viewer_total` DESC LIMIT 18;")
-      
-      for row in cur:
-        buttons.append(TextResponse("{game_name}".format(game_name=row['game_name'])))
-        #buttons.append(TextResponse("{game_name} ({total})".format(game_name=row['game_name'], total=locale.format("%d", row['viewer_total'], grouping=True))))
-        
-  except pymysql.Error as err:
-    print("MySQL DB error:%s" % (err))
-    
-  finally:
-    if conn:
-      conn.close()
+  # conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+  # try:
+  #   with conn.cursor() as cur:
+  #     cur.execute("SELECT `game_name`, `viewer_total` FROM `top_games` WHERE `game_name` != \"Creative\" AND `game_name` != \"Gaming Talk Shows\" AND `game_name` != \"Music\" ORDER BY `viewer_total` DESC LIMIT 18;")
+  #     
+  #     for row in cur:
+  #       buttons.append(TextResponse("{game_name}".format(game_name=row['game_name'])))
+  #       #buttons.append(TextResponse("{game_name} ({total})".format(game_name=row['game_name'], total=locale.format("%d", row['viewer_total'], grouping=True))))
+  #       
+  # except pymysql.Error as err:
+  #   print("MySQL DB error:%s" % (err))
+  #   
+  # finally:
+  #   if conn:
+  #     conn.close()
       
   keyboard = [
     SuggestedResponseKeyboard(
@@ -94,7 +97,7 @@ def next_item_keyboard(hidden=False):
     SuggestedResponseKeyboard(
       hidden = hidden,
       responses = [
-        TextResponse("Flip Coin (Win Item)"),
+        TextResponse("Flip Coin"),
         TextResponse("Next Item"),
         TextResponse("No Thanks")
       ]
@@ -116,15 +119,24 @@ def custom_attribution(name="gamebots.chat"):
 def default_text_reply(message, delay=0, type_time=500):
   print("default_text_reply(message=%s)" % (message))
   
-  
   response = requests.post("http://beta.modd.live/api/kikbot_total.php", data={'type' : "users"})
   
   try:
     kik.send_messages([
+      VideoMessage(
+        to = message.from_user,
+        chat_id = message.chat_id,
+        video_url = "http://i.imgur.com/IngIFI2.gif",
+        autoplay = True,
+        loop = True,
+        muted = True,
+        keyboards = default_keyboard(),
+        attribution = custom_attribution(" ")
+      ),
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Chat, trade, and flip items with {total} gamers on Kik. Select a game below.".format(total=locale.format("%d", int(response.text), grouping=True)),
+        body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
         keyboards = default_keyboard(),
         type_time = type_time,
         delay = delay
@@ -144,8 +156,7 @@ def default_content_reply(message, topic, level):
 
       if cur.rowcount == 0:
         cur.execute("SELECT `id`, `youtube_id`, `video_title`, `image_url`, `video_url`, `topic_name` FROM `topic_content` ORDER BY RAND() LIMIT 1;")
-
-        
+      
       row = cur.fetchone()
       
       print("row[]={row}".format(row=row))
@@ -153,7 +164,7 @@ def default_content_reply(message, topic, level):
         kik.send_messages([
           LinkMessage(
             to = message.from_user,
-            chat_id = messge.chat_id,
+            chat_id = message.chat_id,
             pic_url = row['image_url'],
             url = "http://gamebots.chat/bot.html?t=v&u={from_user}&y={youtube_id}&g={topic_name}&l={level}".format(from_user=message.from_user, youtube_id=row['youtube_id'], topic_name=topic, level=level),
             title = "{topic_name} - {level}".format(topic_name=row['topic_name'], level=level),
@@ -175,6 +186,77 @@ def default_content_reply(message, topic, level):
       
   return _message
   
+
+def daily_product_message(message):
+  print("daily_product_message(message={message})".format(message=message))
+  
+  conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+  try:
+    with conn.cursor() as cur:
+      cur.execute("SELECT `id`, `name`, `info`, `image_url`, `price`, `added` FROM `fb_products` WHERE `enabled` = 1 ORDER BY RAND() LIMIT 1;")
+
+      if cur.rowcount == 0:
+        kik.send_messages([
+          TextMessage(
+            to = message.from_user,
+            chat_id = message.chat_id,
+            body = "No items for today! Come back tomorrow for another.",
+            keyboards = default_keyboard()
+          )
+        ])
+        
+      else:
+        row = cur.fetchone()      
+        print("row[]={row}".format(row=row))
+        
+        td = datetime.now() - row['added']
+        m, s = divmod(td.seconds, 60)
+        h, m = divmod(m, 60)
+        
+        product_items[message.chat_id] = {
+          'item_id': row['id'],
+          'username': message.from_user,
+          'chat_id' : message.chat_id
+        }
+        
+        try:
+          kik.send_messages([
+            LinkMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              pic_url = row['image_url'],
+              url = "https://prebot.chat/stripe.php?from_user={from_user}&item_id={item_id}".format(from_user=message.from_user, item_id=row['id']),
+              title = "",
+              text = "", 
+              attribution = custom_attribution("Buy Now"),
+              keyboards = default_keyboard()
+            ),
+            TextMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              body = "{item_name} went on sale for ${price} {hours}h {minutes}m {seconds}s ago.\n\nTo puchase this item, tap the card above.".format(item_name=row['name'], price=row['price'], hours=h, minutes=m, seconds=s),
+              keyboards = [
+                SuggestedResponseKeyboard(
+                  hidden = False,
+                  responses = [
+                    TextResponse("Show More"),
+                    TextResponse("Show Less"),
+                    TextResponse("No Thanks")
+                  ]
+                )
+              ]
+            )
+          ])
+        except KikError as err:
+          print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+        
+  except pymysql.Error as err:
+    print("MySQL DB error:%s" % (err))
+
+  finally:
+    if conn:
+      conn.close()
+  
   
 def flip_item_message(message):
   print("flip_item_message(message=%s)" % (message))
@@ -182,12 +264,18 @@ def flip_item_message(message):
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price` FROM `flip_inventory` WHERE `quantity` > 0 ORDER BY RAND() LIMIT 1;")
+      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
 
       if row is not None:
         print("row[]={row}".format(row=row))
         item_flips[message.chat_id] = row
+        
+        if random.random() <= 0.20:
+          item_flips[message.chat_id]['flip'] = True
+          
+        else:
+          item_flips[message.chat_id]['flip'] = False
         
         try:
           kik.send_messages([
@@ -197,7 +285,8 @@ def flip_item_message(message):
               pic_url = row['image_url'],
               url = row['trade_url'],
               title = "",
-              text = "Flip to WIN {item_name} from {game_name} sponsored by {sponsor}.".format(item_name=row['name'], game_name=row['game_name'], sponsor=row['sponsor']),
+              #text = "Flip to WIN {item_name} from {game_name} sponsored by {sponsor}.".format(item_name=row['name'], game_name=row['game_name'], sponsor=row['sponsor']),
+              text = "",
               keyboards = next_item_keyboard(),
               attribution = CustomAttribution(
                 name = row['name'],
@@ -214,7 +303,7 @@ def flip_item_message(message):
             TextMessage(
               to = message.from_user,
               chat_id = message.chat_id,
-              body = "Couldn't find any items to flip!",
+              body = "All items have been rewarded today! Come back tomorrow for more to win.",
               keyboards = default_keyboard()
             )
           ])
@@ -239,7 +328,7 @@ def send_player_help_message(message, topic_name, level="Intro"):
   player_help_for_topic_level(message.from_user, message.chat_id, topic_name, level, 1, True)
       
       
-def player_help_for_topic_level(username="", chat_id="", topic_name="", level="", amt=100, to_self=False):
+def player_help_for_topic_level(username="", chat_id="", topic_name="", level="", amt=5, to_self=False):
   print("player_help_for_topic_level(username={username}, chat_id={chat_id}, topic_name={topic_name}, level={level}, amt={amt}, to_self={to_self})".format(username=username, chat_id=chat_id, topic_name=topic_name, level=level, amt=amt, to_self=to_self))
   
   if topic_name == "":
@@ -280,7 +369,7 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
       
       target_id = 0
       chat_ids = []
-      csv_file = "/opt/kik_bot/queue/{timestamp}.csv".format(timestamp=int(time.time() * 100))
+      csv_file = "/opt/kik_bot/queue/users/{timestamp}.csv".format(timestamp=int(time.time() * 100))
       for row in cur2:
         if to_self:
           avatar = "http://cdn.kik.com/user/pic/{username}".format(username=row['username'])
@@ -306,7 +395,7 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
                 chat_id = row['chat_id'],
                 pic_url = image_url,
                 url = "http://gamebots.chat/bot.html?t=p&u={from_user}&r={to_user}".format(from_user=username, to_user=row['username']),
-                title = "{from_user} wants to chat about {game_name}. Want to chat now?".format(from_user=username, game_name=topic_name),
+                title = "",#{from_user} wants to chat about {game_name}. Want to chat now?".format(from_user=username, game_name=topic_name),
                 text = "",
                 attribution = CustomAttribution(
                   name = "{from_user}".format(from_user=username), 
@@ -395,22 +484,26 @@ def welcome_intro_seq(message, is_mention=False):
     "League of Legends"
   ]
   
-  topic_levels = [
-    "Level 1",
-    "Level 2-6",
-    "Level 7-15",
-    "Level 16+"
-  ]
+  response = requests.post("http://beta.modd.live/api/kikbot_total.php", data={'type' : "users"})
   
   if is_mention:
     print("MENTION PARTICIPANT:%s" % (message.participants[-1]))
     
     try:
       kik.send_messages([
+        VideoMessage(
+          to = message.from_user,
+          chat_id = message.chat_id,
+          video_url = "http://i.imgur.com/IngIFI2.gif",
+          autoplay = True,
+          loop = True,
+          muted = True,
+          attribution = custom_attribution(" ")
+        ),
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "Welcome to Gamebots. Play it Flip Coin for CS:GO & DOTA 2 items.",
+          body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
           type_time = 500,
           keyboards = default_keyboard()
         )
@@ -421,10 +514,19 @@ def welcome_intro_seq(message, is_mention=False):
   else:
     try:
       kik.send_messages([
+        VideoMessage(
+          to = message.from_user,
+          chat_id = message.chat_id,
+          video_url = "http://i.imgur.com/IngIFI2.gif",
+          autoplay = True,
+          loop = True,
+          muted = True,
+          attribution = custom_attribution(" ")
+        ),
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "Welcome to Gamebots. Play it Flip Coin for CS:GO & DOTA 2 items.",
+          body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
           type_time = 500,
           keyboards = default_keyboard()
         ),
@@ -432,104 +534,184 @@ def welcome_intro_seq(message, is_mention=False):
     except KikError as err:
       print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))    
     
-    #default_content_reply(message, random.choice(topic_names), random.choice(topic_levels))
-    #send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))    
-    
-  modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)
-  modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)    
   return
 
 
 def flip_timer(message):
   print("flip_timer(message=%s)" % (message))
       
-  try:
-    if random.random() < 0.875:
-      kik.send_messages([
-        VideoMessage(
-          to = message.from_user,
-          chat_id = message.chat_id,
-          video_url = item_flips[message.chat_id]['lose_video_url'],
-          autoplay = True
-        ),
-        TextMessage(
-          to = message.from_user,
-          chat_id = message.chat_id,
-          body = "You lost {item_name} from {game_name} sponsored by {sponsor}. Tap Flip Again for another chance to win.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], sponsor=item_flips[message.chat_id]['sponsor']),
-          type_time = 500,
-          keyboards = [
-            SuggestedResponseKeyboard(
-              hidden = False,
-              responses = [
-                TextResponse("Flip Again (Win Item)"),
-                TextResponse("No Thanks")
-              ]
-            )
-          ]
-        )
-      ])
+  if item_flips[message.chat_id]['flip'] is True:
+    if message.chat_id in button_taps:
+      button_taps[message.chat_id] += 1
       
     else:
-      if message.chat_id in button_taps:
-        button_taps[message.chat_id] += 1
-        
-      else:
-        button_taps[message.chat_id] = 1
-        
+      button_taps[message.chat_id] = 1
+      
+    try:
       kik.send_messages([
         VideoMessage(
           to = message.from_user,
           chat_id = message.chat_id,
           video_url = item_flips[message.chat_id]['win_video_url'],
-          autoplay = True
-        ),
+          autoplay = True,
+          loop = True,
+          muted = True,
+          attribution = custom_attribution(" ")
+        )
+      ])
+    except KikError as err:
+      print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+    
+  else:
+    try:
+      kik.send_messages([
+        VideoMessage(
+          to = message.from_user,
+          chat_id = message.chat_id,
+          video_url = item_flips[message.chat_id]['lose_video_url'],
+          autoplay = True,
+          loop = True,
+          muted = True,
+          attribution = custom_attribution(" ")
+        )
+      ])
+    
+    except KikError as err:
+      print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+      
+  threading.Timer(1.5, flip_result, [message]).start()
+    
+    
+def flip_result(message):
+  print("flip_result(message=%s)" % (message))
+  
+  if item_flips[message.chat_id]['flip'] is True:
+    modd.utils.send_evt_tracker(category="flip-coin-win", action=message.chat_id, label=message.from_user)
+    
+    payload = {
+      'channel'     : "#bot-alerts", 
+      'username'    : "game.bots", 
+      'icon_url'    : "http://icons.iconarchive.com/icons/chrisbanks2/cold-fusion-hd/128/kik-Messenger-icon.png",
+      'text'        : "Flip Win by {from_user}:\n{item_name}\n{trade_url}".format(from_user=message.from_user, item_name=item_flips[message.chat_id]['name'], trade_url=item_flips[message.chat_id]['trade_url']),
+      'attachments' : [{
+        'image_url' : item_flips[message.chat_id]['image_url']
+      }]
+    }
+    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+    
+    try:
+      # kik.send_messages([
+      #   LinkMessage(
+      #     to = message.from_user,
+      #     chat_id = message.chat_id,
+      #     pic_url = "http://i.imgur.com/HfKacPV.png",
+      #     url = "http://gamebots.chat/bot.html?t=t&u={from_user}".format(from_user=message.from_user),
+      #     title = "",
+      #     text = "",
+      #     attribution = CustomAttribution(
+      #       name = "Step 1 - Tweet",
+      #       icon_url = "https://abs.twimg.com/icons/apple-touch-icon-192x192.png"
+      #     ),
+      #     keyboards = [
+      #       SuggestedResponseKeyboard(
+      #         hidden = False,
+      #         responses = [
+      #           TextResponse("Next Item"),
+      #           TextResponse("No Thanks")
+      #         ]
+      #       )
+      #     ]
+      #   )
+      # ])
+      # 
+      # time.sleep(2)
+      # kik.send_messages([
+      #   LinkMessage(
+      #     to = message.from_user,
+      #     chat_id = message.chat_id,
+      #     pic_url = "http://i.imgur.com/prpkU8a.png",
+      #     url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
+      #     title = "",
+      #     text = "",
+      #     attribution = CustomAttribution(
+      #       name = "Step 2 - Steam",
+      #       icon_url = "https://steamcommunity.com/favicon.ico"
+      #     ),
+      #     keyboards = [
+      #       SuggestedResponseKeyboard(
+      #         hidden = False,
+      #         responses = [
+      #           TextResponse("Next Item"),
+      #           TextResponse("No Thanks")
+      #         ]
+      #       )
+      #     ]
+      #   )
+      # ])
+      # 
+      # time.sleep(2)
+      kik.send_messages([
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "You WON {item_name} from {game_name} sponsored by {sponsor}! Sign into Steam & post to Twitter to claim item.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], sponsor=item_flips[message.chat_id]['sponsor']),
-          type_time = 500
-        ),
-        LinkMessage(
-          to = message.from_user,
-          chat_id = message.chat_id,
-          pic_url = "https://i.imgur.com/CctmFz0.png",
-          url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
-          title = "",
-          text = "Connect Steam to trade items with other players",
-          attribution = custom_attribution("Sign into Stream"),
+          body = "You Won!\n\n A {item_name} from {game_name}\n\nTO CLAIM: send your Steam name to @support.gamebots.1".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
+          #body = "You WON the {item_name} from {game_name} sponsored by {sponsor}!\n\nTo receive the item send a Tweet & connect to Steam. (24 hours to claim)".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], sponsor=item_flips[message.chat_id]['sponsor']),
+          type_time = 500,
           keyboards = [
             SuggestedResponseKeyboard(
               hidden = False,
               responses = [
-                TextResponse("Flip Again (Win Item)"),
+                TextResponse("Next Item"),
                 TextResponse("No Thanks")
               ]
             )
           ]
         )
       ])
+    except KikError as err:
+      print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
       
+    conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+    try:
+      with conn.cursor() as cur:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO `item_winners` (`kik_name`, `item_name`, `added`) VALUES (%s, %s, NOW())", (message.from_user, item_flips[message.chat_id]['name']))
+        conn.commit()
+        cur.execute("UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `id` = {item_id} LIMIT 1;".format(quantity=item_flips[message.chat_id]['quantity'] - 1, item_id=item_flips[message.chat_id]['id']))
+        conn.commit()
+        cur.close()
+
+    except pymysql.Error as err:
+        print("MySQL DB error:%s" % (err))
+
+    finally:
+      if conn:
+        conn.close()
+    
+  else:
+    modd.utils.send_evt_tracker(category="flip-coin-lost", action=message.chat_id, label=message.from_user)
+    try:
+      kik.send_messages([
+        TextMessage(
+          to = message.from_user,
+          chat_id = message.chat_id,
+          body = "Try Again!\n\nNeed Help: @support.gamebots.1",
+          type_time = 250,
+          keyboards = [
+            SuggestedResponseKeyboard(
+              hidden = False,
+              responses = [
+                TextResponse("Next Item"),
+                TextResponse("No Thanks")
+              ]
+            )
+          ]
+        )
+      ])
+    except KikError as err:
+      print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
       
-      conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
-      try:
-        with conn.cursor() as cur:
-          cur = conn.cursor()
-          cur.execute("INSERT INTO `item_winners` (`kik_name`, `item_name`, `added`) VALUES (%s, %s, NOW())", (message.from_user, item_flips[message.chat_id]['name']))
-          conn.commit()
-          cur.close()
-
-      except pymysql.Error as err:
-          print("MySQL DB error:%s" % (err))
-
-      finally:
-        if conn:
-          conn.close()
-    
-    del flip_items[message.chat_id]
-    
-  except KikError as err:
-    print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
-    
+  del item_flips[message.chat_id]
 
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
 
@@ -619,7 +801,7 @@ class KikBot(tornado.web.RequestHandler):
       # -=-=-=-=-=-=-=-=- READ RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
       elif isinstance(message, ReadReceiptMessage):
         # print "-= ReadReceiptMessage =-= "
-        modd.utils.send_evt_tracker(category="read", action=message.chat_id, label=message.from_user)
+        modd.utils.send_evt_tracker(category="read-receipt", action=message.chat_id, label=message.from_user)
         self.set_status(200)
         return
          
@@ -627,10 +809,6 @@ class KikBot(tornado.web.RequestHandler):
       # -=-=-=-=-=-=-=-=- START CHATTING -=-=-=-=-=-=-=-=-
       elif isinstance(message, StartChattingMessage):
         print("-= StartChattingMessage =-= ")
-        
-        modd.utils.send_evt_tracker(category="Start Chat", action=message.chat_id, label=message.from_user)
-        
-        
         
         try:
           conn = sqlite3.connect("{script_path}/data/sqlite3/kikbot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -742,8 +920,6 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
         if message.mention is not None:
           if message.body == "Start Chatting":
-            modd.utils.send_evt_tracker(category="Subscribe", action=message.chat_id, label=message.from_user)
-            
             try:
               kik.send_messages([
                 TextMessage(
@@ -771,8 +947,6 @@ class KikBot(tornado.web.RequestHandler):
             return
 
           else:
-            modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
-            
             #-- start the idle timeout - phasers to kill!
             #idle_activity_timer_starts(message.chat_id, True)
             
@@ -845,34 +1019,27 @@ class KikBot(tornado.web.RequestHandler):
             conn.close()
             
         
-        topic_levels = [
-          "Level 1",
-          "Level 2-6",
-          "Level 7-15",
-          "Level 16+"
-        ]
-        
-  
         
         # -=-=-=-=-=-=-=-=-=- END SESSION -=-=-=-=-=-=-=-
         if message.body.lower() == "!end" or message.body.lower() == "cancel" or message.body.lower() == "quit":
           print("-=- ENDING HELP -=-")
           
           if message.chat_id in game_convos:
+            response = requests.post("http://beta.modd.live/api/kikbot_total.php", data={'type' : "users"})
             convo = game_convos[message.chat_id]
             try:
               kik.send_messages([
                 TextMessage(
                   to = convo['recipient'],
                   chat_id = convo['recipient_id'],
-                  body = "Thanks for using GameBots!",
+                  body = "Thanks for using Gamebots. Play Flip Coin with {total} gamers on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
                   type_time = 250,
                   keyboards = default_keyboard()
                 ),
                 TextMessage(
                   to = convo['username'],
                   chat_id = convo['username_id'],
-                  body = "Thanks for using GameBots!",
+                  body = "Thanks for using Gamebots. Play Flip Coin with {total} gamers on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
                   type_time = 250,
                   keyboards = default_keyboard()
                 )
@@ -926,10 +1093,7 @@ class KikBot(tornado.web.RequestHandler):
           modd.utils.send_evt_tracker(category="{game_name}-button".format(game_name=topic_name), action=message.chat_id, label=message.from_user)
           modd.utils.send_evt_tracker(category="{game_name}-selection".format(game_name=topic_name), action=message.chat_id, label=message.from_user)
           
-          #modd.utils.send_evt_tracker(category="video-message", action=message.chat_id, label=message.from_user)          
-          #default_content_reply(message, topic_name, topic_levels[0])
-          
-          send_player_help_message(message=message, topic_name=topic_name, level=random.choice(topic_levels))
+          send_player_help_message(message=message, topic_name=topic_name, level="Level 1")
           
           if message.from_user not in gameHelpList:
             gameHelpList[message.from_user] = topic_name
@@ -939,7 +1103,7 @@ class KikBot(tornado.web.RequestHandler):
             'chat_id'       : message.chat_id,
             'username'      : message.from_user,
             'game'          : gameHelpList[message.from_user],
-            'level'         : topic_levels[0],
+            'level'         : "Level 1",
             'ignore_streak' : 0,
             'started'       : int(time.time()),
             'last_message'  : int(time.time()),
@@ -956,7 +1120,7 @@ class KikBot(tornado.web.RequestHandler):
             with conn.cursor() as cur:
               cur = conn.cursor()
 
-              cur.execute("INSERT INTO `kikbot_sessions` (`username`, `topic_name`, `level`, `chat_id`, `added`) VALUES (%s, %s, %s, %s, UTC_TIMESTAMP())", (message.from_user, topic_name, topic_levels[0], message.chat_id))
+              cur.execute("INSERT INTO `kikbot_sessions` (`username`, `topic_name`, `level`, `chat_id`, `added`) VALUES (%s, %s, %s, %s, UTC_TIMESTAMP())", (message.from_user, topic_name, "Level 1", message.chat_id))
               conn.commit()
               help_convos[message.chat_id]['session_id'] = cur.lastrowid
               cur.close()
@@ -973,32 +1137,30 @@ class KikBot(tornado.web.RequestHandler):
           
           self.set_status(200)
           return
+          
+          
+          
+        # -=-=-=-=-=-=-=-=-=- PRESALE -=-=-=-=-=-=-=-
+        if message.body == "Today's Pre-Sale Game":
+          modd.utils.send_evt_tracker(category="todays-pre-sale-button", action=message.chat_id, label=message.from_user)
+          daily_product_message(message)
+          
+          self.set_status(200)
+          return
         
         
         # -=-=-=-=-=-=-=-=-=- NEXT PLAYER -=-=-=-=-=-=-=-
         if message.body == "Next Player":
 
           if message.chat_id in help_convos:
-            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level=random.choice(topic_levels))
+            send_player_help_message(message=message, topic_name=help_convos[message.chat_id]['game'], level="Level 1")
+            player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name=help_convos[message.chat_id]['game'], level="Level 1")
 
           else:
-            send_player_help_message(message=message, topic_name=random.choice(topic_names), level=random.choice(topic_levels))
+            send_player_help_message(message=message, topic_name=random.choice(topic_names), level="Level 1")
+            player_help_for_topic_level(username=message.from_user, chat_id=message.chat_id, topic_name=random.choice(topic_names), level="Level 1")
           
-          if message.chat_id not in help_convos:
-            try:
-              kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Keep tapping Next Player & Next Item.",
-                  keyboards = default_keyboard()
-                )
-              ])
-            except KikError as err:
-              print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
-
-          modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
-          modd.utils.send_evt_tracker(category="player-message-next", action=message.chat_id, label=message.from_user)
+          modd.utils.send_evt_tracker(category="next-player-button", action=message.chat_id, label=message.from_user)
           
           if message.chat_id in button_taps:
             button_taps[message.chat_id] += 1
@@ -1034,8 +1196,8 @@ class KikBot(tornado.web.RequestHandler):
         
         
         # -=-=-=-=-=-=-=-=-=- NEXT ITEM BUTTON -=-=-=-=-=-=-=-
-        if message.body == "Flip Coin (Win Items)" or message.body == "Flip Again (Win Item)" or message.body == "Next Item":
-          modd.utils.send_evt_tracker(category="item-message", action=message.chat_id, label=message.from_user)
+        if message.body == "Play Flip Coin" or message.body == "Next Item":
+          modd.utils.send_evt_tracker(category="play-flip-coin-button", action=message.chat_id, label=message.from_user)
           
           payload = {
             'action'    : "paid",
@@ -1047,7 +1209,7 @@ class KikBot(tornado.web.RequestHandler):
           if message.chat_id not in button_taps:
             button_taps[message.chat_id] = 1
             
-          if button_taps[message.chat_id] < 3 or response.json()['result'] == True:
+          if button_taps[message.chat_id] <= 3000000000 or response.json()['result'] == True:
             flip_item_message(message)
           
           else:
@@ -1056,24 +1218,26 @@ class KikBot(tornado.web.RequestHandler):
           
             try:
               kik.send_messages([
-                TextMessage(
-                  to = message.from_user,
-                  chat_id = message.chat_id,
-                  body = "Oh no! To win more than 3 items per day you need to be on the unlimited plan.",
-                  type_time = 500
-                ),
                 LinkMessage(
                   to = message.from_user,
                   chat_id = message.chat_id,
-                  pic_url = "https://i.imgur.com/GrlEhwP.png",
+                  pic_url = "http://i.imgur.com/mhALd6P.png",
                   url = "http://gamebots.chat/paypal.html?u={from_user}".format(from_user=message.from_user),
+                  #url = "http://gamebots.chat/bot.html?t=c&u={from_user}".format(from_user=message.from_user),
                   title = "",
-                  text = "Trade unlimited items with millions of gamers for $1.99 a week.",
+                  text = "",
                   keyboards = default_keyboard(),
                   attribution = CustomAttribution(
-                    name = "PayPal",
+                    name = "Unlimited Flip Coin",
                     icon_url = "http://gamebots.chat/img/icon/favicon-96x96.png"
                   ),
+                ),
+                TextMessage(
+                  to = message.from_user,
+                  chat_id = message.chat_id,
+                  body = "You have won 3 items today. Unlimited Flip Coin games cost $1.99 / wk.\nTap above or come back tomorrow for more chances to win.",
+                  type_time = 500,
+                  keyboards = default_keyboard()
                 )
               ])
             except KikError as err:
@@ -1091,11 +1255,14 @@ class KikBot(tornado.web.RequestHandler):
             LinkMessage(
               to = message.from_user,
               chat_id = message.chat_id,
-              pic_url = "https://i.imgur.com/CctmFz0.png",
+              pic_url = "http://i.imgur.com/f2762Mg.png",
               url = "http://gamebots.chat/bot.html?t=s&u={from_user}".format(from_user=message.from_user),
               title = "",
-              text = "Connect Steam to trade items with other players",
-              attribution = custom_attribution("Sign into Stream"),
+              text = "",
+              attribution = CustomAttribution(
+                name = "Tap for Item",
+                icon_url = "https://steamcommunity.com/favicon.ico"
+              ),
               keyboards = default_keyboard()
             )
           ])
@@ -1105,20 +1272,23 @@ class KikBot(tornado.web.RequestHandler):
         
           
         # -=-=-=-=-=-=-=-=-=- FLIP BUTTON -=-=-=-=-=-=-=-
-        if message.body == "Flip Coin (Win Item)":
-          modd.utils.send_evt_tracker(category="flip-button", action=message.chat_id, label=message.from_user)
-          threading.Timer(3, flip_timer, [message]).start()
+        if message.body == "Flip Coin":
+          modd.utils.send_evt_tracker(category="flip-coin-button", action=message.chat_id, label=message.from_user)
+          
           try:
             kik.send_messages([
               VideoMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                video_url = "https://media.giphy.com/media/3o7TKyaB4Oucr82DCw/giphy.gif",
+                video_url = "http://i.imgur.com/C6Pgtf4.gif",
                 autoplay = True,
                 loop = True,
-                muted = True
+                muted = True,
+                attribution = custom_attribution(" ")
               )
             ])
+            threading.Timer(2.5, flip_timer, [message]).start()
+            
           except KikError as err:
             print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
           
@@ -1201,8 +1371,6 @@ class KikBot(tornado.web.RequestHandler):
                   'game_name': row[3]
                 }
 
-                modd.utils.send_evt_tracker(category="player-message", action=message.chat_id, label=message.from_user)
-                
               except sqlite3.Error as err:
                 print("::::::[cur.execute] sqlite3.Error - {message}".format(message=err.message))
 
@@ -1227,7 +1395,52 @@ class KikBot(tornado.web.RequestHandler):
 
           self.set_status(200)
           return
-        
+          
+          
+        # -=-=-=-=-=-=-=-=-=- SHOW MORE/LESS BUTTON -=-=-=-=-=-=-=-
+        if message.body == "Show More" or message.body == "Show Less":
+          modd.utils.send_evt_tracker(category="show-{show}-button".format(show=message.body.split(" ")[-1].lower()), action=message.chat_id, label=message.from_user)
+          if message.chat_id in product_items:          
+            if message.body == "Show More":
+              display = 1
+            else:
+              display = 0
+          
+            conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+            try:
+              with conn.cursor() as cur:
+                cur = conn.cursor()
+
+                cur.execute("INSERT INTO `product_show` (`id`, `kik_name`, `chat_id`, `item_id`, `show`, `added`) VALUES (NULL, %s, %s, %s, %s, NOW())", (message.from_user, message.chat_id, product_items[message.chat_id]['item_id'], display))
+                conn.commit()
+                cur.close()
+
+            except pymysql.Error as err:
+                print("MySQL DB error:%s" % (err))
+
+            finally:
+              if conn:
+                conn.close()
+            
+            del product_items[message.chat_id]
+            
+            try:
+              kik.send_messages([
+                TextMessage(
+                  to = message.from_user,
+                  chat_id = message.chat_id,
+                  body = "Thanks for letting us know! For more info: www.prebot.chat",
+                  type_time = 250,
+                  keyboards = default_keyboard()
+                )
+              ])
+            except KikError as err:
+              print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+          
+          self.set_status(200)
+          return
+          
+          
         
         # -=-=-=-=-=-=-=-=-=- SESSION CHAT -=-=-=-=-=-=-=-
         if message.chat_id in game_convos:
@@ -1242,7 +1455,6 @@ class KikBot(tornado.web.RequestHandler):
                   type_time = 250
                 )
               ])
-              modd.utils.send_evt_tracker(category="player-message", action=convo['username_id'], label=convo['username'])
             except KikError as err:
               print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
                           
@@ -1256,7 +1468,6 @@ class KikBot(tornado.web.RequestHandler):
                   type_time = 250
                 )
               ])
-              modd.utils.send_evt_tracker(category="player-message", action=convo['recipient_id'], label=convo['recipient'])
             except KikError as err:
               print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
                           
@@ -1334,8 +1545,6 @@ class KikBot(tornado.web.RequestHandler):
         # -=-=-=-=-=-=-=-=- BUTTON PROMPT -=-=-=-=-=-=-=-=
         #-- anything else, prompt with 4 topics
         if message.from_user not in gameHelpList and message.chat_id not in help_convos:
-          modd.utils.send_evt_tracker(category="reply", action=message.chat_id, label=message.from_user)
-          modd.utils.send_evt_tracker(category="message", action=message.chat_id, label=message.from_user)
           default_text_reply(message=message)
           
           self.set_status(200)
@@ -1414,7 +1623,6 @@ class ProfileNotify(tornado.web.RequestHandler):
               ]
             )
           )
-          #modd.utils.send_evt_tracker(category="player-message", action=message['from_chat_id'], label=from_user)
           
         
           tracking_urls.append("http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=from_user, chat_id=message['from_chat_id']))
@@ -1442,6 +1650,94 @@ class ProfileNotify(tornado.web.RequestHandler):
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
 
 
+class ProductNotify(tornado.web.RequestHandler):
+  def set_default_headers(self):
+    self.set_header("Access-Control-Allow-Origin", "*")
+    self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+      
+  def post(self):
+    print("-=-=-=-=-=-=-=-=-=-= PRODUCT NOTIFY =-=-=-=-=-=-=-=-=-=-=")
+    #print("chat_id:{chat_id}".format(chat_id=self.get_argument('chat_id', "")))
+    print("from_user:{from_user}".format(from_user=self.get_argument('from_user', "")))
+    
+    if self.get_argument('token', "") == Const.PRODUCT_TOKEN:
+      from_user = self.get_argument('from_user', "")
+      chat_id = self.get_argument('chat_id', "")
+      
+      modd.utils.send_evt_tracker(category="broadcast-message-kik", action=chat_id, label=from_user)
+      
+      conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+      try:
+        with conn.cursor() as cur:
+          cur.execute("SELECT `id`, `name`, `info`, `image_url`, `price`, `added` FROM `fb_products` WHERE `enabled` = 1 ORDER BY RAND() LIMIT 1;")
+
+          if cur.rowcount == 0:
+            kik.send_messages([
+              TextMessage(
+                to = from_user,
+                chat_id = chat_id,
+                body = "No items for today! Come back tomorrow for another.",
+                keyboards = default_keyboard()
+              )
+            ])
+
+          else:
+            row = cur.fetchone()      
+            print("row[]={row}".format(row=row))
+
+            td = datetime.now() - row['added']
+            m, s = divmod(td.seconds, 60)
+            h, m = divmod(m, 60)
+
+            try:
+              kik.send_messages([
+                LinkMessage(
+                  to = from_user,
+                  chat_id = chat_id,
+                  pic_url = row['image_url'],
+                  url = "https://prebot.chat/stripe.php?from_user={from_user}&item_id={item_id}".format(from_user=from_user, item_id=row['id']),
+                  title = "",
+                  text = "{item_name} went on sale for ${price} {hours}h {minutes}m {seconds}s ago.".format(item_name=row['name'], price=row['price'], hours=h, minutes=m, seconds=s), 
+                  attribution = custom_attribution("Buy Now"),
+                  keyboards = default_keyboard()
+                ),
+                TextMessage(
+                  to = from_user,
+                  chat_id = chat_id,
+                  body = "To puchase this item, tap the card above.",
+                  keyboards = [
+                    SuggestedResponseKeyboard(
+                      hidden = False,
+                      responses = [
+                        TextResponse("Show More"),
+                        TextResponse("Show Less"),
+                        TextResponse("No Thanks")
+                      ]
+                    )
+                  ]
+                )
+              ])
+            except KikError as err:
+              print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+
+      except pymysql.Error as err:
+        print("MySQL DB error:%s" % (err))
+
+      finally:
+        if conn:
+          conn.close()
+          
+      self.set_status(200)
+      
+    else:
+      self.set_status(403)
+    
+    return
+
+# -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
+
+
 class PaypalCallback(tornado.web.RequestHandler):
   def set_default_headers(self):
     self.set_header("Access-Control-Allow-Origin", "*")
@@ -1453,19 +1749,22 @@ class PaypalCallback(tornado.web.RequestHandler):
     
     if self.get_argument('token', "") == Const.PAYPAL_TOKEN:
       if self.get_argument('username', "") in paypal_requests:
-        kik.send_messages([
-          TextMessage(
-            to = self.get_argument('username', ""),
-            chat_id = paypal_requests[self.get_argument('username', "")],
-            body = "Successfully purchased subscription. Your account will be verified shortly for accessing to our trading platform.",
-            keyboards = default_keyboard()
-          ),
-          TextMessage(
-            to = "support.gamebots",
-            chat_id = "a0dca296f86d49bf5e525f601ba0f3f85bd9a36bf3643f98d3ee083f5591e9ce",
-            body = "Username has purchased a weekly subscription to game bots.\nkik.me/{username}".format(username=self.get_argument('username', ""))
-          )
-        ])
+        try:
+          kik.send_messages([
+            TextMessage(
+              to = self.get_argument('username', ""),
+              chat_id = paypal_requests[self.get_argument('username', "")],
+              body = "Successfully purchased subscription. Your account will be verified shortly for accessing to our trading platform.",
+              keyboards = default_keyboard()
+            ),
+            TextMessage(
+              to = "support.gamebots",
+              chat_id = "a0dca296f86d49bf5e525f601ba0f3f85bd9a36bf3643f98d3ee083f5591e9ce",
+              body = "Username has purchased a weekly subscription to game bots.\nkik.me/{username}".format(username=self.get_argument('username', ""))
+            )
+          ])
+        except KikError as err:
+          print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
       
       self.set_status(200)
       
@@ -1475,6 +1774,38 @@ class PaypalCallback(tornado.web.RequestHandler):
     return
   
   
+# -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
+
+
+class StripeCallback(tornado.web.RequestHandler):
+  def set_default_headers(self):
+    self.set_header("Access-Control-Allow-Origin", "*")
+    self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+
+  def post(self):
+    print("-=-=-=-=-=-=-=-=-=-= STRIPE CALBACK =-=-=-=-=-=-=-=-=-=-=")
+
+    if self.get_argument('token', "") == Const.STRIPE_TOKEN:
+      try:
+        kik.send_messages([
+          TextMessage(
+            to = self.get_argument('to_user', ""),
+            chat_id = self.get_argument('chat_id', ""),
+            body = self.get_argument('message', ""),
+            type_time = 1500
+          )
+        ])
+
+      except KikError as err:
+        print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+
+      self.set_status(200)
+
+    else:
+      self.set_status(403)
+
+    return
 # -[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]- #
 
 
@@ -1532,7 +1863,7 @@ gameHelpList = {}
 help_convos = {}
 game_convos = {}
 paypal_requests = {}
-item_trades = {}
+product_items = {}
 button_taps = {}
 item_flips = {}
 
@@ -1630,7 +1961,10 @@ application = tornado.web.Application([
   (r"/kik", KikBot),
   (r"/kik-bot", KikBot),
   (r"/profile-notify", ProfileNotify),
+  (r"/product-notify", ProductNotify),
   (r"/paypal-callback", PaypalCallback),
+  (r"/stripe-callback", StripeCallback),
+  (r"/steam-callback", PaypalCallback),
   (r"/message", Message)
 ])
 
