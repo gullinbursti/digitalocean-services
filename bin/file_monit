@@ -1,0 +1,5 @@
+#!/bin/sh
+
+while inotifywait -r -e modify /var/www/FacebookBot; do
+  service apache2 restart
+done

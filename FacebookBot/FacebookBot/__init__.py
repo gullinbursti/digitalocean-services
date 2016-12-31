@@ -15,7 +15,6 @@ import random
 import sqlite3
 
 import pycurl
-import cStringIO
 
 
 from datetime import date, datetime
@@ -44,8 +43,12 @@ Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
-Const.VERIFY_TOKEN = "ae9118876b91ea88def1259cc13ff2ca"
-Const.ACCESS_TOKEN = "EAAXFDiMELKsBAGLWHgilcmDLRdnrgqwo578YsRnJhMHawMpmC7DAmOolXTFlt79GnobTq8UkXVsVCV2bMkmOiV95IVAngrWcLGmshE4OqtuqmR1rKP7ZCENx0eL6tXKc5hQdxqle4VIVfYqCATNGwLunUNTkdi9htIIHBZAzcZBfoF6TveP"
+Const.VERIFY_TOKEN = "4b875147b379035877bdf657942838c6"
+#Const.ACCESS_TOKEN = "EAAXFDiMELKsBABEyu3NO8AHBnYa7ZCtvGWv9HvYTQu015Ci3LcJNt2EGmu50XKTOIZBCBemm4cTALtF85elzeVbQBh6zC2rz9mNINnQwbpTA3jNSCzQChT3QcT3uTXSLiPXkzQCZC00F9O5BBMBLMeqc8BWiZBwkQhnewpKdvQztJseB1P21"
+
+
+# Const.VERIFY_TOKEN = "6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217"
+Const.ACCESS_TOKEN = "EAADzAMIzYPEBAFdkKnhYO5VnodANzx75iFerIjwEZBdhOOZA4W8CQc1vIosc0YyXOFSjbhSWZCDPYo3rbZBDuYxNYjoa5HUynplCwK3jEdW7XhjO73Fxy8sHSHgMrXtkPu1fQAV1i9uvyhjp31qymzxASvdIwhXqZBPbPq1uXAwZDZD"
 
 Const.MAX_IGNORES = 4
 
@@ -56,26 +59,21 @@ Const.MAX_IGNORES = 4
 def send_tracker(category, action, label):
   logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
   
+  payload = {
+    'src': "facebook",
+    'category': category,
+    'action': action
+    'label': label
+  }
+  response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
   
-  buf = cStringIO.StringIO()
-  c = pycurl.Curl()
-  c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?category={category}&action={action}&label={label}".format(category=category, action=action, label=label))
-  c.setopt(c.WRITEFUNCTION, buf.write)
-  c.setopt(c.CONNECTTIMEOUT, 2)
-  c.setopt(c.TIMEOUT, 2)
-  c.setopt(c.FAILONERROR, True)
-  
-  try:
-    c.perform()
-    logger.info("TRACKER response code: {code}".format(code=c.getinfo(c.RESPONSE_CODE)))
-    c.close()
-  
-  except pycurl.error, error:
-    errno, errstr = error
-    logger.info("Tracker error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
-    
-  finally:
-    buf.close()
+  payload = {
+    'src': "facebook",
+    'category': "user-message",
+    'action': action
+    'label': label
+  }
+  response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
   
   return True
   
@@ -86,39 +84,13 @@ def slack_send(topic_name, message_txt, from_user="game.bots"):
   _obj = fetch_slack_webhook(topic_name)
   print "SLACK_OBJ:%s" % (_obj)
 
-  payload = json.dumps({
-    'channel': "#" + _obj['channel_name'], 
-    'username': from_user,
-    'icon_url': "http://i.imgur.com/08JS1F5.jpg",
-    'text': message_txt
-  })
-  
-  
-  buf = cStringIO.StringIO()
-  
-  c = pycurl.Curl()
-  c.setopt(c.HTTPHEADER, ["Content-Type: application/json"])
-  c.setopt(c.URL, _obj['webhook'])
-  # c.setopt(c.WRITEFUNCTION, buf.write)
-  c.setopt(c.POST, 1)
-  c.setopt(c.POSTFIELDS, payload)
-  c.setopt(c.CONNECTTIMEOUT, 300)
-  c.setopt(c.TIMEOUT, 60)
-  c.setopt(c.FAILONERROR, True)
-  
-  try:
-    c.perform()
-    logger.info("SLACK response code: {code}".format(code=c.getinfo(c.RESPONSE_CODE)))
-    c.close()
-  
-  except pycurl.error, error:
-    errno, errstr = error
-    print("SEND SLACK Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
-    
-  finally:
-    buf.close()
-    
-    
+  payload = {
+    'channel'     : "#{channel_name}".format(channel_name=_obj['channel_name']), 
+    'username'    : from_user, 
+    'icon_url'    : "http://i.imgur.com/08JS1F5.jpg",
+    'text'        : message_txt,
+  }
+  response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
   return
 
 
@@ -138,10 +110,120 @@ def write_message_log(sender_id, message_id, message_txt):
     if conn:    
       conn.close()
   
+  
+def default_carousel(sender_id):
+  logger.info("default_carousel(sender_id={sender_id})".format(sender_id=sender_id))
+  
+  send_carousel(
+    recipient_id = sender_id,
+    elements = [
+      coin_flip_element(sender_id),
+      next_product_element(sender_id)
+    ],
+    quick_replies = [
+      {
+        'content_type': "text",
+        'title': "Invite Friends",
+        'payload': "INVITE"
+      }, {
+        'content_type': "text",
+        'title': "Support",
+        'payload': "SUPPORT"
+      }
+    ]
+  )
+  
 
+def next_product_element(sender_id):
+  logger.info("next_product_element(sender_id={sender_id})".format(sender_id=sender_id))
+  
+  try:
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    with conn:
+      cur = conn.cursor()
+      cur.execute("SELECT `id`, `name`, `info`, `image_url`, `video_url`, `price`, `added` FROM `fb_products` WHERE `enabled` = 1 ORDER BY RAND() LIMIT 1;")
+      row = cur.fetchone()
+      
+      td = datetime.now() - row[6]
+      m, s = divmod(td.seconds, 60)
+      h, m = divmod(m, 60)
+      
+      element = {
+        'title' : "Reserve {item_name} for ${price}.".format(item_name=row[1], price=row[5]), 
+        'subtitle' : "",
+        'image_url' : row[4], 
+        'item_url' : "http://prekey.co/stripe.php?from_user={recipient_id}&item_id={item_id}".format(recipient_id=sender_id, item_id=row[0]), 
+        'buttons' : [
+          {
+            'type': "web_url",
+            'url': "http://prekey.co/stripe.php?from_user={recipient_id}&item_id={item_id}".format(recipient_id=sender_id, item_id=row[0]),
+            'title': "Tap to Reserve"
+          }
+        ]
+      }
+            
+  except mdb.Error, e:
+    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+  finally:
+    if conn:    
+      conn.close()
+      
+  return element
+  
+      
+def coin_flip_element(sender_id, standalone=False):
+  logger.info("coin_flip_element(sender_id={sender_id})".format(sender_id=sender_id))
+  
+  try:
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    with conn:
+      cur = conn.cursor()
+      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
+      row = cur.fetchone()
+      
+      element = {
+        'title' : "{item_name}".format(item_name=row[1]), 
+        'subtitle' : "",
+        'image_url' : row[4], 
+        'item_url' : row[5], 
+        'buttons' : [{
+          'type': "postback",
+          'payload': "FLIP_COIN",
+          'title': "Flip Coin"
+        }]
+      }
+      
+      if standalone is True:
+        element['buttons'].append({
+          'type': "postback",
+          'payload': "NO_THANKS",
+          'title': "No Thanks"
+        })
+      
+      help_session = get_help_session(sender_id)
+      help_session = set_help_session({
+        'id': help_session['id'],
+        'state': help_session['state'],
+        'sender_id': help_session['sender_id'],
+        'ignore_count': 0,
+        'started': help_session['started'],
+        'ended': help_session['ended'],
+        'topic_name': row[0]
+      })
+  
+  except mdb.Error, e:
+    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+  finally:
+    if conn:    
+      conn.close()
+      
+  return element
+  
+  
 def start_help(sender_id):
   logger.info("start_help(sender_id={sender_id})".format(sender_id=sender_id))
-  send_tracker("bot", "init", "facebook")
   
   session_obj = set_help_session({
     'id': 0,
@@ -154,8 +236,10 @@ def start_help(sender_id):
     'messages': []
   })
   
-  send_text(sender_id, "Select a game that you need help with. Type cancel anytime to end this conversation.", topic_quick_replies())
-  
+  send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
+  send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
+  default_carousel(sender_id)
+      
   return session_obj
 
 
@@ -177,31 +261,6 @@ def end_help(session_obj, from_user=True):
   send_text(session_obj['sender_id'], "This {topic_name} help session is now closed.".format(topic_name=session_obj['topic_name']))
   
   
-def fetch_topics():
-  logger.info("fetch_topics()")
-  _arr = []
-
-  try:
-    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    cur = conn.cursor()
-    cur.execute("SELECT key_name, display_name FROM topics WHERE enabled = 1")
-
-    for row in cur.fetchall():
-      _arr.append({
-        'key_name': row[0],
-        'display_name': row[1]
-      })
-
-    conn.close()
-
-  except sqlite3.Error as er:
-    logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=er.message))
-
-  finally:
-    pass
-
-  return _arr
-
 
 def fetch_slack_webhook(display_name):
   logger.info("fetch_slack_webhook(display_name={display_name})".format(display_name=display_name))
@@ -228,19 +287,6 @@ def fetch_slack_webhook(display_name):
     pass
 
   return _obj
-
-
-def topic_quick_replies():
-  _arr = []
-
-  for topic in fetch_topics():
-    _arr.append({
-      'content_type': "text",
-      'title': topic['display_name'],
-      'payload': "hlp_%s" % (topic['display_name'])  
-    })
-
-  return _arr
 
 
 def faq_quick_replies():
@@ -323,7 +369,8 @@ def get_help_session(sender_id):
         'id': int(row[0]),
         'state': int(row[1]),
         'sender_id': sender_id,
-        'topic_name': row[2].encode('utf-8'),
+        # 'topic_name': row[2].encode('utf-8'),
+        'topic_name': row[2],
         'ignore_count': row[3],
         'started': row[4],
         'ended': row[5],
@@ -431,7 +478,10 @@ def slack():
 
 @app.route('/', methods=['GET'])
 def verify():
+  logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
   logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY ({hub_mode})->{request}\n".format(hub_mode=request.args.get('hub.mode'), request=request))
+  logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+  
   if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
     if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
       return "Verification token mismatch", 403
@@ -444,6 +494,8 @@ def verify():
 @app.route('/', methods=['POST'])
 def webook():
   data = request.get_json()
+  
+  return "OK", 200
 
   if data['object'] == "page":
     for entry in data['entry']:
@@ -453,8 +505,8 @@ def webook():
           return "OK", 200
           
         if 'read' in messaging_event:  # read confirmation
-          logger.info("-=- READ CONFIRM -=-")
-          send_tracker("bot", "read", "facebook")
+          logger.info("-=- READ CONFIRM -=- %s" % (messaging_event))
+          send_tracker("read-receipt", messaging_event['sender']['id'], "")
           return "OK", 200
 
         if 'optin' in messaging_event:  # optin confirmation
@@ -464,18 +516,151 @@ def webook():
         if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
           logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
           
-          if messaging_event['postback']['payload'] == "WELCOME_MESSAGE":
-            sender_id = messaging_event['sender']['id']
-            
+          sender_id = messaging_event['sender']['id']
+          if messaging_event['postback']['payload'] == "WELCOME_MESSAGE":  
             logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+            send_tracker("signup-fb-pre", sender_id, "")
             help_session = start_help(sender_id)
+            
+          elif messaging_event['postback']['payload'] == "FLIP_COIN":
+            send_tracker("flip-item", sender_id, "")
+            send_image(sender_id, "http://i.imgur.com/C6Pgtf4.gif")
+            help_session = get_help_session(sender_id)
+            
+            try:
+              conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+              with conn:
+                cur = conn.cursor()
+                cur.execute("SELECT `id`, `name`, `game_name`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `id` = {item_id};".format(item_id=help_session['topic_name']))
+                row = cur.fetchone()
+
+            except mdb.Error, e:
+              logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+              if conn:    
+                conn.close()
+                
+            if random.random() <= 0.45 or sender_id == 1046211495488285:  
+              help_session = set_help_session({
+                'id': help_session['id'],
+                'state': help_session['state'],
+                'sender_id': help_session['sender_id'],
+                'ignore_count': 1,
+                'started': help_session['started'],
+                'ended': help_session['ended'],
+                'topic_name': help_session['topic_name'],
+              })
+              
+              
+              print(">>>>>>>>>>>>> row[4] = %s <<<<<<<<<<<<<<<<<" % row[4])
+              
+              payload = {
+                'channel'     : "#bot-alerts", 
+                'username'    : "gamebotsc", 
+                'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                'text'        : "Flip Win by {sender_id}:\n{item_name}\n{trade_url}".format(sender_id=sender_id, item_name=row[1], trade_url=row[2]),
+                'attachments' : [{
+                  'image_url' : row[3]
+                }]
+              }
+              response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+              
+              send_image(sender_id, row[5])
+              send_card(
+                recipient_id = sender_id, 
+                title = "{item_name}".format(item_name=row[1]), 
+                image_url = row[3], 
+                card_url = row[4],
+                buttons = [
+                  { 
+                    'type': "element_share" 
+                  }, {
+                    'type': "web_url",
+                    'url': row[4],
+                    'title': "Trade"
+                  }
+                ],
+                quick_replies = [
+                  {
+                    'content_type': "text",
+                    'title': "Next Item",
+                    'payload': "NEXT_ITEM"
+                  }, {
+                    'content_type': "text",
+                    'title': "No Thanks",
+                    'payload': "NO_THANKS"
+                  }
+                ]
+              )
+                            
+              send_image(recipient_id=sender_id, url=row[5])              
+              send_text(
+                recipient_id = sender_id, 
+                message_text = "YOU WON!\n{item_name} from {game_name}.\n\nTo claim:\n1. Share with 3 Friends\n2. Tap the Trade URL and select your items (we verify the items you select)".format(item_name=row[1], game_name=row[2]),
+                quick_replies = [
+                  {
+                    'content_type': "text",
+                    'title': "Next Item",
+                    'payload': "NEXT_ITEM"
+                  }, {
+                    'content_type': "text",
+                    'title': "No Thanks",
+                    'payload': "NO_THANKS"
+                  }
+                ]
+              )
+              
+            else:
+              send_image(sender_id, row[6])
+              send_text(
+                recipient_id = sender_id, 
+                message_text = "TRY AGAIN!\n\nYou lost {item_name} from {game_name}.".format(item_name=row[1], game_name=row[2]),
+                quick_replies = [
+                  {
+                    'content_type': "text",
+                    'title': "Next Item",
+                    'payload': "NEXT_ITEM"
+                  }, {
+                    'content_type': "text",
+                    'title': "No Thanks",
+                    'payload': "NO_THANKS"
+                  }
+                ]
+              )         
+            
+          elif messaging_event['postback']['payload'] == "BOUNTY":
+            send_tracker("bounty", sender_id, "")
+            default_carousel(sender_id)
+            
+          elif messaging_event['postback']['payload'] == "INVITE":
+            send_card(
+              recipient_id = sender_id, 
+              title = "Share", 
+              image_url = "http://i.imgur.com/C6Pgtf4.gif", 
+              card_url = "http://prebot.chat",
+              buttons = [{ 'type': "element_share" }],
+              quick_replies = [{
+                'content_type': "text",
+                'title': "Main Menu",
+                'payload': "MAIN_MENU"
+              }]
+            )
+            
+          elif messaging_event['postback']['payload'] == "NO_THANKS":
+            send_tracker("cancel", sender_id, "")
+            default_carousel(sender_id)
+            
+          elif messaging_event['postback']['payload'] == "MAIN_MENU":
+            send_tracker("main-menu", sender_id, "")
+            default_carousel(sender_id)
             
           return "OK", 200
         
         
         #-- actual message
         if messaging_event.get('message'):
-          logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->{message}".format(message=messaging_event['message']))
+          logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->{message}".format(message=messaging_event['sender']))
           
           #------- IMAGE MESSAGE
           if 'attachments' in messaging_event['message']:
@@ -497,7 +682,7 @@ def webook():
           
           #-- insert to log
           write_message_log(sender_id, message_id, quote(message_text.encode('utf-8')))
-              
+          
           
           help_state = help_session_state(sender_id)
           
@@ -524,15 +709,15 @@ def webook():
                 'ended': time.strftime("%Y-%m-%d %H:%M:%S"),
                 'topic_name': help_session['topic_name']
               })
-              send_text(help_session['sender_id'], "This {topic_name} help session is now closed.".format(topic_name=help_session['topic_name']))
+              send_text(help_session['sender_id'], "You are using Pre (on Messenger). If you need support please email us at support@prebot.chat")
                         
             return "OK", 200
             
             
-          
           #-- non-existant
           if help_state == -1:
             logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+            send_tracker("signup-fb-pre", messaging_event['sender']['id'], "")
             help_session = start_help(sender_id)
             
           
@@ -542,28 +727,69 @@ def webook():
             logger.info("help_session={help_session}".format(help_session=help_session))
             
             if quick_reply is None:
-              send_tracker("bot", "init", "facebook")
-              send_text(sender_id, "Select a game that you need help with. Type cancel anytime to end this conversation.", topic_quick_replies())
+              send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
+              default_carousel(sender_id)
               
             else:
-              help_session = set_help_session({
-                'id': help_session['id'],
-                'state': 1,
-                'sender_id': help_session['sender_id'],
-                'ignore_count': 0,
-                'started': time.strftime("%Y-%m-%d %H:%M:%S"),
-                'ended': help_session['ended'],
-                'topic_name': quick_reply.split("_")[-1]
-              })
-              send_text(sender_id, "Please describe what you need help with. Note your messages will be sent to %s coaches for support." % (help_session['topic_name']))
+              send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()), messaging_event['sender']['id'], "")
               
-              send_tracker("bot", "subscribe", "facebook")
+              if quick_reply == "BOUNTY":
+                send_text(sender_id, "Do you want to win today's item for FREE?\n\nEarn points with Pre's Bounty! taps.io/gamebounty")
+                default_carousel(sender_id)
+                
+              elif quick_reply == "INVITE":
+                send_card(
+                  recipient_id = sender_id, 
+                  title = "", 
+                  image_url = "http://i.imgur.com/C6Pgtf4.gif", 
+                  card_url = "http://prebot.chat",
+                  buttons = [{ 'type': "element_share" }],
+                  quick_replies = [{
+                    'content_type': "text",
+                    'title': "Main Menu",
+                    'payload': "MAIN_MENU"
+                  }]
+                )
+                
+              elif quick_reply == "SUPPORT":
+                send_text(sender_id, "If you need help message kik.me/support.gamebots.1")
+                default_carousel(sender_id)
+                
+                payload = {
+                  'channel'     : "#pre", 
+                  'username'    : "gamebotsc", 
+                  'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                  'text'        : "*{sender_id}* needs help…".format(sender_id=sender_id),
+                }
+                response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+                
+              elif quick_reply == "NEXT_ITEM":
+                send_tracker("next-item", sender_id, "")
+
+                send_carousel(
+                  recipient_id = sender_id,
+                  elements = [coin_flip_element(sender_id, True)]
+                )
+                
+              else:
+                default_carousel(sender_id)
               
-          
+              
+              #help_session = set_help_session({
+              #  'id': help_session['id'],
+              #  'state': 1,
+              #  'sender_id': help_session['sender_id'],
+              #  'ignore_count': 0,
+              #  'started': time.strftime("%Y-%m-%d %H:%M:%S"),
+              #  'ended': help_session['ended'],
+              #  'topic_name': quick_reply.split("_")[-1]
+              #})
+              #send_text(sender_id, "Please describe what you need help with. Note your messages will be sent to %s coaches for support." % (help_session['topic_name']))
+              
+              
           #-- requesting help
           elif help_state == 1:
             logger.info("----------=REQUESTED SESSION=----------")
-            send_tracker("bot", "question", "facebook")
             
             slack_send(help_session['topic_name'], "Requesting help: *{sender_id}*\n_\"{message_text}\"_".format(sender_id=sender_id, message_text=message_text), sender_id)
             
@@ -657,7 +883,6 @@ def webook():
           
           #-- completed
           elif help_state == 4:
-            
             pass
           
               
@@ -693,22 +918,68 @@ def send_text(recipient_id, message_text, quick_replies=[]):
   send_message(json.dumps(data))
   
 
-def send_picture(recipient_id, streamerTitle, imageUrl, quick_replies=[]):
+def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=[], quick_replies=[]):
   data = {
     "recipient": {
       "id": recipient_id
     },
     "message": {
       "attachment": {
-        "type": "template",
+        "type":"template",
         "payload": {
-          "template_type": "generic",
-          "elements": [{
-            "title": "streamcard.tv",
-            "subtitle": streamerTitle,
-            "item_url": "http://gbots.cc/channel/{img_url}".format(img_url=streamerTitle),
-            "image_url": imageUrl
-          }]
+          "template_type":"generic",
+          "elements": [
+            {
+              "title": title, 
+              "item_url": card_url,
+              "image_url": image_url,
+              "subtitle": subtitle,
+              "buttons": buttons
+            }
+          ]
+        }
+      }
+    }
+  }
+  
+  if len(quick_replies) > 0:
+    data['message']['quick_replies'] = quick_replies
+  
+  send_message(json.dumps(data))
+
+
+def send_carousel(recipient_id, elements, quick_replies=[]):
+  data = {
+    "recipient": {
+      "id": recipient_id
+    },
+    "message": {
+      "attachment": {
+        "type":"template",
+        "payload": {
+          "template_type":"generic",
+          "elements": elements
+        }
+      }
+    }
+  }
+  
+  if len(quick_replies) > 0:
+    data['message']['quick_replies'] = quick_replies
+  
+  send_message(json.dumps(data))
+
+
+def send_image(recipient_id, url, quick_replies=[]):
+  data = {
+    "recipient": {
+      "id": recipient_id
+    },
+    "message": {
+      "attachment": {
+        "type": "image",
+        "payload": {
+          "url": url
         }
       }
     }
@@ -719,33 +990,32 @@ def send_picture(recipient_id, streamerTitle, imageUrl, quick_replies=[]):
   
   send_message(json.dumps(data))
   
+  
+def send_video(recipient_id, url, quick_replies=[]):
+  data = {
+    "recipient": {
+      "id": recipient_id
+    },
+    "message": {
+      "attachment": {
+        "type": "video",
+        "payload": {
+          "url": url
+        }
+      }
+    }
+  }
+  
+  if len(quick_replies) > 0:
+    data['message']['quick_replies'] = quick_replies
+  send_message(json.dumps(data))
 
-def send_message(data):
-  logger.info("send_message(data={payload})".format(payload=data))
+
+def send_message(payload):
+  logger.info("send_message(payload={payload})".format(payload=payload))
   
-  buf = cStringIO.StringIO()
-  
-  c = pycurl.Curl()
-  c.setopt(c.HTTPHEADER, ["Content-Type: application/json"])
-  c.setopt(c.URL, "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN))
-  # c.setopt(c.WRITEFUNCTION, buf.write)
-  c.setopt(c.POST, 1)
-  c.setopt(c.POSTFIELDS, data)
-  c.setopt(c.CONNECTTIMEOUT, 300)
-  c.setopt(c.TIMEOUT, 60)
-  c.setopt(c.FAILONERROR, True)
-  
-  try:
-    c.perform()
-    logger.info("SEND MESSAGE response code: {code}".format(code=c.getinfo(c.RESPONSE_CODE)))
-    c.close()
-  
-  except pycurl.error, error:
-    errno, errstr = error
-    print("SEND MESSAGE Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
-  
-  finally:
-    buf.close()
+  response = requests.post("https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN), data=payload, headers={ 'Content-Type' : "application/json" })
+  logger.info("GRAPH RESPONSE ({code}): {result}".format(code=response.status_code, result=response.text))
     
   return True
 

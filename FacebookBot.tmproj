@@ -56,14 +56,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>40</integer>
+				<integer>32</integer>
 				<key>line</key>
-				<integer>82</integer>
+				<integer>984</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>69</integer>
+			<integer>978</integer>
 		</dict>
 		<key>FacebookBot/FacebookBot/const.py</key>
 		<dict>
@@ -110,8 +110,8 @@
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>FacebookBot/FacebookBot/__init__.py</string>
 		<string>sites-available/FacebookBot.conf</string>
+		<string>FacebookBot/FacebookBot/__init__.py</string>
 		<string>.ftpssh_settings</string>
 		<string>FacebookBot/FacebookBot/const.py</string>
 		<string>FacebookBot/facebookbot.wsgi</string>
@@ -119,6 +119,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{10, 4}, {1230, 874}}</string>
+	<string>{{265, 4}, {1143, 874}}</string>
 </dict>
 </plist>
