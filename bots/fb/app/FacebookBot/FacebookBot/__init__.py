@@ -269,7 +269,7 @@ def build_quick_reply(btn_type, caption, payload, image_url=""):
   
 
 def build_content_card(recipient_id, title, subtitle, image_url, item_url, buttons=None, quick_replies=None):
-  logger.info("build_content_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)")
+  logger.info("build_content_card(recipient_id={recipient_id}, title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons}, quick_replies={quick_replies})".format(recipient_id=recipient_id, title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons, quick_replies=quick_replies))
   
   data = {
     'recipient' : {
@@ -303,7 +303,7 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url, butto
 
 
 def build_carousel_element(index, title, subtitle, image_url, item_url, buttons=None):
-  logger.info("build_carousel_element(index=%d, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)")
+  logger.info("build_carousel_element(index={index}, title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons})".format(index=index, title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons))
   
   element = {
     'title' : title, 
@@ -319,7 +319,7 @@ def build_carousel_element(index, title, subtitle, image_url, item_url, buttons=
 
 
 def build_carousel(recipient_id, cards, quick_replies=None):
-  logger.info("build_carousel(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+  logger.info("build_carousel(recipient_id={recipient_id})".format(recipient_id=recipient_id, cards=cards, quick_replies=quick_replies))
   
   data = {
     'recipient' : {
@@ -343,7 +343,7 @@ def build_carousel(recipient_id, cards, quick_replies=None):
   
   
 def welcome_message(recipient_id, entry_type, deeplink=""):
-  logger.info("welcome_message(recipient_id={recipient_id}, entry_type={entry_type})".format(recipient_id=recipient_id, entry_type=entry_type))
+  logger.info("welcome_message(recipient_id={recipient_id}, entry_type={entry_type}, deeplink={deeplink})".format(recipient_id=recipient_id, entry_type=entry_type, deeplink=deeplink))
   
   send_video(recipient_id, "http://{ip_addr}/videos/intro_all.mp4".format(ip_addr=Const.WEB_SERVER_IP), "179590205850150")
   if entry_type == Const.MARKETPLACE_GREETING:
@@ -691,7 +691,7 @@ def webook():
   logger.info(data)
   logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
-  if data is not None and data['object'] == "page":
+  if data['object'] == "page":
     for entry in data['entry']:
       for messaging_event in entry['messaging']:
         sender_id = messaging_event['sender']['id']
@@ -1209,12 +1209,12 @@ def send_message(payload):
     logger.info("SEND MESSAGE Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
   
   finally:
-    logger.info("SEND MESSAGE body: {body}".format(body=buf.getvalue()))
+    #logger.info("SEND MESSAGE body: {body}".format(body=buf.getvalue()))
     buf.close()
     
   return True
 
 
 if __name__ == '__main__':
-  logger.info("Firin up FbBot using verify token [{verify_token}] w/ page access:\n{oauth_token}")
+  logger.info("Firin up FbBot using verify token [{verify_token}].".format(verify_token=Const.VERIFY_TOKEN))
   app.run(debug=True)
