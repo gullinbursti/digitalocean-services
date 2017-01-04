@@ -1,0 +1,8 @@
+
+Subscribe page:
+curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAAXFDiMELKsBACnoD2HHO5QOMTKezdRtPnhzbsEeB3Hjp7VW6I0NFSEi0VaiTrmwZC93SZAWTnWCby6ZCjXyesSD02ZAsZAXTIU2OuTUZAk1TJN79zuFoxWWCc6HCfbwyGhrJZBkZBpIR90pxhSiwlHxvT9z9etZCZCiU4PqakEmykwgZDZD"
+
+
+Test page subscription:
+curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBACnoD2HHO5QOMTKezdRtPnhzbsEeB3Hjp7VW6I0NFSEi0VaiTrmwZC93SZAWTnWCby6ZCjXyesSD02ZAsZAXTIU2OuTUZAk1TJN79zuFoxWWCc6HCfbwyGhrJZBkZBpIR90pxhSiwlHxvT9z9etZCZCiU4PqakEmykwgZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
+

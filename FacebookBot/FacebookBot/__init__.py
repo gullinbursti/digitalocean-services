@@ -43,12 +43,8 @@ Const.DB_NAME = 'db4086_modd'
 Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
-Const.VERIFY_TOKEN = "4b875147b379035877bdf657942838c6"
-#Const.ACCESS_TOKEN = "EAAXFDiMELKsBABEyu3NO8AHBnYa7ZCtvGWv9HvYTQu015Ci3LcJNt2EGmu50XKTOIZBCBemm4cTALtF85elzeVbQBh6zC2rz9mNINnQwbpTA3jNSCzQChT3QcT3uTXSLiPXkzQCZC00F9O5BBMBLMeqc8BWiZBwkQhnewpKdvQztJseB1P21"
-
-
-# Const.VERIFY_TOKEN = "6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217"
-Const.ACCESS_TOKEN = "EAADzAMIzYPEBAFdkKnhYO5VnodANzx75iFerIjwEZBdhOOZA4W8CQc1vIosc0YyXOFSjbhSWZCDPYo3rbZBDuYxNYjoa5HUynplCwK3jEdW7XhjO73Fxy8sHSHgMrXtkPu1fQAV1i9uvyhjp31qymzxASvdIwhXqZBPbPq1uXAwZDZD"
+Const.VERIFY_TOKEN = "d41d8cd98f00b204e9800998ecf8427e"
+Const.ACCESS_TOKEN = "EAAXFDiMELKsBACnoD2HHO5QOMTKezdRtPnhzbsEeB3Hjp7VW6I0NFSEi0VaiTrmwZC93SZAWTnWCby6ZCjXyesSD02ZAsZAXTIU2OuTUZAk1TJN79zuFoxWWCc6HCfbwyGhrJZBkZBpIR90pxhSiwlHxvT9z9etZCZCiU4PqakEmykwgZDZD"
 
 Const.MAX_IGNORES = 4
 
@@ -62,7 +58,7 @@ def send_tracker(category, action, label):
   payload = {
     'src': "facebook",
     'category': category,
-    'action': action
+    'action': action,
     'label': label
   }
   response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
@@ -70,7 +66,7 @@ def send_tracker(category, action, label):
   payload = {
     'src': "facebook",
     'category': "user-message",
-    'action': action
+    'action': action,
     'label': label
   }
   response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
@@ -114,12 +110,18 @@ def write_message_log(sender_id, message_id, message_txt):
 def default_carousel(sender_id):
   logger.info("default_carousel(sender_id={sender_id})".format(sender_id=sender_id))
   
-  send_carousel(
-    recipient_id = sender_id,
+  if coin_flip_element(sender_id) is None:
+    elements = [next_product_element(sender_id)]
+    
+  else:
     elements = [
       coin_flip_element(sender_id),
       next_product_element(sender_id)
-    ],
+    ]
+  
+  send_carousel(
+    recipient_id = sender_id,
+    elements = elements,
     quick_replies = [
       {
         'content_type': "text",
@@ -182,35 +184,39 @@ def coin_flip_element(sender_id, standalone=False):
       cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
       
-      element = {
-        'title' : "{item_name}".format(item_name=row[1]), 
-        'subtitle' : "",
-        'image_url' : row[4], 
-        'item_url' : row[5], 
-        'buttons' : [{
-          'type': "postback",
-          'payload': "FLIP_COIN",
-          'title': "Flip Coin"
-        }]
-      }
+      if row is not None:
+        element = {
+          'title' : "{item_name}".format(item_name=row[1]), 
+          'subtitle' : "",
+          'image_url' : row[4], 
+          'item_url' : row[5], 
+          'buttons' : [{
+            'type': "postback",
+            'payload': "FLIP_COIN",
+            'title': "Flip Coin"
+          }]
+        }
       
-      if standalone is True:
-        element['buttons'].append({
-          'type': "postback",
-          'payload': "NO_THANKS",
-          'title': "No Thanks"
+        if standalone is True:
+          element['buttons'].append({
+            'type': "postback",
+            'payload': "NO_THANKS",
+            'title': "No Thanks"
+          })
+      
+        help_session = get_help_session(sender_id)
+        help_session = set_help_session({
+          'id': help_session['id'],
+          'state': help_session['state'],
+          'sender_id': help_session['sender_id'],
+          'ignore_count': 0,
+          'started': help_session['started'],
+          'ended': help_session['ended'],
+          'topic_name': row[0]
         })
-      
-      help_session = get_help_session(sender_id)
-      help_session = set_help_session({
-        'id': help_session['id'],
-        'state': help_session['state'],
-        'sender_id': help_session['sender_id'],
-        'ignore_count': 0,
-        'started': help_session['started'],
-        'ended': help_session['ended'],
-        'topic_name': row[0]
-      })
+        
+      else:
+        return None
   
   except mdb.Error, e:
     logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -495,7 +501,10 @@ def verify():
 def webook():
   data = request.get_json()
   
-  return "OK", 200
+  logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+  logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+  logger.info(data)
+  logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
   if data['object'] == "page":
     for entry in data['entry']:
@@ -597,7 +606,7 @@ def webook():
               send_image(recipient_id=sender_id, url=row[5])              
               send_text(
                 recipient_id = sender_id, 
-                message_text = "YOU WON!\n{item_name} from {game_name}.\n\nTo claim:\n1. Share with 3 Friends\n2. Tap the Trade URL and select your items (we verify the items you select)".format(item_name=row[1], game_name=row[2]),
+                message_text = "YOU WON!\n{item_name} from {game_name}.\n\nTo claim:\nTap the Trade URL and select your items (we verify the items you select)".format(item_name=row[1], game_name=row[2]),
                 quick_replies = [
                   {
                     'content_type': "text",
@@ -664,7 +673,7 @@ def webook():
           
           #------- IMAGE MESSAGE
           if 'attachments' in messaging_event['message']:
-            send_text(messaging_event['sender']['id'], "I'm sorry, I cannot understand that type of message.")
+            #send_text(messaging_event['sender']['id'], "I'm sorry, I cannot understand that type of message.")
             return "OK", 200
 
           # MESSAGE CREDENTIALS
@@ -675,13 +684,13 @@ def webook():
           timestamp = messaging_event['timestamp']
           quick_reply = None
           
-          if 'quick_reply' in messaging_event['message']:
-            logger.info("QR --> {quick_replies}".format(quick_replies=messaging_event['message']['quick_reply']['payload'].encode('utf-8')))
-            quick_reply = messaging_event['message']['quick_reply']['payload'].encode('utf-8')
+          if 'quick_reply' in messaging_event['message'] and messaging_event['message']['quick_reply']['payload'] is not None:
+            logger.info("QR --> {quick_replies}".format(quick_replies=quote(messaging_event['message']['quick_reply']['payload'])))
+            quick_reply = quote(messaging_event['message']['quick_reply']['payload'])
           
           
           #-- insert to log
-          write_message_log(sender_id, message_id, quote(message_text.encode('utf-8')))
+          write_message_log(sender_id, message_id, quote(message_text))
           
           
           help_state = help_session_state(sender_id)
@@ -740,7 +749,7 @@ def webook():
               elif quick_reply == "INVITE":
                 send_card(
                   recipient_id = sender_id, 
-                  title = "", 
+                  title = "Share", 
                   image_url = "http://i.imgur.com/C6Pgtf4.gif", 
                   card_url = "http://prebot.chat",
                   buttons = [{ 'type': "element_share" }],
@@ -858,7 +867,7 @@ def webook():
             else:
               if quick_reply.split("_")[-1] == "more-details":
                 for entry in fetch_faq(help_session['topic_name']):
-                  send_text(sender_id, entry.encode('utf-8'))
+                  send_text(sender_id, quote(entry))
                   gevent.sleep(5)
                   
               else:
