@@ -1,0 +1,40 @@
+
+App ID:
+267184583696625
+https://www.messenger.com/t/177712676037903
+
+Page ID:
+177712676037903
+https://www.facebook.com/Pre-Shopping-Network-177712676037903/
+https://www.facebook.com/messages/Pre-Shopping-Network-177712676037903/
+
+Verify Token:
+6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217
+
+Page Access Token:
+EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD
+
+
+
+
+
+Greeting:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "setting_type":"greeting",
+  "greeting":{
+    "text":"Hi {{user_full_name}}! Timeless apparel for the masses."
+  }
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+
+
+
+Subscribe page:
+curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+
+
+Test page subscription:
+curl -F "object_id=177712676037903" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 177712676037903}' -F "access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD" "https://graph.facebook.com/v2.6/267184583696625/subscriptions_sample"
+
+
+User API:
+curl -X GET "https://graph.facebook.com/v2.6/996171033817503?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"

@@ -391,7 +391,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
         storefront = None
         product = None
 
-        product_query = Product.query.filter(Product.name == deeplink)
+        product_query = Product.query.filter(Product.name == deeplink.split("/")[-1])
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).scalar()
             storefront_query = Storefront.query.filter(Storefront.id == product.storefront_id)
@@ -399,7 +399,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                 storefront = storefront_query.first()
 
         else:
-            storefront_query = Storefront.query.filter(Storefront.name == deeplink)
+            storefront_query = Storefront.query.filter(Storefront.name == deeplink.split("/")[0])
             if storefront_query.count() > 0:
                 storefront = storefront_query.first()
                 product_query = Product.query.filter(Product.storefront_id == storefront.id)
@@ -429,6 +429,17 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     finally:
                         if conn:
                             conn.close()
+
+                    payload = {
+                        'channel' : "#pre",
+                        'username' : "fbprebot",
+                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                        'text' : "*{sender_id}* just subscribed to _{product_name}_ from a shop named _{storefront_name}_.\n{video_url}".format(sender_id=recipient_id, product_name=product.display_name, storefront_name=storefront.display_name, video_url=product.video_url),
+                        'attachments' : [{
+                            'image_url' : product.image_url
+                        }]
+                    }
+                    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
 
 
 
@@ -909,8 +920,9 @@ def webook():
                             conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                             with conn:
                                 cur = conn.cursor(mysql.cursors.DictCursor)
-                                cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
-                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
+                                cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
+                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
                                 conn.commit()
 
                         except mysql.Error, e:
@@ -943,15 +955,16 @@ def webook():
                         storefront = storefront_query.first()
                         for product in Product.query.filter(Product.storefront_id == storefront.id):
                             send_text(sender_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name))
+                            Subscription.query.filter(Subscription.product_id == product.id)
                             Product.query.filter(Product.storefront_id == storefront.id).delete()
-
                         db.session.commit()
 
                         try:
                             conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                             with conn:
                                 cur = conn.cursor(mysql.cursors.DictCursor)
-                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
+                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
                                 conn.commit()
 
                         except mysql.Error, e:
@@ -1095,6 +1108,18 @@ def webook():
                                     send_text(sender_id, "Success! You have created a Pre Shop Bot called {storefront_name}.\n{storefront_url}".format(storefront_name=storefront.display_name, storefront_url=re.sub(r'https?:\/\/', '', storefront.prebot_url)))
                                     send_admin_carousel(sender_id)
 
+                                    payload = {
+                                        'channel' : "#pre",
+                                        'username' : "fbprebot",
+                                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                                        'text' : "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=sender_id, storefront_name=storefront.display_name),
+                                        'attachments' : [{
+                                            'image_url' : storefront.logo_url
+                                        }]
+                                    }
+                                    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+
+
                             elif quick_reply == Const.PB_PAYLOAD_REDO_STOREFRONT:
                                 send_tracker("button-redo-store", sender_id, "")
 
@@ -1127,7 +1152,7 @@ def webook():
                                 if product_query.count() > 0:
                                     product = product_query.order_by(Product.added.desc()).scalar()
                                     product.release_date = (datetime.utcnow() + relativedelta(months=int(int(match.group(1)) / 30))).replace(hour=0, minute=0, second=0, microsecond=0)
-                                    product.description = "Pre-release ends on {release_date}".format(release_date=product.release_date.strftime('%a, %b %d'))
+                                    product.description = "Pre-release ends {release_date}".format(release_date=product.release_date.strftime('%a, %b %-d'))
                                     product.creation_state = 3
                                     db.session.commit()
 
@@ -1161,6 +1186,17 @@ def webook():
 
                                     send_text(sender_id, "Success! You have added {product_name}.\n{product_url}".format(product_name=product.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
                                     send_share_card(sender_id)
+
+                                    payload = {
+                                        'channel' : "#pre",
+                                        'username' : "fbprebot",
+                                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                                        'text' : "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=sender_id, product_name=product.display_name, storefront_name=storefront_query.first().display_name, video_url=product.video_url),
+                                        'attachments' : [{
+                                            'image_url' : product.image_url
+                                        }]
+                                    }
+                                    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
 
                                 send_admin_carousel(sender_id)
 
@@ -1200,8 +1236,11 @@ def webook():
 
                                 #-- return home
                                 if message_text.lower() in Const.RESERVED_MENU_REPLIES:
-                                #if message_text.lower() == "admin" or message_text.lower() == "menu" or message_text.lower() == "main menu" or message_text.lower() == "help" or message_text.lower == "support":
-                                    Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+                                    if storefront_query.count() > 0:
+                                        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4)
+                                        if product_query.count() > 0:
+                                            Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+
                                     Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state < 4).delete()
                                     db.session.commit()
 
@@ -1210,7 +1249,11 @@ def webook():
 
                                 #-- quit message
                                 if message_text.lower() in Const.RESERVED_STOP_REPLIES:
-                                    Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+                                    if storefront_query.count() > 0:
+                                        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4)
+                                        if product_query.count() > 0:
+                                            Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+
                                     Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state < 4).delete()
                                     db.session.commit()
 
@@ -1266,6 +1309,9 @@ def webook():
                                             db.session.commit()
 
                                             send_text(sender_id, "Upload an avatar image for {storefront_name}".format(storefront_name=storefront.display_name))
+
+                                    else:
+                                        welcome_message(sender_id, Const.CUSTOMER_REFERRAL, message_text)
 
                 else:
                     send_text(sender_id, Const.UNKNOWN_MESSAGE)
