@@ -1,10 +1,5 @@
-from kik.messages.keyboards import SuggestedResponseKeyboard, UnknownKeyboard
+from kik.messages.keyboards import keyboard_from_json
 from kik.messages.message import Message
-
-
-keyboard_type_mapping = {
-    'suggested': SuggestedResponseKeyboard
-}
 
 
 class KeyboardMessage(Message):
@@ -32,12 +27,7 @@ class KeyboardMessage(Message):
         if 'keyboards' in json:
             keyboards = []
             for keyboard in json['keyboards']:
-                kb_type = keyboard['type']
-                kb_cls = keyboard_type_mapping.get(kb_type, UnknownKeyboard)
-                if kb_cls is not UnknownKeyboard:
-                    del keyboard['type']
-                keyboards.append(kb_cls.from_json(keyboard))
-                keyboard['type'] = kb_type
+                keyboards.append(keyboard_from_json(keyboard))
 
             if len(keyboards) > 0:
                 message.keyboards = keyboards

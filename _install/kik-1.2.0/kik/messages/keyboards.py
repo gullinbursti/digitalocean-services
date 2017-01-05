@@ -81,3 +81,18 @@ class UnknownKeyboard(Keyboard):
             'type': 'type'
         })
         return mapping
+
+
+keyboard_type_mapping = {
+    'suggested': SuggestedResponseKeyboard
+}
+
+
+def keyboard_from_json(keyboard):
+    kb_type = keyboard['type']
+    kb_cls = keyboard_type_mapping.get(kb_type, UnknownKeyboard)
+    if kb_cls is not UnknownKeyboard:
+        del keyboard['type']
+    keyboard_object = kb_cls.from_json(keyboard)
+    keyboard['type'] = kb_type
+    return keyboard_object

@@ -22,7 +22,7 @@ def messages_from_json(messages):
     Converts incoming JSON format messages into message objects.
 
     :param messages: A list of messages in JSON format.
-    :type message: list[dict].
+    :type messages: list[dict].
     :returns: A list of messages as Python classes.
     :rtype: list[kik.messages.Message].
     """
