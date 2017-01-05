@@ -690,7 +690,7 @@ def webook():
           
           
           #-- insert to log
-          write_message_log(sender_id, message_id, quote(message_text))
+          write_message_log(sender_id, message_id, messaging_event['message'])
           
           
           help_state = help_session_state(sender_id)
