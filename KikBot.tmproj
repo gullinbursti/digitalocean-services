@@ -89,88 +89,59 @@
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
-		<key>_install/kik/kik/messages/receipts.py</key>
+		<key>app-py3/kik_bot.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
 				<integer>0</integer>
 				<key>line</key>
-				<integer>19</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>0</integer>
-		</dict>
-		<key>app-py3/kik_bot.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>45</integer>
-				<key>line</key>
-				<integer>1812</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>1784</integer>
-		</dict>
-		<key>app-py3/modd/utils.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>10</integer>
-				<key>line</key>
-				<integer>43</integer>
+				<integer>2087</integer>
 			</dict>
 			<key>columnSelection</key>
 			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>24</integer>
+			<integer>2070</integer>
 			<key>selectFrom</key>
 			<dict>
 				<key>column</key>
-				<integer>2</integer>
+				<integer>45</integer>
 				<key>line</key>
-				<integer>43</integer>
+				<integer>2087</integer>
 			</dict>
 			<key>selectTo</key>
 			<dict>
 				<key>column</key>
-				<integer>10</integer>
+				<integer>0</integer>
 				<key>line</key>
-				<integer>43</integer>
+				<integer>2087</integer>
 			</dict>
 		</dict>
-		<key>bin/profile_notify.py</key>
+		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>37</integer>
+				<integer>73</integer>
 				<key>line</key>
-				<integer>36</integer>
+				<integer>17</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>16</integer>
+			<integer>11</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>app-py3/kik_bot.py</string>
 		<string>app-py3/modd/utils.py</string>
-		<string>bin/profile_notify.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{18, 4}, {1230, 874}}</string>
+	<string>{{179, 43}, {1230, 796}}</string>
 </dict>
 </plist>
