@@ -36,5 +36,22 @@ Test page subscription:
 curl -F "object_id=177712676037903" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 177712676037903}' -F "access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD" "https://graph.facebook.com/v2.6/267184583696625/subscriptions_sample"
 
 
+Whitelist Domains:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "setting_type" : "domain_whitelisting",
+  "whitelisted_domains" : ["https://scard.tv.com"],
+  "domain_action_type": "add"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+
+
 User API:
-curl -X GET "https://graph.facebook.com/v2.6/996171033817503?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/1251020481631082?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+
+
+Sender Action:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "recipient":{
+  	"id":"177712676037903"
+  },
+  "sender_action":"typing_on"
+}' "https://graph.facebook.com/v2.6/me/messages?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"

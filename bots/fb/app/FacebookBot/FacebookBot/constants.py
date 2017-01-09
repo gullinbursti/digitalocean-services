@@ -2,7 +2,7 @@ from named_constants import Constants
 
 class Const(Constants):
     VERIFY_TOKEN = "6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217"
-    ACCESS_TOKEN = "EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+    ACCESS_TOKEN = "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
     WEB_SERVER_IP = "192.241.212.32"
 
@@ -11,15 +11,16 @@ class Const(Constants):
     MYSQL_USER = 'pre_usr'
     MYSQL_PASS = 'f4zeHUga.age'
 
-    ORTHODOX_GREETING = "Welcome to Pre. The first chatbot for makers. Tap below to create your own Shop Bot."
+    ORTHODOX_GREETING = "Welcome to Pre. A new way to pre-sell products before their release."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/9PGh9vO.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/ipSd9dP.png"
+    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/R3p8qEA.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/ggLeUwX.png"
     IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/XUMntb0.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/XUMntb0.png"
-    IMAGE_URL_SUPPORT = "https://i.imgur.com/4aOGaoi.png"
+    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/3Ozq4Wm.png"
+    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/jXIttcH.png"
+    IMAGE_URL_SUPPORT = "https://i.imgur.com/wm00Cin.png"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
     STOREFRONT_ADMIN = 'STOREFRONT_ADMIN'
@@ -27,6 +28,16 @@ class Const(Constants):
     CUSTOMER_REFERRAL = 'CUSTOMER_REFERRAL'
     CUSTOMER_STOREFRONT = 'CUSTOMER_STOREFRONT'
     CUSTOMER_PRODUCT = 'CUSTOMER_PRODUCT'
+
+    CARD_TYPE_STOREFRONT = 'CARD_STOREFRONT'
+    CARD_TYPE_PREVIEW_STOREFRONT = 'CARD_PREVIEW_STOREFRONT'
+    CARD_TYPE_SHARE_STOREFRONT = 'CARD_SHARE_STOREFRONT'
+    CARD_TYPE_PRODUCT = 'CARD_PRODUCT'
+    CARD_TYPE_PREVIEW_PRODUCT = 'CARD_PREVIEW_PRODUCT'
+    CARD_TYPE_SHARE_PRODUCT = 'CARD_SHARE_PRODUCT'
+    CARD_TYPE_SUPPORT = 'CARD_SUPPORT'
+    CARD_TYPE_NOTIFY_SUBSCRIBERS = 'CARD_NOTIFY_SUBSCRIBERS'
+
 
     CARD_BTN_POSTBACK = 'postback'
     CARD_BTN_URL = 'web_url'
@@ -60,6 +71,9 @@ class Const(Constants):
     PB_PAYLOAD_VIEW_MARKETPLACE = 'VIEW_MARKETPLACE'
     PB_PAYLOAD_SUPPORT = 'SUPPORT'
     PB_PAYLOAD_CUSTOMERS = 'CUSTOMERS'
+    PB_PAYLOAD_NOTIFY_SHOP_OWNER = 'NOTIFY_SHOP_OWNER'
+    PB_PAYLOAD_NOTIFY_SUBSCRIBERS = 'NOTIFY_SUBSCRIBERS'
+
 
     RESERVED_MENU_REPLIES = "admin|main|main menu|menu|help|support"
     RESERVED_STOP_REPLIES = "cancel|end|quit|stop"
