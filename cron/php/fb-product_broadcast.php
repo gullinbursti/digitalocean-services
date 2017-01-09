@@ -17,42 +17,41 @@ $query = 'UPDATE `fb_products` SET `enabled` = 0;';
 $result = mysqli_query($db_conn, $query);
 
 // select closest to date - 24h
-$query = 'SELECT `id`, `name`, `price`, `image_url` FROM `fb_products` WHERE `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;';
+$query = 'SELECT `id`, `name`, `price`, `image_url`, `video_url`, `added` FROM `fb_products` WHERE `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
-print_r()
-$product_obj = mysqli_fetch_object($db_conn, $result);
+$product_obj = mysqli_fetch_object($result);
+mysqli_free_result($result);
 
 // make it enabled
 $query = 'UPDATE `fb_products` SET `enabled` = 1 WHERE `id` = '. $product_obj->id .';';
 $result = mysqli_query($db_conn, $query);
 
-$query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs`;';
+$date1 = new DateTime($product_obj->added);
+$date2 = new DateTime("now");
+$interval = $date1->diff($date2);
+
+// $query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs`;';
+$query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `chat_id` = "1219553058088713" LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
 
-$user_obj = array('chat_id' => "1219553058088713");
-//while ($user_obj = mysqli_fetch_object($db_conn, $result)) {
-   
+while ($user_obj = mysqli_fetch_object($result)) {
+  echo ("FB --> ". $user_obj->chat_id ."\n");
   $payload_arr = array(
 		'recipient' => array(
 			'id' => $user_obj->chat_id
 		),
 		'message'   => array(
-			'attachment'    => array(
+			'attachment' => array(
 				'type'    => "image",
 				'payload' => array(
-					'url' => $product_obj->image_url
+					'url' => $product_obj->video_url
 				)
 			),
 			'quick_replies' => array(
 				array(
 					'content_type' => "text",
-					'title'        => "Show More",
-					'payload'      => "PRODUCT_SHOW-MORE"
-				),
-				array(
-					'content_type' => "text",
-					'title'        => "Show Less",
-					'payload'      => "PRODUCT_SHOW-LESS"
+					'title'        => "Main Menu",
+					'payload'      => "MAIN_MENU"
 				)
 			)
 		)
@@ -68,22 +67,21 @@ $user_obj = array('chat_id' => "1219553058088713");
 	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300);
 	curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
-	$result = json_decode(curl_exec($ch), true);
+	$res = json_decode(curl_exec($ch), true);
 	curl_close($ch);
-	
 
 	$payload_arr = array(
 		'recipient' => array(
-			'id' => $user_obj->chat_id
+			'id'      => $user_obj->chat_id
 		),
-	  'message' => array(
+	  'message'             => array(
 		  'attachment' => array(
-			  'type' => "template",
+			  'type'    => "template",
 		    'payload' => array(
 			    'template_type' => "generic",
-		      'elements' => array(
+		      'elements'      => array(
 			      array(
-				      'title'     => $product_obj->name,
+              'title'      => $product_obj->name ." went on sale for $". $product_obj->price,
 			         'subtitle'  => "",
 			         'image_url' => "",
 			         'item_url'  => "https://prebot.chat/stripe.php?from_user=". $user_obj->chat_id ."&item_id=". $product_obj->id,
@@ -111,9 +109,9 @@ $user_obj = array('chat_id' => "1219553058088713");
 	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300);
 	curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
-	$result = json_decode(curl_exec($ch), true);
+	$res = json_decode(curl_exec($ch), true);
 	curl_close($ch);
-//}
+}
 
+mysqli_free_result($result);
 ?>
-
