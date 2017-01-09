@@ -1196,58 +1196,7 @@ def webook():
                                     image_renderer.start()
                                     image_renderer.join()
                                     logger.info("FFMPEG RESULT:: %s" % (image_renderer.stdout))
-
-
-
-
-                                    # ffmpeg_args = (
-                                    #     "/usr/bin/ffmpeg",
-                                    #     "-ss",
-                                    #     "00:00:03",
-                                    #     "-i",
-                                    #     "{url}".format(url=attachment['payload']['url']),
-                                    #     "-frames:v",
-                                    #     "1",
-                                    #     "{image_file}".format(image_file=image_file),
-                                    # )
-                                    #
-                                    # ffmpeg_cmd = "/usr/bin/ffmpeg -ss 00:00:03 -i %s -frames:v 1 %s" % (attachment['payload']['url'], image_file)
-                                    #cmd = "/usr/bin/ffmpeg -ss %s -i %s -frames:v %d %s" % ("00:00:03", attachment['payload']['url'], 1, image_file)
-
-                                    # ss_renderer = ScreenShotRender()
-                                    # thread = threading.Thread(target=ss_renderer.thread_loader, args=ffmpeg_cmd)
-                                    # thread.start()
-                                    # thread.join()
-
-
-                                    #subprocess.call(ffmpeg_cmd)
-
-
-
-                                    # subprocess.call("/usr/bin/ffmpeg -ss 00:00:03 -i {url} -frames:v 1 {image_file}".format(url=attachment['payload']['url'], image_file=image_file), shell=True)
-                                    # subprocess.call(['/usr/bin/ffmpeg', '-ss', '00:00:03', '-i', '{url}'.format(url=attachment['payload']['url']), '-frames:v', '1', '{image_file}'.format(image_file=image_file)])
-
-
-                                    # p = subprocess.Popen("/usr/bin/ffmpeg -ss 00:00:03 -i {url} -frames:v 1 {image_file}".format(url=attachment['payload']['url'], image_file=image_file), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                                    # output = p.communicate()[0]
-                                    # logger.info("::::: subprocess.Popen --> %s" % (output))
-
-
-                                    #local_file = "{file_path}/videos/{timestamp}.mp4".format(file_path=file_path, timestamp=timestamp)
-                                    #call(["ffmpeg", "-ss", "00:00:03", "-i", "https://video.xx.fbcdn.net/v/t42.3356-2/15930703_10154939964852244_8434126089172811776_n.mp4/video-1483809489.mp4?vabr=307778&oh=ddf77ffdf5239548a4d14edcf5334cb8&oe=58730491"])
-                                    # f = open(local_file, 'wb')
-                                    # f.write(urllib.urlopen(attachment['payload']['url']).read())
-                                    # f.close()
-                                    #
-                                    # container = av.open(local_file)
-                                    # video = next(s for s in container.streams if s.type == b'video')
-                                    # for packet in container.demux(video):
-                                    #     for frame in packet.decode():
-                                    #         if frame.index == 20:
-                                    #             frame.to_image().save("/var/www/html/thumbs/{timestamp}.jpg".format(file_path=file_path, timestamp=timestamp))
-                                    #             break
-                                    #
-                                    # os.remove(local_file)
+                                    
                                     product = query.order_by(Product.added.desc()).scalar()
                                     product.creation_state = 2
                                     product.image_url = "http://{ip_addr}/thumbs/{timestamp}.jpg".format(ip_addr=Const.WEB_SERVER_IP, timestamp=timestamp)
