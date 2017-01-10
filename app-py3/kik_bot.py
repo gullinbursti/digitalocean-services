@@ -1824,70 +1824,46 @@ class ProductNotify(tornado.web.RequestHandler):
       
   def post(self):
     print("-=-=-=-=-=-=-=-=-=-= PRODUCT NOTIFY =-=-=-=-=-=-=-=-=-=-=")
-    #print("chat_id:{chat_id}".format(chat_id=self.get_argument('chat_id', "")))
     print("from_user:{from_user}".format(from_user=self.get_argument('from_user', "")))
+    print("chat_id:{chat_id}".format(chat_id=self.get_argument('chat_id', "")))
+    print("item_id:{item_id}".format(item_id=self.get_argument('item_id', "")))
+    print("item_url:{item_url}".format(item_url=self.get_argument('item_url', "")))
+    print("img_url:{img_url}".format(img_url=self.get_argument('img_url', "")))
+    print("body_txt:{body_txt}".format(body_txt=self.get_argument('body_txt', "")))
+    print("attrib_txt:{attrib_txt}".format(attrib_txt=self.get_argument('attrib_txt', "")))
+    print("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=")
     
     if self.get_argument('token', "") == Const.PRODUCT_TOKEN:
       from_user = self.get_argument('from_user', "")
       chat_id = self.get_argument('chat_id', "")
-      item_name = self.get_argument('item_name', "")
-      price = self.get_argument('price', "")
+      item_id = self.get_argument('item_id', "")
+      item_url = self.get_argument('item_url', "")
+      img_url = self.get_argument('img_url', "")
+      body_txt = self.get_argument('body_txt', "")
+      attrib_txt = self.get_argument('attrib_txt', "")
       
       modd.utils.send_evt_tracker(category="broadcast-kik", action=chat_id, label=from_user)
       
-      conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
       try:
-        with conn.cursor() as cur:
-          cur.execute("SELECT `id`, `name`, `info`, `image_url`, `price`, `added` FROM `fb_products` WHERE `enabled` = 1 ORDER BY RAND() LIMIT 1;")
-
-          if cur.rowcount == 0:
-            kik.send_messages([
-              TextMessage(
-                to = from_user,
-                chat_id = chat_id,
-                body = "No items for today! Come back tomorrow for another.",
-                keyboards = default_keyboard()
-              )
-            ])
-
-          else:
-            row = cur.fetchone()      
-            print("row[]={row}".format(row=row))
-
-            td = datetime.now() - row['added']
-            m, s = divmod(td.seconds, 60)
-            h, m = divmod(m, 60)
-
-            try:
-              kik.send_messages([
-                LinkMessage(
-                  to = from_user,
-                  chat_id = chat_id,
-                  pic_url = row['image_url'],
-                  url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-                  #url = "http://prekey.co/stripe.php?from_user={from_user}&item_id={item_id}".format(from_user=from_user, item_id=row['id']),
-                  title = "",
-                  text = "",
-                  #text = "{item_name} went on sale for ${price} {hours}h {minutes}m {seconds}s ago.".format(item_name=row['name'], price=row['price'], hours=h, minutes=m, seconds=s), 
-                  attribution = custom_attribution("Tap to Win"),
-                  keyboards = default_keyboard()
-                ),
-                TextMessage(
-                  to = from_user,
-                  chat_id = chat_id,
-                  body = "Invite 5 friends & get {item_name} for ${price}".format(item_name=item_name, price=price),
-                  keyboards = default_keyboard()
-                )
-              ])
-            except KikError as err:
-              print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
-
-      except pymysql.Error as err:
-        print("MySQL DB error:%s" % (err))
-
-      finally:
-        if conn:
-          conn.close()
+        kik.send_messages([
+          LinkMessage(
+            to = from_user,
+            chat_id = chat_id,
+            pic_url = img_url,
+            url = item_url,
+            title = "",
+            text = "",
+            attribution = custom_attribution(attrib_txt),
+          ),
+          TextMessage(
+            to = from_user,
+            chat_id = chat_id,
+            body = body_txt,
+            keyboards = default_keyboard()
+          )
+        ])
+      except KikError as err:
+        print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
           
       self.set_status(200)
       
@@ -1997,13 +1973,13 @@ class Message(tornado.web.RequestHandler):
             keyboards = default_keyboard()
           )
         ])
+      
+      except KikError as e:
+        print("::::::=-=[KikError]=-=::::::e=(%s)\n%s" % (e, "-=-=-=-".join(e.args)))
+        raise KikSendingError(e['error'], e['message']) from None
         
-      except KikError as err:
-        print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))        
-        with open("/var/log/kikbot.log", 'w+') as f:
-          f.write("{recipient}\t{info}\n".format(recipient=to_user, info=str(err)))
-            
-      self.set_status(200)
+      finally:
+        self.set_status(200)
         
     else:
       self.set_status(403)
@@ -2017,6 +1993,37 @@ class Message(tornado.web.RequestHandler):
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 
+
+class KikSendingException(Exception):
+  '''Raise an api send error here'''
+  
+  def __init__(self, message, error, *args, **kwargs):
+    Exception.__init__(self, message, error, *args, **kwargs)
+    
+    
+    
+class KikSendingError(KikError):
+  def __init__(self, message, error, *args, **kwargs):
+    KikError.__init__(self, message, error, *args,**kwargs)
+    
+  def __init__(self, message, error):
+    print("KikSendingError.__init__(self={self}, message={message}, error={error})")
+    super(KikSendingError, self).__init__(message, error)
+    
+    #-- append error log
+    error_csv = "/opt/kik_bot/var/log/product-notify.error.%d.csv" % (int(time.time()) / 86400)
+    with open(error_csv, 'a') as f:
+      writer = csv.writer(f)
+      writer.writerow([datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%s+0000'), error, message])
+      #writer.writerow([datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%s+0000'), from_user, chat_id, item_id, item_url, img_url, body, errors])
+
+    #-- console output
+    print("::::::[kik.send_messages] kik.KikError - {message}".format(message=error))
+      
+#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
+#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
+      
+      
 
 gameHelpList = {}
 help_convos = {}

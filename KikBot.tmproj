@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/kik_bot.py</string>
+	<string>app-py3/modd/utils.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -45,8 +45,6 @@
 			<string>app-py3</string>
 		</dict>
 		<dict>
-			<key>expanded</key>
-			<true/>
 			<key>name</key>
 			<string>bin</string>
 			<key>regexFolderFilter</key>
@@ -77,6 +75,8 @@
 			<date>2016-09-01T11:44:27Z</date>
 		</dict>
 		<dict>
+			<key>expanded</key>
+			<true/>
 			<key>name</key>
 			<string>_install</string>
 			<key>regexFolderFilter</key>
@@ -89,59 +89,73 @@
 	<integer>197</integer>
 	<key>metaData</key>
 	<dict>
+		<key>_install/kik-1.2.0/kik/api.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>10</integer>
+				<key>line</key>
+				<integer>91</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>90</integer>
+		</dict>
+		<key>_install/kik-1.2.0/kik/error.py</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>22</integer>
+				<key>line</key>
+				<integer>0</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
+		</dict>
 		<key>app-py3/kik_bot.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>22</integer>
 				<key>line</key>
-				<integer>2087</integer>
+				<integer>1967</integer>
 			</dict>
-			<key>columnSelection</key>
-			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>2070</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>45</integer>
-				<key>line</key>
-				<integer>2087</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>0</integer>
-				<key>line</key>
-				<integer>2087</integer>
-			</dict>
+			<integer>74</integer>
 		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>73</integer>
+				<integer>18</integer>
 				<key>line</key>
-				<integer>17</integer>
+				<integer>10</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>11</integer>
+			<integer>0</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
 		<string>app-py3/kik_bot.py</string>
 		<string>app-py3/modd/utils.py</string>
+		<string>_install/kik-1.2.0/kik/error.py</string>
+		<string>_install/kik-1.2.0/kik/api.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{179, 43}, {1230, 796}}</string>
+	<string>{{10, 4}, {1070, 774}}</string>
 </dict>
 </plist>
