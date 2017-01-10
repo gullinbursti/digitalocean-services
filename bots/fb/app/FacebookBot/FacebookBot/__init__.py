@@ -16,11 +16,10 @@ from datetime import datetime
 
 import MySQLdb as mysql
 import pycurl
-import grequests
 import requests
 
 from dateutil.relativedelta import relativedelta
-from flask import Flask, escape, request
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 
 from constants import Const
@@ -178,7 +177,6 @@ def drop_sqlite(flag=15):
             db.session.commit()
         except:
             db.session.rollback()
-
 
 
 def async_send_evt_tracker(urls):
@@ -799,7 +797,7 @@ def send_storefront_carousel(recipient_id, storefront_id):
                         image_url = product.image_url,
                         item_url = product.prebot_url,
                         buttons = [
-                            build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="https://prebot.chat/reserve/{product_id}".format(product_id=product.id)),
+                            build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id)),
                             build_button(Const.CARD_BTN_INVITE)
                         ]
                     ),
@@ -917,7 +915,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.video_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="https://prebot.chat/reserve/{product_id}".format(product_id=product_id))
+                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -955,7 +953,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.video_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.chat/reserve/{product_id}".format(product_id=product_id))
+                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1531,7 +1529,7 @@ def webook():
                                         if product.creation_state == 0:
                                             product.creation_state = 1
                                             product.display_name = message_text
-                                            product.name = message_text.replace(" ", "_")
+                                            product.name = re.sub(r'[\'\"\ \:\/\?\#\&\=\\]', "", message_text)
                                             product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
                                             db.session.commit()
 
@@ -1552,7 +1550,7 @@ def webook():
                                         if storefront.creation_state == 0:
                                             storefront.creation_state = 1
                                             storefront.display_name = message_text
-                                            storefront.name = message_text.replace(" ", "_")
+                                            storefront.name = re.sub(r'[\'\"\ \:\/\?\#\&\=\\]', "", message_text)
                                             storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
                                             db.session.commit()
 
