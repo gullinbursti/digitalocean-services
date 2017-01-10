@@ -7,6 +7,7 @@ define('DB_USER', "db4086_modd_usr");
 define('DB_PASS', "f4zeHUga.age");
 
 // bot info
+define('BROADCASTER_ADDR', "162.243.150.21");
 define('KIKBOT_HOST', "http://159.203.250.4:8080");
 define('KIKBOT_WEBHOOK', "/product-notify");
 define('KIKBOT_USER_AGENT', "GameBots-Broadcaster-v3");
@@ -25,25 +26,17 @@ mysqli_set_charset($db_conn, 'utf8');
 
 
 // select closest to date - 24h
-$query = 'SELECT `id`, `name`, `price`, `image_url`, `enabled`, `added` FROM `fb_products` WHERE `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY `added` LIMIT 1;';
+$query = 'SELECT `id`, `name`, `price`, `image_url`, `added` FROM `fb_products` WHERE `enabled` = 1 LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
 
+// nothing found
 if (mysqli_num_rows($result) == 0) {
   mysqli_free_result($result);
   exit();
 }
 
-
+// today's product
 $product_obj = mysqli_fetch_object($result);
-
-// update today's product
-if ($product_obj->enabled == 0) {
-  // reset prev to disabled, make this one enabled
-  $query = 'UPDATE `fb_products` SET `enabled` = 0 WHERE `enabled` = 1; ';
-  $query .= 'UPDATE `fb_products` SET `enabled` = 1 WHERE `id` = '. $product_obj->id .' LIMIT 1;';
-  $result = mysqli_query($db_conn, $query);
-  mysqli_free_result($result);
-}
 
 // calc time diff
 $date1 = new DateTime($product_obj->added);
@@ -111,27 +104,13 @@ while ($user_obj = mysqli_fetch_object($result)) {
   // result & close
   $r = curl_exec($ch);
   curl_close($ch);
-  
-  
-  $ch = curl_init();
-  curl_setopt_array($ch, array(
-  	CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
-  	CURLOPT_RETURNTRANSFER => true,
-  	CURLOPT_URL            => "http://beta.modd.live/api/bot_tracker.php?src=kik&category=broadcast&action=broadcast&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
-  ));
-
-  $r = curl_exec($ch);
-  curl_close($ch);
-  
-  $ch = curl_init();
-  curl_setopt_array($ch, array(
-  	CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
-  	CURLOPT_RETURNTRANSFER => true,
-  	CURLOPT_URL            => "http://beta.modd.live/api/bot_tracker.php?src=kik&category=user-message&action=user-message&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
-  ));
-
-  $r = curl_exec($ch);
-  curl_close($ch);
 }
 
+mysqli_free_result($result);
+
+// close db
+if ($db_conn) {
+	mysqli_close($db_conn);
+	$db_conn = null;
+}
 ?>

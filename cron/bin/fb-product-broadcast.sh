@@ -1,6 +1,5 @@
 #!/bin/sh
 
-/usr/bin/php /opt/cron/php/fb-product_broadcast.php
+/usr/bin/php /opt/cron/php/fb-product-broadcast.php
 
-exit 0
-
+exit 0;

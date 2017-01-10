@@ -5,6 +5,10 @@ define('DB_NAME', "db4086_modd");
 define('DB_USER', "db4086_modd_usr");
 define('DB_PASS', "f4zeHUga.age");
 
+define('BROADCASTER_ADDR', "162.243.150.21");
+define('FB_GRAPH_API', "https://graph.facebook.com/v2.6/me/messages?access_token=EAAXFDiMELKsBAM0ukSiFZBhCHFWJIqMHhv1uwuL0GZB59PZC7AljrESQetUJRlusUTkzyMnM67Ahn9etkboS4ZCXIRoipiIUIYUh11nx3FQqDRKLxdGZCWSsONZBwQEpjV67GV7majCwB5iTUaaDPoQZC3FAIAxZCeQ5cdqhE9DSMBKS9Gzpv9Yt");
+
+
 // make the connection
 $db_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS) or die("Could not connect to database\n");
 
@@ -12,19 +16,19 @@ $db_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS) or die("Could not connect t
 mysqli_select_db($db_conn, DB_NAME) or die("Could not select database\n");
 mysqli_set_charset($db_conn, 'utf8');
 
-// reset all to disabled
-$query = 'UPDATE `fb_products` SET `enabled` = 0;';
+// select closest to date - 24h
+$query = 'SELECT `id`, `name`, `price`, `image_url`, `video_url`, `added` FROM `fb_products` WHERE `enabled` = 1 LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
 
-// select closest to date - 24h
-$query = 'SELECT `id`, `name`, `price`, `image_url`, `video_url`, `added` FROM `fb_products` WHERE `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;';
-$result = mysqli_query($db_conn, $query);
+// nothing found
+if (mysqli_num_rows($result) == 0) {
+  mysqli_free_result($result);
+  exit();
+}
+
 $product_obj = mysqli_fetch_object($result);
 mysqli_free_result($result);
 
-// make it enabled
-$query = 'UPDATE `fb_products` SET `enabled` = 1 WHERE `id` = '. $product_obj->id .';';
-$result = mysqli_query($db_conn, $query);
 
 $date1 = new DateTime($product_obj->added);
 $date2 = new DateTime("now");
@@ -58,7 +62,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
 	);
 
 	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL, "https://graph.facebook.com/v2.6/me/messages?access_token=EAAXFDiMELKsBAM0ukSiFZBhCHFWJIqMHhv1uwuL0GZB59PZC7AljrESQetUJRlusUTkzyMnM67Ahn9etkboS4ZCXIRoipiIUIYUh11nx3FQqDRKLxdGZCWSsONZBwQEpjV67GV7majCwB5iTUaaDPoQZC3FAIAxZCeQ5cdqhE9DSMBKS9Gzpv9Yt");
+	curl_setopt($ch, CURLOPT_URL, FB_GRAPH_API);
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload_arr));
 	curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
@@ -100,7 +104,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
 	);
 
 	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL, "https://graph.facebook.com/v2.6/me/messages?access_token=EAAXFDiMELKsBAM0ukSiFZBhCHFWJIqMHhv1uwuL0GZB59PZC7AljrESQetUJRlusUTkzyMnM67Ahn9etkboS4ZCXIRoipiIUIYUh11nx3FQqDRKLxdGZCWSsONZBwQEpjV67GV7majCwB5iTUaaDPoQZC3FAIAxZCeQ5cdqhE9DSMBKS9Gzpv9Yt");
+	curl_setopt($ch, CURLOPT_URL, FB_GRAPH_API);
 	curl_setopt($ch, CURLOPT_POST, 1);
 	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload_arr));
 	curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
@@ -117,7 +121,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
   curl_setopt_array($ch, array(
   	CURLOPT_USERAGENT => "GameBots-Tracker-v2",
   	CURLOPT_RETURNTRANSFER => true,
-  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=broadcast&action=broadcast&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=broadcast&action=broadcast&label=". $user_obj->chat_id ."&value=&cid=". md5(BROADCASTER_ADDR)
   ));
 
   $res = curl_exec($ch);
@@ -127,7 +131,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
   curl_setopt_array($ch, array(
   	CURLOPT_USERAGENT => "GameBots-Tracker-v2",
   	CURLOPT_RETURNTRANSFER => true,
-  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label=". $user_obj->chat_id ."&value=&cid=". md5(BROADCASTER_ADDR)
   ));
 
   $res = curl_exec($ch);
@@ -136,4 +140,11 @@ while ($user_obj = mysqli_fetch_object($result)) {
 }
 
 mysqli_free_result($result);
+
+// close db
+if ($db_conn) {
+	mysqli_close($db_conn);
+	$db_conn = null;
+}
+
 ?>
