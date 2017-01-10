@@ -15,8 +15,8 @@ class Const(Constants):
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/R3p8qEA.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/ggLeUwX.png"
+    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/qc7mSDD.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/BegjaIh.png"
     IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/XUMntb0.png"
     IMAGE_URL_MARKETPLACE = "https://i.imgur.com/3Ozq4Wm.png"
     IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/jXIttcH.png"

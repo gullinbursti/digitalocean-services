@@ -16,6 +16,7 @@ from datetime import datetime
 
 import MySQLdb as mysql
 import pycurl
+import grequests
 import requests
 
 from dateutil.relativedelta import relativedelta
@@ -188,23 +189,88 @@ def async_send_evt_tracker(urls):
 
 
 
-def send_tracker(category, action, label):
+def send_tracker(category, action, label, value=""):
     logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
 
-    client_id = hashlib.md5(label.encode()).hexdigest()
-    src_app = "facebook"
-    username = ""
-    chat_id = category
-    value = ""
 
-    urls = [
-        "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
-        "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
-        "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
-    ]
+    buf = cStringIO.StringIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action))
+    c.setopt(c.CONNECTTIMEOUT, 300)
+    c.setopt(c.TIMEOUT, 60)
+    c.setopt(c.FAILONERROR, True)
 
-    #responses = (grequests.get(u) for u in urls)
-    #grequests.map(responses)
+    try:
+        c.perform()
+        c.close()
+    except pycurl.error, error:
+        errno, errstr = error
+        logger.info("TRACKER Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
+    finally:
+        buf.close()
+
+    buf = cStringIO.StringIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()))
+    c.setopt(c.CONNECTTIMEOUT, 300)
+    c.setopt(c.TIMEOUT, 60)
+    c.setopt(c.FAILONERROR, True)
+
+    try:
+        c.perform()
+        c.close()
+    except pycurl.error, error:
+        errno, errstr = error
+        logger.info("TRACKER Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
+    finally:
+        buf.close()
+
+    buf = cStringIO.StringIO()
+    c = pycurl.Curl()
+    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()))
+    c.setopt(c.CONNECTTIMEOUT, 300)
+    c.setopt(c.TIMEOUT, 60)
+    c.setopt(c.FAILONERROR, True)
+
+    try:
+        c.perform()
+        c.close()
+    except pycurl.error, error:
+        errno, errstr = error
+        logger.info("TRACKER Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
+    finally:
+        buf.close()
+
+
+    # "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
+
+    # payload = {
+    #     'username' : label,
+    #     'chat_id' : action
+    # }
+    # response = requests.get("http://beta.modd.live/api/user_tracking.php", data=payload)
+    #
+    # payload = {
+    #     'src' : "facebook",
+    #     'category' : category,
+    #     'action' : category,
+    #     'label' : action,
+    #     'value' : "",
+    #     'cid' : hashlib.md5(label.encode()).hexdigest()
+    # }
+    # response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
+    #
+    # payload = {
+    #     'src' : "facebook",
+    #     'category' : "user-message",
+    #     'action' : "user-message",
+    #     'label' : action,
+    #     'value' : "",
+    #     'cid' : hashlib.md5(label.encode()).hexdigest()
+    # }
+    # response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
 
     return True
 
@@ -541,7 +607,7 @@ def send_admin_carousel(recipient_id):
             build_card_element(
                 index = 0,
                 title = "Create Shop",
-                subtitle = "",
+                subtitle = "Tap here now",
                 image_url = Const.IMAGE_URL_CREATE_SHOP,
                 item_url = None,
                 buttons = [
@@ -563,7 +629,7 @@ def send_admin_carousel(recipient_id):
             storefront.logo_url = Const.IMAGE_URL_ADD_PRODUCT
 
         if storefront.prebot_url is None:
-            storefront.prebot_url = "http://prebot.me/shop/{storefront_id}".format(storefront_id=storefront.id)
+            storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
 
 
         product_query = Product.query.filter(Product.storefront_id == storefront.id)
@@ -572,7 +638,7 @@ def send_admin_carousel(recipient_id):
                 build_card_element(
                     index = 1,
                     title = "Add Item",
-                    subtitle = "",
+                    subtitle = "Tap here now",
                     image_url = Const.IMAGE_URL_ADD_PRODUCT,
                     item_url = None,
                     buttons = [
@@ -585,7 +651,7 @@ def send_admin_carousel(recipient_id):
             product = product_query.order_by(Product.added.desc()).scalar()
 
             if product.prebot_url is None:
-                product.prebot_url = "http://prebot.me/reserve/{product_id}".format(product_id=product.id)
+                product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
 
             if product.display_name is None:
                 product.display_name = "[NAME NOT SET]"
@@ -683,7 +749,7 @@ def send_admin_carousel(recipient_id):
                 title = storefront.display_name,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-                item_url = storefront.prebot_url,
+                item_url = None,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Remove Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT)
                 ]
@@ -889,7 +955,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.video_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}".format(product_id=product_id))
+                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.chat/reserve/{product_id}".format(product_id=product_id))
                 ]
             )
 
@@ -918,6 +984,301 @@ class VideoImageRenderer(threading.Thread):
         self.stdout, self.stderr = p.communicate()
 
 
+def received_quick_reply(recipient_id, quick_reply):
+    logger.info("received_quick_reply(recipient_id={recipient_id}, quick_reply={quick_reply})".format(recipient_id=recipient_id, quick_reply=quick_reply))
+
+    if quick_reply == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
+        send_tracker("button-submit-store", recipient_id, "")
+
+        users_query = Customer.query.filter(Customer.fb_psid == recipient_id)
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 3)
+        if storefront_query.count() > 0:
+            storefront = storefront_query.first()
+            storefront.creation_state = 4
+            storefront.added = datetime.utcnow()
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('INSERT IGNORE INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, {owner_id}, "{name}", "{display_name}", "{description}", "{logo_url}", "{prebot_url}", UTC_TIMESTAMP())'.format(owner_id=users_query.first().id, name=storefront.name, display_name=storefront.display_name, description=storefront.description, logo_url=storefront.logo_url, prebot_url=storefront.prebot_url))
+                    conn.commit()
+                    storefront.id = cur.lastrowid
+                    db.session.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+            send_text(recipient_id, "The Shopbot {storefront_name} has been successful created.\n{storefront_url}".format(storefront_name=storefront.display_name, storefront_url=re.sub(r'https?:\/\/', '', storefront.prebot_url)))
+            send_admin_carousel(recipient_id)
+
+            send_tracker("shop-sign-up", recipient_id, "")
+            payload = {
+                'channel' : "#pre",
+                'username' : "fbprebot",
+                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                'text' : "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=recipient_id, storefront_name=storefront.display_name),
+                'attachments' : [{
+                    'image_url' : storefront.logo_url
+                }]
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+
+
+    elif quick_reply == Const.PB_PAYLOAD_REDO_STOREFRONT:
+        send_tracker("button-redo-store", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 3)
+        if storefront_query.count() > 0:
+            Storefront.query.filter(Storefront.owner_id == recipient_id).delete()
+            db.session.commit()
+
+        db.session.add(Storefront(recipient_id))
+        db.session.commit()
+
+        send_text(recipient_id, "Give your Pre Shop Bot a name.")
+
+    elif quick_reply == Const.PB_PAYLOAD_CANCEL_STOREFRONT:
+        send_tracker("button-cancel-store", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 3)
+        if storefront_query.count() > 0:
+            storefront = storefront_query.first()
+            send_text(recipient_id, "Canceling your {storefront_name} shop creation...".format(storefront_name=storefront.display_name))
+            Storefront.query.filter(Storefront.owner_id == recipient_id).delete()
+            db.session.commit()
+
+        send_admin_carousel(recipient_id)
+
+    elif re.search('PRODUCT_RELEASE_(\d+)_DAYS', quick_reply) is not None:
+        match = re.match(r'PRODUCT_RELEASE_(\d+)_DAYS', quick_reply)
+        send_tracker("button-product-release-{days}-days-store".format(days=match.group(1)), recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 2)
+        if product_query.count() > 0:
+            product = product_query.order_by(Product.added.desc()).scalar()
+            product.release_date = (datetime.utcnow() + relativedelta(months=int(int(match.group(1)) / 30))).replace(hour=0, minute=0, second=0, microsecond=0)
+            product.description = "Pre-release ends {release_date}".format(release_date=product.release_date.strftime('%a, %b %-d'))
+            product.creation_state = 3
+            db.session.commit()
+
+            send_text(recipient_id, "Here's what your product will look like:")
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PREVIEW_PRODUCT)
+
+    elif quick_reply == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
+        send_tracker("button-submit-product", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 3)
+        if product_query.count() > 0:
+            product = product_query.order_by(Product.added.desc()).scalar()
+            product.creation_state = 4
+            product.added = datetime.utcnow()
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('INSERT IGNORE INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, {storefront_id}, "{name}", "{display_name}", "{description}", "{image_url}", "{video_url}", "{attachment_id}", {price}, "{prebot_url}", "{release_date}", UTC_TIMESTAMP())'.format(storefront_id=product.storefront_id, name=product.name, display_name=product.display_name, description=product.description, image_url=product.image_url, video_url=product.video_url, attachment_id=product.attachment_id, price=product.price, prebot_url=product.prebot_url, release_date=product.release_date))
+                    conn.commit()
+                    product.id = cur.lastrowid
+                    db.session.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+            send_text(recipient_id, "You have added {product_name} to {storefront_name}.\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
+
+            payload = {
+                'channel' : "#pre",
+                'username' : "fbprebot",
+                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                'text' : "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=recipient_id, product_name=product.display_name, storefront_name=storefront_query.first().display_name, video_url=product.video_url),
+                'attachments' : [{
+                    'image_url' : product.image_url
+                }]
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+
+        send_admin_carousel(recipient_id)
+
+    elif quick_reply == Const.PB_PAYLOAD_REDO_PRODUCT:
+        send_tracker("button-redo-product", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
+        if product_query.count() > 0:
+            product = product_query.order_by(Product.added.desc()).scalar()
+            Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
+
+        db.session.add(Product(storefront_query.first().id))
+        db.session.commit()
+
+        send_text(recipient_id, "Give your product a name.")
+
+    elif quick_reply == Const.PB_PAYLOAD_CANCEL_PRODUCT:
+        send_tracker("button-undo-product", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
+        if product_query.count() > 0:
+            product = product_query.order_by(Product.added.desc()).scalar()
+            send_text(recipient_id, "Canceling your {product_name} product creation...".format(product_name=product.display_name))
+
+            Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
+            db.session.commit()
+
+        send_admin_carousel(recipient_id)
+
+
+def received_payload_button(recipient_id, payload):
+    logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload})".format(recipient_id=recipient_id, payload=payload))
+
+    storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+
+    if payload == Const.PB_PAYLOAD_GREETING:
+        logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+        send_tracker("signup-fb-pre", recipient_id, "")
+        welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+
+    elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
+        send_tracker("button-create-shop", recipient_id, "")
+
+        query = Storefront.query.filter(Storefront.owner_id == recipient_id)
+        if query.count() > 0:
+            try:
+                deleted_rows = db.session.query(Storefront).delete()
+                db.session.commit()
+            except:
+                db.session.rollback()
+
+
+        db.session.add(Storefront(recipient_id))
+        db.session.commit()
+
+        send_text(recipient_id, "Give your Pre Shopbot a name.")
+
+
+    elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
+        send_tracker("button-delete-shop", recipient_id, "")
+
+        for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+            send_text(recipient_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name))
+            Product.query.filter(Product.storefront_id == storefront.id).delete()
+
+        Storefront.query.filter(Storefront.owner_id == recipient_id).delete()
+        db.session.commit()
+
+        try:
+            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                conn.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+        send_admin_carousel(recipient_id)
+
+
+    elif payload == Const.PB_PAYLOAD_ADD_PRODUCT:
+        send_tracker("button-add-item", recipient_id, "")
+
+        try:
+            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `storefronts` WHERE `name` = "{storefront_name}" LIMIT 1;'.format(storefront_name=storefront_query.first().name))
+                row = cur.fetchone()
+                logger.info("AD PRODUCT TO STORE: %s" % (row))
+                if row is not None:
+                    db.session.add(Product(row['id']))
+
+                else:
+                    db.session.add(Product(storefront_query.first().id))
+                db.session.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(recipient_id, "Give your pre-sale product a name.")
+
+
+    elif payload == Const.PB_PAYLOAD_DELETE_PRODUCT:
+        send_tracker("button-delete-item", recipient_id, "")
+
+        storefront = storefront_query.first()
+        for product in Product.query.filter(Product.storefront_id == storefront.id):
+            send_text(recipient_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name))
+            Subscription.query.filter(Subscription.product_id == product.id)
+            Product.query.filter(Product.storefront_id == storefront.id).delete()
+        db.session.commit()
+
+        try:
+            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                conn.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        db.session.add(Product(storefront.id))
+        db.session.commit()
+
+        send_text(recipient_id, "Give your product a name.")
+
+
+    elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
+        send_tracker("button-share", recipient_id, "")
+        send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_SHARE_STOREFRONT)
+        send_admin_carousel(recipient_id)
+
+
+    elif payload == Const.PB_PAYLOAD_SUPPORT:
+        send_tracker("button-support", recipient_id, "")
+        send_text(recipient_id, "Support for Prebot:\nprebot.me/support")
+
+
+    elif payload == Const.PB_PAYLOAD_RESERVE_PRODUCT:
+        send_tracker("button-reserve", recipient_id, "")
+
+
+    else:
+        send_tracker("unknown-button", recipient_id, "")
+        send_text(recipient_id, "Button not recognized!")
 
 
 class ScreenShotRender(object):
@@ -950,7 +1311,7 @@ def webook():
 
     data = request.get_json()
 
-    logger.info("\n\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
     logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
     logger.info(data)
@@ -1029,131 +1390,19 @@ def webook():
                         if conn:
                             conn.close()
 
+                    send_tracker("sign-up", recipient_id, "")
+
 
                 #-- postback response w/ payload
                 if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                     payload = messaging_event['postback']['payload']
                     logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
-
-                    if payload == Const.PB_PAYLOAD_GREETING:
-                        logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
-                        send_tracker("signup-fb-pre", sender_id, "")
-                        welcome_message(sender_id, Const.MARKETPLACE_GREETING)
-
-                    elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
-                        send_tracker("button-create-shop", sender_id, "")
-
-                        query = Storefront.query.filter(Storefront.owner_id == sender_id)
-                        if query.count() > 0:
-                            try:
-                                deleted_rows = db.session.query(Storefront).delete()
-                                db.session.commit()
-                            except:
-                                db.session.rollback()
-
-
-                        db.session.add(Storefront(sender_id))
-                        db.session.commit()
-
-                        send_text(sender_id, "Give your Pre Shop Bot a name.")
-
-
-                    elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
-                        send_tracker("button-delete-shop", sender_id, "")
-
-                        for storefront in Storefront.query.filter(Storefront.owner_id == sender_id):
-                            send_text(sender_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name))
-                            Product.query.filter(Product.storefront_id == storefront.id).delete()
-
-                        Storefront.query.filter(Storefront.owner_id == sender_id).delete()
-                        db.session.commit()
-
-                        try:
-                            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                            with conn:
-                                cur = conn.cursor(mysql.cursors.DictCursor)
-                                cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
-                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
-                                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
-                                conn.commit()
-
-                        except mysql.Error, e:
-                            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                        finally:
-                            if conn:
-                                conn.close()
-
-
-                        send_admin_carousel(sender_id)
-
-
-                    elif payload == Const.PB_PAYLOAD_ADD_PRODUCT:
-                        send_tracker("button-add-item", sender_id, "")
-
-                        # storefront = storefront_query.first()
-                        # for product in Product.query.filter(Product.storefront_id == storefront.id):
-                        #     Product.query.filter(Product.storefront_id == storefront.id).delete()
-
-                        db.session.add(Product(storefront_query.first().id))
-                        db.session.commit()
-
-                        send_text(sender_id, "Give your pre-sale product or item a name.")
-
-
-                    elif payload == Const.PB_PAYLOAD_DELETE_PRODUCT:
-                        send_tracker("button-delete-item", sender_id, "")
-
-                        storefront = storefront_query.first()
-                        for product in Product.query.filter(Product.storefront_id == storefront.id):
-                            send_text(sender_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name))
-                            Subscription.query.filter(Subscription.product_id == product.id)
-                            Product.query.filter(Product.storefront_id == storefront.id).delete()
-                        db.session.commit()
-
-                        try:
-                            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                            with conn:
-                                cur = conn.cursor(mysql.cursors.DictCursor)
-                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
-                                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
-                                conn.commit()
-
-                        except mysql.Error, e:
-                            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                        finally:
-                            if conn:
-                                conn.close()
-
-
-                        send_admin_carousel(sender_id)
-
-
-                    elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
-                        send_tracker("button-share", sender_id, "")
-                        send_storefront_card(sender_id, storefront_query.first().id, Const.CARD_TYPE_SHARE_STOREFRONT)
-                        send_admin_carousel(sender_id)
-
-
-                    elif payload == Const.PB_PAYLOAD_SUPPORT:
-                        send_tracker("button-support", sender_id, "")
-                        send_text(sender_id, "Support for Prebot:\nprebot.me/support")
-
-
-                    elif payload == Const.PB_PAYLOAD_RESERVE_PRODUCT:
-                        send_tracker("button-reserve", sender_id, "")
-
-
-                    else:
-                        send_tracker("unknown-button", sender_id, "")
-                        send_text(sender_id, "Button not recognized!")
-
+                    received_payload_button(sender_id, payload)
                     return "OK", 200
 
 
                 #-- actual message
-                if 'message' in messaging_event:#.get('message'):
+                if 'message' in messaging_event:
                     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->{message}".format(message=messaging_event['sender']))
                     message = messaging_event['message']
                     message_id = message['mid']
@@ -1176,7 +1425,7 @@ def webook():
                                     storefront.logo_url = attachment['payload']['url']
                                     db.session.commit()
 
-                                    send_text(sender_id, "Here's what your shop will look like:")
+                                    send_text(sender_id, "Here's what your Shopbot will look like:")
                                     send_storefront_card(sender_id, storefront.id, Const.CARD_TYPE_PREVIEW_STOREFRONT)
 
                             #------- VIDEO MESSAGE
@@ -1196,16 +1445,18 @@ def webook():
                                     image_renderer.start()
                                     image_renderer.join()
                                     logger.info("FFMPEG RESULT:: %s" % (image_renderer.stdout))
-                                    
+
                                     product = query.order_by(Product.added.desc()).scalar()
                                     product.creation_state = 2
                                     product.image_url = "http://{ip_addr}/thumbs/{timestamp}.jpg".format(ip_addr=Const.WEB_SERVER_IP, timestamp=timestamp)
                                     product.video_url = attachment['payload']['url']
                                     db.session.commit()
 
+                                    send_product_card(sender_id, product.id, Const.CARD_TYPE_PRODUCT)
+
                                     send_text(
                                         recipient_id = sender_id,
-                                        message_text = "Select the date range your product will be exclusively available.",
+                                        message_text = "Select the date range the product will be exclusively available to your Pre customers.",
                                         quick_replies = [
                                             build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
                                             build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
@@ -1221,154 +1472,7 @@ def webook():
                         if 'quick_reply' in message:
                             quick_reply = message['quick_reply']['payload'].encode('utf-8')
                             logger.info("QR --> {quick_replies}".format(quick_replies=message['quick_reply']['payload'].encode('utf-8')))
-
-                            if quick_reply == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
-                                send_tracker("button-submit-store", sender_id, "")
-
-                                storefront_query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 3)
-                                if storefront_query.count() > 0:
-                                    storefront = storefront_query.first();
-                                    storefront.creation_state = 4
-                                    storefront.added = datetime.utcnow()
-                                    db.session.commit()
-
-                                    try:
-                                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                                        with conn:
-                                            cur = conn.cursor(mysql.cursors.DictCursor)
-                                            cur.execute('INSERT IGNORE INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, {owner_id}, "{name}", "{display_name}", "{description}", "{logo_url}", "{prebot_url}", UTC_TIMESTAMP())'.format(owner_id=users_query.first().id, name=storefront.name, display_name=storefront.display_name, description=storefront.description, logo_url=storefront.logo_url, prebot_url=storefront.prebot_url))
-                                            conn.commit()
-
-                                    except mysql.Error, e:
-                                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                                    finally:
-                                        if conn:
-                                            conn.close()
-
-
-                                    send_text(sender_id, "{storefront_name} has been successful created..\n{storefront_url}".format(storefront_name=storefront.display_name, storefront_url=re.sub(r'https?:\/\/', '', storefront.prebot_url)))
-                                    send_admin_carousel(sender_id)
-
-                                    payload = {
-                                        'channel' : "#pre",
-                                        'username' : "fbprebot",
-                                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                                        'text' : "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=sender_id, storefront_name=storefront.display_name),
-                                        'attachments' : [{
-                                            'image_url' : storefront.logo_url
-                                        }]
-                                    }
-                                    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
-
-
-                            elif quick_reply == Const.PB_PAYLOAD_REDO_STOREFRONT:
-                                send_tracker("button-redo-store", sender_id, "")
-
-                                storefront_query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 3)
-                                if storefront_query.count() > 0:
-                                    Storefront.query.filter(Storefront.owner_id == sender_id).delete()
-                                    db.session.commit()
-
-                                db.session.add(Storefront(sender_id))
-                                db.session.commit()
-
-                                send_text(sender_id, "Give your Pre Shop Bot a name.")
-
-                            elif quick_reply == Const.PB_PAYLOAD_CANCEL_STOREFRONT:
-                                send_tracker("button-cancel-store", sender_id, "")
-
-                                storefront_query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 3)
-                                if storefront_query.count() > 0:
-                                    storefront = storefront_query.first()
-                                    send_text(sender_id, "Canceling your {storefront_name} shop creation...".format(storefront_name=storefront.display_name))
-                                    Storefront.query.filter(Storefront.owner_id == sender_id).delete()
-                                    db.session.commit()
-
-                                send_admin_carousel(sender_id)
-
-                            elif re.search('PRODUCT_RELEASE_(\d+)_DAYS', quick_reply) is not None:
-                                match = re.match(r'PRODUCT_RELEASE_(\d+)_DAYS', quick_reply)
-                                send_tracker("button-product-release-{days}-days-store".format(days=match.group(1)), sender_id, "")
-
-                                product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 2)
-                                if product_query.count() > 0:
-                                    product = product_query.order_by(Product.added.desc()).scalar()
-                                    product.release_date = (datetime.utcnow() + relativedelta(months=int(int(match.group(1)) / 30))).replace(hour=0, minute=0, second=0, microsecond=0)
-                                    product.description = "Pre-release ends {release_date}".format(release_date=product.release_date.strftime('%a, %b %-d'))
-                                    product.creation_state = 3
-                                    db.session.commit()
-
-                                    send_text(sender_id, "Here's what your product will look like:")
-                                    send_product_card(sender_id, product.id, Const.CARD_TYPE_PREVIEW_PRODUCT)
-
-                            elif quick_reply == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
-                                send_tracker("button-submit-product", sender_id, "")
-
-                                product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 3)
-                                if product_query.count() > 0:
-                                    product = product_query.order_by(Product.added.desc()).scalar()
-                                    product.creation_state = 4
-                                    product.added = datetime.utcnow()
-                                    db.session.commit()
-
-                                    try:
-                                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                                        with conn:
-                                            cur = conn.cursor(mysql.cursors.DictCursor)
-                                            cur.execute('INSERT IGNORE INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, {storefront_id}, "{name}", "{display_name}", "{description}", "{image_url}", "{video_url}", "{attachment_id}", {price}, "{prebot_url}", "{release_date}", UTC_TIMESTAMP())'.format(storefront_id=product.storefront_id, name=product.name, display_name=product.display_name, description=product.description, image_url=product.image_url, video_url=product.video_url, attachment_id=product.attachment_id, price=product.price, prebot_url=product.prebot_url, release_date=product.release_date))
-                                            conn.commit()
-
-                                    except mysql.Error, e:
-                                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                                    finally:
-                                        if conn:
-                                            conn.close()
-
-
-                                    send_text(sender_id, "Success! You have added {product_name}.\n{product_url}".format(product_name=product.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
-                                    send_product_card(sender_id, product.id, Const.CARD_TYPE_SHARE_PRODUCT)
-
-                                    payload = {
-                                        'channel' : "#pre",
-                                        'username' : "fbprebot",
-                                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                                        'text' : "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=sender_id, product_name=product.display_name, storefront_name=storefront_query.first().display_name, video_url=product.video_url),
-                                        'attachments' : [{
-                                            'image_url' : product.image_url
-                                        }]
-                                    }
-                                    response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
-
-                                send_admin_carousel(sender_id)
-
-                            elif quick_reply == Const.PB_PAYLOAD_REDO_PRODUCT:
-                                send_tracker("button-redo-product", sender_id, "")
-
-                                product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
-                                if product_query.count() > 0:
-                                    product = product_query.order_by(Product.added.desc()).scalar()
-                                    Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
-
-                                db.session.add(Product(storefront_query.first().id))
-                                db.session.commit()
-
-                                send_text(sender_id, "Give your product a name.")
-
-                            elif quick_reply == Const.PB_PAYLOAD_CANCEL_PRODUCT:
-                                send_tracker("button-undo-product", sender_id, "")
-
-                                product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
-                                if product_query.count() > 0:
-                                    product = product_query.order_by(Product.added.desc()).scalar()
-                                    send_text(sender_id, "Canceling your {product_name} product creation...".format(product_name=product.display_name))
-
-                                    Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
-                                    db.session.commit()
-
-                                send_admin_carousel(sender_id)
-
+                            received_quick_reply(sender_id, quick_reply)
 
 
                         #-- text entry
@@ -1428,7 +1532,7 @@ def webook():
                                             product.creation_state = 1
                                             product.display_name = message_text
                                             product.name = message_text.replace(" ", "_")
-                                            product.prebot_url = "http://prebot.me/reserve/{storefront_id}".format(storefront_id=storefront_query.first().id)
+                                            product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
                                             db.session.commit()
 
                                             send_text(sender_id, "Upload a product video under 30 seconds.")
@@ -1449,7 +1553,7 @@ def webook():
                                             storefront.creation_state = 1
                                             storefront.display_name = message_text
                                             storefront.name = message_text.replace(" ", "_")
-                                            storefront.prebot_url = "http://prebot.me/shop/{storefront_id}".format(storefront_id=storefront.id)
+                                            storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
                                             db.session.commit()
 
                                             send_text(sender_id, "Give {storefront_name} a description.".format(storefront_name=storefront.display_name))
@@ -1460,7 +1564,7 @@ def webook():
                                             storefront.description = message_text
                                             db.session.commit()
 
-                                            send_text(sender_id, "Upload an avatar image for {storefront_name}".format(storefront_name=storefront.display_name))
+                                            send_text(sender_id, "Upload an avatar image.")
 
                                     else:
                                         welcome_message(sender_id, Const.CUSTOMER_REFERRAL, message_text)
@@ -1589,9 +1693,16 @@ def send_video(recipient_id, url, attachment_id=None, quick_replies=None):
 
 
 def send_message(payload):
-    logger.info("\nsend_message(payload={payload})".format(payload=payload))
+    logger.info("send_message(payload={payload})".format(payload=payload))
 
-    timestamp = int(time.time() * 1000)
+
+    # response = requests.post(
+    #     url = "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
+    #     headers = { 'Content-Type' : "application/json" },
+    #     data = payload
+    # )
+    # logger.info("SEND MESSAGE response: {response}".format(response=response.json()))
+
     buf = cStringIO.StringIO()
 
     c = pycurl.Curl()
@@ -1613,7 +1724,6 @@ def send_message(payload):
         logger.info("SEND MESSAGE Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
 
     finally:
-        #logger.info("SEND MESSAGE body: {body}".format(body=buf.getvalue()))
         buf.close()
 
     return True
