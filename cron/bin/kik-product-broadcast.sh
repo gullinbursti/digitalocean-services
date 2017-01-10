@@ -1,5 +1,5 @@
 #!/bin/bash
 
-/usr/bin/php /opt/cron/php/kik-product_broadcast.php "${1}" "${$2}"
+/usr/bin/php /opt/cron/php/kik-product_broadcast.php
 
 exit 0;

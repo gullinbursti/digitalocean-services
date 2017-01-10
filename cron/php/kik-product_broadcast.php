@@ -90,8 +90,8 @@ while ($user_obj = mysqli_fetch_object($result)) {
   echo(sprintf("KIK ([%05s]/[%05s])--> [%-64s] \"%s\"\n", number_format(++$cnt), number_format(mysqli_num_rows($result)), $user_obj->chat_id, $user_obj->username));
   
   // curl off to webhook
-  $curl = curl_init();
-  curl_setopt_array($curl, array(
+  $ch = curl_init();
+  curl_setopt_array($ch, array(
     CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => 1,
@@ -109,8 +109,29 @@ while ($user_obj = mysqli_fetch_object($result)) {
   ));
   
   // result & close
-  $r = curl_exec($curl);
-  curl_close($curl);
+  $r = curl_exec($ch);
+  curl_close($ch);
+  
+  
+  $ch = curl_init();
+  curl_setopt_array($ch, array(
+  	CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
+  	CURLOPT_RETURNTRANSFER => true,
+  	CURLOPT_URL            => "http://beta.modd.live/api/bot_tracker.php?src=kik&category=broadcast&action=broadcast&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  ));
+
+  $r = curl_exec($ch);
+  curl_close($ch);
+  
+  $ch = curl_init();
+  curl_setopt_array($ch, array(
+  	CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
+  	CURLOPT_RETURNTRANSFER => true,
+  	CURLOPT_URL            => "http://beta.modd.live/api/bot_tracker.php?src=kik&category=user-message&action=user-message&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  ));
+
+  $r = curl_exec($ch);
+  curl_close($ch);
 }
 
 ?>

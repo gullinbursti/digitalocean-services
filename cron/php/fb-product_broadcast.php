@@ -30,8 +30,8 @@ $date1 = new DateTime($product_obj->added);
 $date2 = new DateTime("now");
 $interval = $date1->diff($date2);
 
-// $query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs`;';
-$query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `chat_id` = "1219553058088713" LIMIT 1;';
+$query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs`;';
+//$query = 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `chat_id` = "1219553058088713" LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
 
 while ($user_obj = mysqli_fetch_object($result)) {
@@ -74,7 +74,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
 		'recipient' => array(
 			'id'      => $user_obj->chat_id
 		),
-	  'message'             => array(
+	  'message' => array(
 		  'attachment' => array(
 			  'type'    => "template",
 		    'payload' => array(
@@ -84,11 +84,11 @@ while ($user_obj = mysqli_fetch_object($result)) {
               'title'      => $product_obj->name ." went on sale for $". $product_obj->price,
 			         'subtitle'  => "",
 			         'image_url' => "",
-			         'item_url'  => "https://prebot.chat/stripe.php?from_user=". $user_obj->chat_id ."&item_id=". $product_obj->id,
+			         'item_url'  => "http://prekey.co/stripe/". $product_obj->id ."/". $user_obj->chat_id,
 			         'buttons'   => array(
 				        array(
 					        'type'  => "web_url",
-                  'url'   => "https://prebot.chat/stripe.php?from_user=". $user_obj->chat_id ."&item_id=". $product_obj->id,
+                  'url'   => "http://prekey.co/stripe/". $product_obj->id ."/". $user_obj->chat_id,
                   'title' => "Buy"
 				        )
 			        )
@@ -111,6 +111,28 @@ while ($user_obj = mysqli_fetch_object($result)) {
 
 	$res = json_decode(curl_exec($ch), true);
 	curl_close($ch);
+	
+	
+  $ch = curl_init();
+  curl_setopt_array($ch, array(
+  	CURLOPT_USERAGENT => "GameBots-Tracker-v2",
+  	CURLOPT_RETURNTRANSFER => true,
+  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=broadcast&action=broadcast&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  ));
+
+  $res = curl_exec($ch);
+  curl_close($ch);
+  
+  $ch = curl_init();
+  curl_setopt_array($ch, array(
+  	CURLOPT_USERAGENT => "GameBots-Tracker-v2",
+  	CURLOPT_RETURNTRANSFER => true,
+  	CURLOPT_URL => "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label=". $user_obj->chat_id ."&value=&cid=". md5($_SERVER['REMOTE_ADDR'])
+  ));
+
+  $res = curl_exec($ch);
+  curl_close($ch);
+  
 }
 
 mysqli_free_result($result);
