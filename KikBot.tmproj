@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/modd/utils.py</string>
+	<string>app-py3/kik_bot.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -122,14 +122,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>22</integer>
+				<integer>88</integer>
 				<key>line</key>
-				<integer>1967</integer>
+				<integer>1844</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>74</integer>
+			<integer>1829</integer>
 		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
@@ -156,6 +156,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{10, 4}, {1070, 774}}</string>
+	<string>{{36, -5}, {1070, 774}}</string>
 </dict>
 </plist>

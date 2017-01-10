@@ -1842,7 +1842,7 @@ class ProductNotify(tornado.web.RequestHandler):
       body_txt = self.get_argument('body_txt', "")
       attrib_txt = self.get_argument('attrib_txt', "")
       
-      modd.utils.send_evt_tracker(category="broadcast-kik", action=chat_id, label=from_user)
+      modd.utils.send_evt_tracker(category="broadcast", action=chat_id, label=from_user)
       
       try:
         kik.send_messages([
@@ -1862,8 +1862,19 @@ class ProductNotify(tornado.web.RequestHandler):
             keyboards = default_keyboard()
           )
         ])
+          
       except KikError as err:
         print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+        error_csv = "/opt/kik_bot/var/log/product-notify.error.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
+        with open(error_csv, 'a') as f:
+          writer = csv.writer(f)
+          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), chat_id, from_user, err])
+      
+      else:
+        log_csv = "/opt/kik_bot/var/log/product-notify.sent.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
+        with open(log_csv, 'a') as f:
+          writer = csv.writer(f)
+          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), chat_id, from_user])
           
       self.set_status(200)
       
@@ -1956,8 +1967,7 @@ class Message(tornado.web.RequestHandler):
     print("-=-=-=-=-=-=-=-=-=-= MESSAGE BROADCAST =-=-=-=-=-=-=-=-=-=-=")
     
     if self.get_argument('token', "") == Const.BROADCAST_TOKEN:
-      print("MISSING 'to_user' --> %s" % (self.get_argument('to_user', "")))
-      print("MISSING 'chat_id' --> %s" % (self.get_argument('chat_id', "")))
+      print("SENDING --> %s %s" % (self.get_argument('to_user', ""), self.get_argument('chat_id', "")))
       
       to_user = self.get_argument('to_user', "")
       chat_id = self.get_argument('chat_id', "")
@@ -1976,8 +1986,21 @@ class Message(tornado.web.RequestHandler):
       
       except KikError as e:
         print("::::::=-=[KikError]=-=::::::e=(%s)\n%s" % (e, "-=-=-=-".join(e.args)))
-        raise KikSendingError(e['error'], e['message']) from None
+        #raise KikSendingError(e['error'], e['message']) from None
         
+        #-- append error log
+        error_csv = "/opt/kik_bot/var/log/product-notify.error.%d.csv" % (int(time.time()) / 86400)
+        with open(error_csv, 'a') as f:
+          writer = csv.writer(f)
+          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), error, message])
+      
+      else:
+        #-- send log
+        log_csv = "/opt/kik_bot/var/log/product-notify.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
+        with open(log_csv, 'a') as f:
+          writer = csv.writer(f)
+          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), chat_id, to_user])
+          
       finally:
         self.set_status(200)
         
