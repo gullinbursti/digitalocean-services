@@ -181,7 +181,7 @@ def coin_flip_element(sender_id, standalone=False):
     conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
     with conn:
       cur = conn.cursor()
-      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
+      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
       
       if row is not None:
@@ -563,6 +563,25 @@ def webook():
               
               
               print(">>>>>>>>>>>>> row[4] = %s <<<<<<<<<<<<<<<<<" % row[4])
+              
+              
+              conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+              try:
+                with conn:
+                  cur = conn.cursor()
+                  cur.execute("INSERT INTO `item_winners` (`fb_id`, `item_name`, `added`) VALUES (%s, %s, NOW())", (sender_id, row[1]))
+                  cur.execute("UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;".format(item_id=row[0]))
+                  conn.commit()
+                  cur.close()
+
+              except mdb.Error, e:
+                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+              finally:
+                if conn:    
+                  conn.close()
+                  
+                  
               
               payload = {
                 'channel'     : "#bot-alerts", 
