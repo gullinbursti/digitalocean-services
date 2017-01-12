@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>app-py3/kik_bot.py</string>
+	<string>app-py3/modd/utils.py</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -117,28 +117,14 @@
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
-		<key>app-py3/kik_bot.py</key>
-		<dict>
-			<key>caret</key>
-			<dict>
-				<key>column</key>
-				<integer>88</integer>
-				<key>line</key>
-				<integer>1844</integer>
-			</dict>
-			<key>firstVisibleColumn</key>
-			<integer>0</integer>
-			<key>firstVisibleLine</key>
-			<integer>1829</integer>
-		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>18</integer>
-				<key>line</key>
 				<integer>10</integer>
+				<key>line</key>
+				<integer>16</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
@@ -148,7 +134,6 @@
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>app-py3/kik_bot.py</string>
 		<string>app-py3/modd/utils.py</string>
 		<string>_install/kik-1.2.0/kik/error.py</string>
 		<string>_install/kik-1.2.0/kik/api.py</string>
@@ -156,6 +141,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{36, -5}, {1070, 774}}</string>
+	<string>{{200, 4}, {1070, 774}}</string>
 </dict>
 </plist>

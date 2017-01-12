@@ -314,7 +314,7 @@ def flip_item_message(message):
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url`, `price`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
+      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
 
       if row is not None:
@@ -704,7 +704,7 @@ def flip_result(message):
         cur = conn.cursor()
         cur.execute("INSERT INTO `item_winners` (`kik_name`, `item_name`, `added`) VALUES (%s, %s, NOW())", (message.from_user, item_flips[message.chat_id]['name']))
         conn.commit()
-        cur.execute("UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `id` = {item_id} LIMIT 1;".format(quantity=item_flips[message.chat_id]['quantity'] - 1, item_id=item_flips[message.chat_id]['id']))
+        cur.execute("UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;".format(item_id=item_flips[message.chat_id]['id']))
         conn.commit()
         cur.close()
 
