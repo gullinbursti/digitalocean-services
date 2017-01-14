@@ -1,7 +1,7 @@
 from named_constants import Constants
 
 class Const(Constants):
-    VERIFY_TOKEN = "6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217"
+    VERIFY_TOKEN = "AC7F552BD16A775B653F6EF6CD3902E6"
     ACCESS_TOKEN = "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
     WEB_SERVER_IP = "192.241.212.32"
@@ -15,12 +15,12 @@ class Const(Constants):
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/qc7mSDD.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/BegjaIh.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/XUMntb0.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/3Ozq4Wm.png"
+    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/mZPZkq6.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/Yh5ioSA.png"
+    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/irtYyR0.png"
+    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/8PCdSCv.png"
     IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/jXIttcH.png"
-    IMAGE_URL_SUPPORT = "https://i.imgur.com/wm00Cin.png"
+    IMAGE_URL_SUPPORT = "https://i.imgur.com/cwhv8Si.png"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
     STOREFRONT_ADMIN = 'STOREFRONT_ADMIN'

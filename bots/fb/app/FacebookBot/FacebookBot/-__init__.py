@@ -8,18 +8,15 @@ import locale
 import logging
 import os
 import re
-import shutil
 import subprocess
 import threading
 import time
-import urllib
 
 from datetime import datetime
 
 import MySQLdb as mysql
 import pycurl
 import requests
-import urllib2
 
 from dateutil.relativedelta import relativedelta
 from flask import Flask, request
@@ -46,31 +43,13 @@ logger.setLevel(logging.INFO)
 
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
-class MessageStatus(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    ps_id = db.Column(db.String(100))
-    message_id = db.Column(db.String(100))
-    delivered = db.Column(db.Boolean)
-    read = db.Column(db.Boolean)
-    timestamp = db.Column(db.Integer)
-
-    def __init__(self, ps_id, message_id, timestamp):
-        self.ps_id = ps_id
-        self.message_id = message_id
-        self.delivered = 0
-        self.read = 0
-        self.timestamp = timestamp
-
-    def __repr__(self):
-        return  "<MessageStatus id=%d, ps_id=%s, message_id=%s, delivered=%s, read=%s, timestamp=%d>" % (self.id, self.ps_id, self.message_id, self.delivered, self.read, self.timestamp)
-
 
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fb_psid = db.Column(db.String(100))
     fb_name = db.Column(db.String(200))
     referrer = db.Column(db.String(200))
-    added = db.Column(db.Integer)
+    added = db.Column(db.DateTime)
 
     def __init__(self, fb_psid, fb_name="", referrer=""):
         self.fb_psid = fb_psid
@@ -94,14 +73,14 @@ class Product(db.Model):
     attachment_id = db.Column(db.String(100))
     price = db.Column(db.Float)
     prebot_url = db.Column(db.String(128), unique=True)
-    release_date = db.Column(db.Integer)
-    added = db.Column(db.Integer)
+    release_date = db.Column(db.DateTime)
+    added = db.Column(db.DateTime)
 
     def __init__(self, storefront_id, creation_state=0):
         self.storefront_id = storefront_id
         self.creation_state = creation_state
         self.description= ""
-        self.price = 1.99
+        self.price = 0.0
         self.attachment_id = ""
 
     def __repr__(self):
@@ -117,7 +96,7 @@ class Storefront(db.Model):
     description = db.Column(db.String(200))
     logo_url = db.Column(db.String(500))
     prebot_url = db.Column(db.String(128), unique=True)
-    added = db.Column(db.Integer)
+    added = db.Column(db.DateTime)
 
     def __init__(self, owner_id, creation_state=0):
         self.owner_id = owner_id
@@ -133,64 +112,20 @@ class Subscription(db.Model):
     product_id = db.Column(db.Integer)
     customer_id = db.Column(db.Integer)
     enabled = db.Column(db.Integer)
-    added = db.Column(db.Integer)
+    added = db.Column(db.DateTime)
 
     def __init__(self, storefront_id, product_id, customer_id, enabled=1):
         self.storefront_id = storefront_id
         self.product_id = product_id
         self.customer_id = customer_id
         self.enabled = enabled
-        self.added = int(time.time())
+        self.added = datetime.utcnow()
 
     def __repr__(self):
         return "<Subscription storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d>" % (self.storefront_id, self.product_id, self.customer_id, self.enabled)
 
 
-class VideoImageRenderer(threading.Thread):
-    def __init__(self, src_url, out_img, at_time=0.33):
-        self.stdout = None
-        self.stderr = None
-        threading.Thread.__init__(self)
 
-        self.src_url = src_url
-        self.out_img = out_img
-        self.at_time = at_time
-
-    def run(self):
-        p = subprocess.Popen(
-            ('/usr/bin/ffmpeg -ss 00:00:03 -i %s -frames:v 1 %s' % (self.src_url, self.out_img)).split(),
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        self.stdout, self.stderr = p.communicate()
-
-
-
-
-class MediaProletariat(threading.Thread):
-    def __init__(self, src_url, out_img, at_time=0.33):
-        self.stdout = None
-        self.stderr = None
-        threading.Thread.__init__(self)
-
-        self.src_url = src_url
-        self.out_img = out_img
-        self.at_time = at_time
-
-    def run(self):
-        p = subprocess.Popen(
-            ('/usr/bin/ffmpeg -ss 00:00:03 -i %s -frames:v 1 %s' % (self.src_url, self.out_img)).split(),
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        self.stdout, self.stderr = p.communicate()
-
-
-#=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
 
@@ -318,46 +253,6 @@ def send_tracker(category, action, label, value=""):
     # response = requests.get("http://beta.modd.live/api/bot_tracker.php", data=payload)
 
     return True
-
-
-def add_new_user(recipient_id, deeplink):
-    logger.info("add_new_user(recipient_id={recipient_id}, deeplink={deeplink})".format(recipient_id=recipient_id, deeplink=deeplink))
-
-    try:
-        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-        with conn:
-            cur = conn.cursor(mysql.cursors.DictCursor)
-
-            #-- check db for existing user
-            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=recipient_id))
-            row = cur.fetchone()
-
-            #-- go ahead n' add 'em
-            if row is None:
-                cur.execute('INSERT IGNORE INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, "{fb_psid}", "{referrer}", UTC_TIMESTAMP());'.format(fb_psid=recipient_id, referrer=deeplink))
-                conn.commit()
-
-                #-- no update sqlite w/ the new guy
-                users_query = Customer.query.filter(Customer.fb_psid == recipient_id)
-                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == recipient_id).all()))
-                if users_query.count() == 0:
-                    db.session.add(Customer(fb_psid=recipient_id, fb_name="", referrer=recipient_id))
-
-                else:
-                    customer = users_query.fetchone()
-                    customer.id = row['id']
-
-                db.session.commit()
-
-
-    except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-
 
 
 def write_message_log(sender_id, message_id, message_txt):
@@ -599,8 +494,6 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     db.session.add(Subscription(storefront.id, product.id, customer.id))
                     db.session.commit()
 
-
-                    send_tracker("user-subscribe", recipient_id, storefront.display_name)
                     try:
                         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                         with conn:
@@ -774,7 +667,7 @@ def send_admin_carousel(recipient_id):
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
                         ]
                     )
-)
+                )
 
             cards.append(
                 build_card_element(
@@ -1004,7 +897,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.video_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1042,14 +935,33 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.video_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
         send_message(json.dumps(data))
 
 
-#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
+class VideoImageRenderer(threading.Thread):
+    def __init__(self, src_url, out_img, at_time=0.33):
+        self.stdout = None
+        self.stderr = None
+        threading.Thread.__init__(self)
+
+        self.src_url = src_url
+        self.out_img = out_img
+        self.at_time = at_time
+
+    def run(self):
+        p = subprocess.Popen(
+            ('/usr/bin/ffmpeg -ss 00:00:03 -i %s -frames:v 1 %s' % (self.src_url, self.out_img)).split(),
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        self.stdout, self.stderr = p.communicate()
 
 
 def received_quick_reply(recipient_id, quick_reply):
@@ -1083,8 +995,7 @@ def received_quick_reply(recipient_id, quick_reply):
                     conn.close()
 
 
-            send_text(recipient_id, "You have successfully created {storefront_name}.\n\nShare {storefront_name}'s card with your customers now.\n{storefront_url}".format(storefront_name=storefront.display_name, storefront_url=re.sub(r'https?:\/\/', "", storefront.prebot_url)))
-            send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_SHARE_STOREFRONT)
+            send_text(recipient_id, "The Shopbot {storefront_name} has been successful created.\n{storefront_url}".format(storefront_name=storefront.display_name, storefront_url=re.sub(r'https?:\/\/', '', storefront.prebot_url)))
             send_admin_carousel(recipient_id)
 
             send_tracker("shop-sign-up", recipient_id, "")
@@ -1170,8 +1081,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
 
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-            send_text(recipient_id, "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_SHARE_PRODUCT)
+            send_text(recipient_id, "You have added {product_name} to {storefront_name}.\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
 
             payload = {
                 'channel' : "#pre",
@@ -1215,8 +1125,6 @@ def received_quick_reply(recipient_id, quick_reply):
         send_admin_carousel(recipient_id)
 
 
-
-
 def received_payload_button(recipient_id, payload):
     logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload})".format(recipient_id=recipient_id, payload=payload))
 
@@ -1226,9 +1134,6 @@ def received_payload_button(recipient_id, payload):
         logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
         send_tracker("signup-fb-pre", recipient_id, "")
         welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
-
-        add_new_user(recipient_id, "/intro_greeting")
-
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -1350,115 +1255,30 @@ def received_payload_button(recipient_id, payload):
     elif payload == Const.PB_PAYLOAD_RESERVE_PRODUCT:
         send_tracker("button-reserve", recipient_id, "")
 
-    elif payload == Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS:
-        if storefront_query.count() > 0:
-            storefront = storefront_query.first()
-            send_tracker("shop-send-message", recipient_id, storefront.display_name)
 
     else:
         send_tracker("unknown-button", recipient_id, "")
         send_text(recipient_id, "Button not recognized!")
 
 
-def recieved_attachment(recipient_id, attachment_type, payload):
-    logger.info("recieved_attachment(recipient_id={recipient_id}, attachment_type={attachment_type}, payload={payload})".format(recipient_id=recipient_id, attachment_type=attachment_type, payload=payload))
+class ScreenShotRender(object):
+    def thread_loader(self, args):
+        logger.info("RUNNING THREAD -- <%s>" % (args))
 
-    #------- IMAGE MESSAGE
-    if attachment_type == "image":
-        logger.info("IMAGE: %s" % (payload))
-        query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 2)
+        # run = subprocess.Popen(subprocess.list2cmdline(ffmpeg_args), shell=True)
+        # run.communicate()
 
-        if query.count() > 0:
-            storefront = query.first()
-            storefront.creation_state = 3
-            storefront.logo_url = payload['url']
-            db.session.commit()
-
-            send_text(recipient_id, "Here's what your Shopbot will look like:")
-            send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_PREVIEW_STOREFRONT)
-
-    #------- VIDEO MESSAGE
-    elif attachment_type == "video":
-        logger.info("VIDEO: %s" % (payload['url']))
-
-        #return "OK", 200
-        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
-        query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 1)
-
-        if query.count() > 0:
-            file_path = os.path.dirname(os.path.realpath(__file__))
-            timestamp = int(time.time())
-            image_file = "/var/www/html/thumbs/{timestamp}.jpg".format(file_path=os.path.dirname(os.path.realpath(__file__)), timestamp=int(time.time()))
-
-            image_renderer = VideoImageRenderer(payload['url'], image_file)
-            image_renderer.start()
-            image_renderer.join()
-            logger.info("FFMPEG RESULT:: %s" % (image_renderer.stdout))
-
-            product = query.order_by(Product.added.desc()).scalar()
-            product.creation_state = 2
-            product.image_url = "http://{ip_addr}/thumbs/{timestamp}.jpg".format(ip_addr=Const.WEB_SERVER_IP, timestamp=timestamp)
-            product.video_url = payload['url']
-            db.session.commit()
-
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT)
-
-            send_text(
-                recipient_id = recipient_id,
-                message_text = "Select the date range the product will be exclusively available to your Pre customers.",
-                quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
-                ]
-            )
-
-        # if query.count() > 0:
-        #     file_path = os.path.dirname(os.path.realpath(__file__))
-        #     timestamp = int(time.time())
-        #     image_file = "/var/www/html/thumbs/{timestamp}.jpg".format(file_path=os.path.dirname(os.path.realpath(__file__)), timestamp=int(time.time()))
-        #
-        #     asset_probe = MediaProlateriat(payload, -1)
-        #     logger.info("asser_probe:%s" % (asset_probe))
-        #
-        #     asset_probe.start()
-        #     asset_probe.join()
-        #
-        #     logger.info("asset_probe - COMPLETE --> %s" % ())
-        #
-        #     image_renderer = MediaProletariat(payload, image_file)
-        #     image_renderer.start()
-        #     image_renderer.join()
-        #     logger.info("FFMPEG RESULT:: %s" % (image_renderer.stdout))
-        #
-        #     product = query.order_by(Product.added.desc()).scalar()
-        #     product.creation_state = 2
-        #     product.image_url = "http://{ip_addr}/thumbs/{timestamp}.jpg".format(ip_addr=Const.WEB_SERVER_IP, timestamp=timestamp)
-        #     product.video_url = payload
-        #     db.session.commit()
-        #
-        #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT)
-        #
-        #     send_text(
-        #         recipient_id = recipient_id,
-        #         message_text = "Select the date range the product will be exclusively available to your Pre customers.",
-        #         quick_replies = [
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
-        #         ]
-        #     )
+        p = subprocess.Popen(args, shell=True, stdout=subprocess.PIPE)
+        p.stdout.close()
+        p.wait()
 
 
+        thread_name = threading.current_thread().name
+        logger.info("Finished loading {name}".format(name=thread_name))
 
+    def clean_up(self):
+        logger.info("Cleaning up thread...")
 
-
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 @app.route('/', methods=['POST'])
 def webook():
@@ -1477,8 +1297,7 @@ def webook():
     logger.info(data)
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
-    #drop_sqlite()
-    #return "OK", 200
+    # return "OK", 200
 
     if data['object'] == "page":
         for entry in data['entry']:
@@ -1490,14 +1309,6 @@ def webook():
                 message_id = None
                 message_text = None
                 quick_reply = None
-
-                #-- entered via url referral
-                referral = ""
-                if 'referral' in messaging_event:
-                    referral = messaging_event['referral']['ref']
-                    welcome_message(sender_id, Const.CUSTOMER_REFERRAL, referral[1:])
-                    return "OK", 200
-
 
                 if sender_id == "177712676037903":
                     logger.info("-=- MESSAGE-ECHO -=-")
@@ -1517,24 +1328,9 @@ def webook():
                     return "OK", 200
 
 
-                #-- check sqlite for user
-                try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=sender_id))
-                        row = cur.fetchone()
+                #-- drop sqlite data
+                #drop_sqlite()
 
-                        if row is None:
-                            add_new_user(sender_id, referral)
-                            send_tracker("sign-up", recipient_id, "")
-
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                finally:
-                    if conn:
-                        conn.close()
 
 
                 #-- look for created storefront
@@ -1544,6 +1340,37 @@ def webook():
                 if storefront_query.count() > 0:
                     logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront_query.first().id).all()))
                     logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront_query.first().id).all()))
+
+                #-- entered via url referral
+                referral = ""
+                if 'referral' in messaging_event:
+                    referral = messaging_event['referral']['ref']
+                    welcome_message(sender_id, Const.CUSTOMER_REFERRAL, referral[1:])
+                    return "OK", 200
+
+
+                #-- check sqlite for user
+                users_query = Customer.query.filter(Customer.fb_psid == sender_id)
+                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == sender_id).all()))
+                if users_query.count() == 0:
+                    db.session.add(Customer(fb_psid=sender_id, fb_name="", referrer=referral))
+                    db.session.commit()
+
+                    try:
+                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('INSERT IGNORE INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, "{fbps_id}", "{referrer}", UTC_TIMESTAMP())'.format(fbps_id=sender_id, referrer=referral))
+                            conn.commit()
+
+                    except mysql.Error, e:
+                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+
+                    send_tracker("sign-up", recipient_id, "")
 
 
                 #-- postback response w/ payload
@@ -1566,7 +1393,58 @@ def webook():
 
                     if 'attachments' in message:
                         for attachment in message['attachments']:
-                            recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+
+                            #------- IMAGE MESSAGE
+                            if attachment['type'] == "image":
+                                logger.info("IMAGE: %s" % (attachment['payload']['url']))
+                                query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 2)
+
+                                if query.count() > 0:
+                                    storefront = query.first()
+                                    storefront.creation_state = 3
+                                    storefront.logo_url = attachment['payload']['url']
+                                    db.session.commit()
+
+                                    send_text(sender_id, "Here's what your Shopbot will look like:")
+                                    send_storefront_card(sender_id, storefront.id, Const.CARD_TYPE_PREVIEW_STOREFRONT)
+
+                            #------- VIDEO MESSAGE
+                            elif attachment['type'] == "video":
+                                logger.info("VIDEO: %s" % (attachment['payload']['url']))
+
+                                #return "OK", 200
+
+                                query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 1)
+
+                                if query.count() > 0:
+                                    file_path = os.path.dirname(os.path.realpath(__file__))
+                                    timestamp = int(time.time())
+                                    image_file = "/var/www/html/thumbs/{timestamp}.jpg".format(file_path=os.path.dirname(os.path.realpath(__file__)), timestamp=int(time.time()))
+
+                                    image_renderer = VideoImageRenderer(attachment['payload']['url'], image_file)
+                                    image_renderer.start()
+                                    image_renderer.join()
+                                    logger.info("FFMPEG RESULT:: %s" % (image_renderer.stdout))
+
+                                    product = query.order_by(Product.added.desc()).scalar()
+                                    product.creation_state = 2
+                                    product.image_url = "http://{ip_addr}/thumbs/{timestamp}.jpg".format(ip_addr=Const.WEB_SERVER_IP, timestamp=timestamp)
+                                    product.video_url = attachment['payload']['url']
+                                    db.session.commit()
+
+                                    send_product_card(sender_id, product.id, Const.CARD_TYPE_PRODUCT)
+
+                                    send_text(
+                                        recipient_id = sender_id,
+                                        message_text = "Select the date range the product will be exclusively available to your Pre customers.",
+                                        quick_replies = [
+                                            build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
+                                            build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
+                                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
+                                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
+                                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
+                                        ]
+                                    )
 
                         return "OK", 200
 
@@ -1677,7 +1555,10 @@ def webook():
     return "OK", 200
 
 
+
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
 
 
 @app.route('/', methods=['GET'])
@@ -1688,14 +1569,13 @@ def verify():
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
         if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
-            logger.info("TOKEN MISMATCH! [%s] != [%s]" % (request.args.get('hub.verify_token'), Const.VERIFY_TOKEN))
             return "Verification token mismatch", 403
         return request.args['hub.challenge'], 200
 
     return "OK", 200
 
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
+#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 def send_typing_indicator(recipient_id, is_typing):
 
@@ -1827,10 +1707,6 @@ def send_message(payload):
         buf.close()
 
     return True
-
-
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
-#=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 
 if __name__ == '__main__':

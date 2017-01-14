@@ -1,0 +1,1 @@
+INSERT INTO subscription (id, storefront_id, product_id, customer_id, enabled, added) VALUES (1, 4, 14, 7, 1, '2017-01-12 02:54:53.426787');

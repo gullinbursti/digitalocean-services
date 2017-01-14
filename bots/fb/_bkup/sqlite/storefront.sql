@@ -1,0 +1,1 @@
+INSERT INTO storefront (id, owner_id, creation_state, name, display_name, description, logo_url, prebot_url, added) VALUES (4, '996171033817503', 4, 'Hey', 'Hey', 'Hdjjshshs', 'https://scontent.xx.fbcdn.net/v/t35.0-12/15966554_10212316255606760_1551465916_o.jpg?_nc_ad=z-m&oh=45f8866f44cd6389b20ac1e4b513eb50&oe=5874FB73', 'http://prebot.me/shop/4', '2017-01-09 01:08:16.580306');
