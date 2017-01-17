@@ -41,7 +41,7 @@ function send_tracker($fb_psid) {
     curl_close($ch);
   }
   
-  echo(json_encode($response_arr) ."\n");
+  //echo(json_encode($response_arr) ."\n");
 }
 
 function post_message($url, $payload_obj) {
@@ -119,7 +119,7 @@ if ($handle) {
   fclose($handle);
 
 } else {
-  echo("Couldn't open template file, using default from ". FB_MESSAGE_TEMPLATE_PATH .":\n". FB_ORTHODOX_MESSAGE_TEMPLATE ."\n");
+  echo("Couldn't open config file! ". FB_MESSAGE_TEMPLATE_PATH ."\n");
 }
 
 // replace template tokens w/ content
@@ -165,7 +165,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
 			        'buttons'   => array(
 			          array(
 			            'type'    => "postback",
-			            'payload' => "FLIP_COIN-". $product_obj->id,
+			            'payload' => "FLIP_COIN-281",
 			            'title'   => "Flip Coin"
 			          ), 
 			          array(
