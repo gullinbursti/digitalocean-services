@@ -13,21 +13,21 @@ mysqli_select_db($db_conn, DB_NAME) or die("Could not select database\n");
 mysqli_set_charset($db_conn, 'utf8');
 
 $message = "";
-$handle = @fopen("/opt/modd/txt/kik-text-broadcast.txt", 'r');
+$handle = @fopen("/opt/modd/etc/kik-text-broadcast.conf", 'r');
 if ($handle) {
   while (($buffer = fgets($handle, 4096)) !== false) {
     $message .= $buffer;
   }
 
   if (!feof($handle)) {
-    $message = "__(FGETS-EFFED-UP)__";
+    $message = "Did you know you can win Frontside Misty's in Gamebots Facebook chatbot?\n\nm.me/gamebotsc\nFacebook.com/gamebotsc";
   }
 
   fclose($handle);
 }
 
 if (strlen($message) == 0) {
-  die("__(TXT-AINT-HERE)__");
+  $message = "Did you know you can win Frontside Misty's in Gamebots Facebook chatbot?\n\nm.me/gamebotsc\nFacebook.com/gamebotsc";
 }
 
 // select gamebots users
