@@ -588,7 +588,7 @@ def send_admin_carousel(recipient_id):
                 index = 0,
                 title = "Create Shop",
                 subtitle = "Tap here now",
-                image_url = Const.IMAGE_URL_CREATE_SHOP,
+                image_url = Const.IMAGE_URL_CREATE_STOREFRONT,
                 item_url = None,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Create Shop", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT)

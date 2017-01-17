@@ -22,9 +22,13 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Hi {{user_full_name}}! Timeless apparel for the masses."
+    "text":"Welcome to Pre, {{user_first_name}}. The fastest way to sell inside Messenger."
   }
 }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
+
+{{user_first_name}}
+{{user_last_name}}
+{{user_full_name}}
 
 
 

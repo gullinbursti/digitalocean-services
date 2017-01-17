@@ -11,16 +11,17 @@ class Const(Constants):
     MYSQL_USER = 'pre_usr'
     MYSQL_PASS = 'f4zeHUga.age'
 
-    ORTHODOX_GREETING = "Welcome to Pre. A new way to pre-sell products before their release."
+    ORTHODOX_GREETING = "Welcome to Pre. The fastest way to sell inside Messenger."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_SHOP = "https://i.imgur.com/mZPZkq6.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/Yh5ioSA.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/irtYyR0.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/8PCdSCv.png"
-    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/jXIttcH.png"
-    IMAGE_URL_SUPPORT = "https://i.imgur.com/cwhv8Si.png"
+    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/Mr5nLPv.png"
+    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/za3e16d.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/nItiQnP.png"
+    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/UWPgP6N.png"
+    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/v2yFGAJ.png"
+    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/zFlsVGN.png"
+    IMAGE_URL_SUPPORT = "https://i.imgur.com/tQ9mBeG.png"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
     STOREFRONT_ADMIN = 'STOREFRONT_ADMIN'
@@ -68,7 +69,9 @@ class Const(Constants):
 
     PB_PAYLOAD_RESERVE_PRODUCT = 'RESERVE_PRODUCT'
     PB_PAYLOAD_SHARE_STOREFRONT = 'SHARE_STOREFRONT'
+    PB_PAYLOAD_SHARE_PRODUCT = 'SHARE_PRODUCT'
     PB_PAYLOAD_VIEW_MARKETPLACE = 'VIEW_MARKETPLACE'
+    PB_PAYLOAD_PRODUCT_VIDEO = 'PRODUCT_VIDEO'
     PB_PAYLOAD_SUPPORT = 'SUPPORT'
     PB_PAYLOAD_CUSTOMERS = 'CUSTOMERS'
     PB_PAYLOAD_NOTIFY_SHOP_OWNER = 'NOTIFY_SHOP_OWNER'
