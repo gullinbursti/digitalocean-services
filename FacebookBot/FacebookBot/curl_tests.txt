@@ -1,8 +1,19 @@
 
 Subscribe page:
-curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAAXFDiMELKsBACnoD2HHO5QOMTKezdRtPnhzbsEeB3Hjp7VW6I0NFSEi0VaiTrmwZC93SZAWTnWCby6ZCjXyesSD02ZAsZAXTIU2OuTUZAk1TJN79zuFoxWWCc6HCfbwyGhrJZBkZBpIR90pxhSiwlHxvT9z9etZCZCiU4PqakEmykwgZDZD"
+curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
 
 
 Test page subscription:
-curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBACnoD2HHO5QOMTKezdRtPnhzbsEeB3Hjp7VW6I0NFSEi0VaiTrmwZC93SZAWTnWCby6ZCjXyesSD02ZAsZAXTIU2OuTUZAk1TJN79zuFoxWWCc6HCfbwyGhrJZBkZBpIR90pxhSiwlHxvT9z9etZCZCiU4PqakEmykwgZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
+curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
 
+User API:
+curl -X GET "https://graph.facebook.com/v2.6/1182705821791569?fields=is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+
+curl -X GET "https://graph.facebook.com/v2.6/1182705821791569?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+
+
+Payments privacy policy:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "setting_type": "payment",
+  "payment_privacy_url": "http://gamebots.chat/terms.html"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
