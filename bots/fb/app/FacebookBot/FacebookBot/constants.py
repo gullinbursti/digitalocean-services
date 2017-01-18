@@ -11,7 +11,7 @@ class Const(Constants):
     MYSQL_USER = 'pre_usr'
     MYSQL_PASS = 'f4zeHUga.age'
 
-    ORTHODOX_GREETING = "Welcome to Pre. The fastest way to sell inside Messenger."
+    ORTHODOX_GREETING = "Welcome to Pre. The fastest way to sell in chat."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 

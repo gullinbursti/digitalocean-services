@@ -772,7 +772,7 @@ def send_admin_carousel(recipient_id):
             cards.append(
                 build_card_element(
                     title = product.display_name,
-                    subtitle = product.description,
+                    subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                     image_url = product.image_url,
                     item_url = product.video_url,
                     buttons = [
@@ -869,7 +869,7 @@ def send_storefront_carousel(recipient_id, storefront_id):
                 cards = [
                     build_card_element(
                         title = product.display_name,
-                        subtitle = product.description,
+                        subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                         image_url = product.image_url,
                         item_url = None,
                         buttons = [
@@ -986,7 +986,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name,
-                subtitle = product.description,
+                subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
@@ -998,7 +998,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name,
-                subtitle = product.description,
+                subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
                 item_url = product.video_url,
                 quick_replies = [
@@ -1025,7 +1025,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name,
-                subtitle = product.description,
+                subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
@@ -1116,12 +1116,12 @@ def received_quick_reply(recipient_id, quick_reply):
         send_tracker("button-product-release-{days}-days-store".format(days=match.group(1)), recipient_id, "")
 
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
-        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 2)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 3)
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).scalar()
             product.release_date = (datetime.utcnow() + relativedelta(months=int(int(match.group(1)) / 30))).replace(hour=0, minute=0, second=0, microsecond=0)
             product.description = "Pre-release ends {release_date}".format(release_date=product.release_date.strftime('%a, %b %-d'))
-            product.creation_state = 3
+            product.creation_state = 4
             db.session.commit()
 
             send_text(recipient_id, "Here's what your product will look like:")
@@ -1131,10 +1131,10 @@ def received_quick_reply(recipient_id, quick_reply):
         send_tracker("button-submit-product", recipient_id, "")
 
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
-        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 3)
+        product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 4)
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).scalar()
-            product.creation_state = 4
+            product.creation_state = 5
             product.added = datetime.utcnow()
             db.session.commit()
 
@@ -1324,7 +1324,7 @@ def received_payload_button(recipient_id, payload):
         send_tracker("button-share", recipient_id, "")
         send_text(recipient_id, "Share your Shopbot on Instagram, Facebook, Twitter, and Snapchat.")
 
-        query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 4)
+        query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 5)
         if query.count() > 0:
             product = query.first()
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_SHARE_PRODUCT)
@@ -1421,17 +1421,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 product.video_url = "http://prebot.me/videos/{timestamp}.mp4".format(timestamp=timestamp)
                 db.session.commit()
 
-                send_text(
-                    recipient_id = recipient_id,
-                    message_text = "Select the date range the product will be exclusively available to your Pre customers.",
-                    quick_replies = [
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
-                    ]
-                )
+                send_text(recipient_id, "Enter the price of {product_name} in USD".format(product_name=product.display_name))
 
                 return "OK", 200
 
@@ -1508,9 +1498,9 @@ def received_text_response(recipient_id, message_text):
     #-- return home
     elif message_text.lower() in Const.RESERVED_MENU_REPLIES:
         if storefront_query.count() > 0:
-            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4)
+            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5)
             if product_query.count() > 0:
-                Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+                Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5).delete()
 
         Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4).delete()
         db.session.commit()
@@ -1521,9 +1511,9 @@ def received_text_response(recipient_id, message_text):
     #-- quit message
     elif message_text.lower() in Const.RESERVED_STOP_REPLIES:
         if storefront_query.count() > 0:
-            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4)
+            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5)
             if product_query.count() > 0:
-                Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4).delete()
+                Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5).delete()
 
         Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4).delete()
         db.session.commit()
@@ -1534,7 +1524,7 @@ def received_text_response(recipient_id, message_text):
         #-- has active storefront
         if storefront_query.count() > 0:
             #-- look for in-progress product creation
-            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 4)
+            product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5)
             if product_query.count() > 0:
                 product = product_query.order_by(Product.added.desc()).scalar()
 
@@ -1547,6 +1537,23 @@ def received_text_response(recipient_id, message_text):
                     db.session.commit()
 
                     send_text(recipient_id, "Great! Now add a video about what you are pre-selling.")
+
+                elif product.creation_state == 2:
+                    if message_text.replace(".", "", 1).isdigit():
+                        product.creation_state = 3
+                        product.price = round(float(message_text), 2)
+                        db.session.commit()
+
+                        send_text(recipient_id = recipient_id, message_text = "Select a date the product will be available.", quick_replies = [
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
+                        ])
+
+                    else:
+                        send_text(recipient_id = recipient_id, message_text = "Enter a valid price")
 
                 return "OK", 200
 
