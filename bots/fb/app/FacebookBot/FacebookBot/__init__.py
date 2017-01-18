@@ -1,26 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-import cStringIO
 import hashlib
 import json
 import locale
 import logging
 import os
 import re
-import shutil
 import sqlite3
 import subprocess
 import threading
 import time
-import urllib
 
 from datetime import datetime
 
 import MySQLdb as mysql
-import pycurl
 import requests
-import urllib2
 
 from dateutil.relativedelta import relativedelta
 from flask import Flask, request
@@ -1875,29 +1870,6 @@ def send_message(payload):
         data = payload
     )
     logger.info("SEND MESSAGE response: {response}".format(response=response.json()))
-
-    # buf = cStringIO.StringIO()
-    #
-    # c = pycurl.Curl()
-    # c.setopt(c.HTTPHEADER, ["Content-Type: application/json"])
-    # c.setopt(c.URL, "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN))
-    # c.setopt(c.POST, 1)
-    # c.setopt(c.POSTFIELDS, payload)
-    # c.setopt(c.CONNECTTIMEOUT, 300)
-    # c.setopt(c.TIMEOUT, 60)
-    # c.setopt(c.FAILONERROR, True)
-    #
-    # try:
-    #     c.perform()
-    #     logger.info("SEND MESSAGE response code: {code}".format(code=c.getinfo(c.RESPONSE_CODE)))
-    #     c.close()
-    #
-    # except pycurl.error, error:
-    #     errno, errstr = error
-    #     logger.info("SEND MESSAGE Error: -({errno})- {errstr}".format(errno=errno, errstr=errstr))
-    #
-    # finally:
-    #     buf.close()
 
     return True
 
