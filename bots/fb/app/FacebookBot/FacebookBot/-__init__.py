@@ -72,7 +72,7 @@ class Product(db.Model):
     video_url = db.Column(db.String(500))
     attachment_id = db.Column(db.String(100))
     price = db.Column(db.Float)
-    prebot_url = db.Column(db.String(128), unique=True)
+    prebot_url = db.Column(db.String(128))
     release_date = db.Column(db.DateTime)
     added = db.Column(db.DateTime)
 
@@ -95,12 +95,13 @@ class Storefront(db.Model):
     display_name = db.Column(db.String(80))
     description = db.Column(db.String(200))
     logo_url = db.Column(db.String(500))
-    prebot_url = db.Column(db.String(128), unique=True)
+    prebot_url = db.Column(db.String(128))
     added = db.Column(db.DateTime)
 
     def __init__(self, owner_id, creation_state=0):
         self.owner_id = owner_id
         self.creation_state = creation_state
+        self.type = 1
 
     def __repr__(self):
         return "<Storefront owner_id=%s, creation_state=%d, display_name=%s, logo_url=%s>" % (self.owner_id, self.creation_state, self.display_name, self.logo_url)
@@ -838,7 +839,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 ]
             )
 
-        elif card_type == Const.CARD_TYPE_PREVIEW_STOREFRONT:
+        elif card_type == Const.CARD_TYPE_STOREFRONT_PREVIEW:
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name,
@@ -852,7 +853,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 ]
             )
 
-        elif card_type == Const.CARD_TYPE_SHARE_STOREFRONT:
+        elif card_type == Const.CARD_TYPE_STOREFRONT_SHARE:
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name,
@@ -901,7 +902,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 ]
             )
 
-        elif card_type == Const.CARD_TYPE_PREVIEW_PRODUCT:
+        elif card_type == Const.CARD_TYPE_PRODUCT_PREVIEW:
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name,
@@ -915,7 +916,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 ]
             )
 
-        elif card_type == Const.CARD_TYPE_SHARE_PRODUCT:
+        elif card_type == Const.CARD_TYPE_PRODUCT_SHARE:
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name,
@@ -1050,7 +1051,7 @@ def received_quick_reply(recipient_id, quick_reply):
             db.session.commit()
 
             send_text(recipient_id, "Here's what your product will look like:")
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PREVIEW_PRODUCT)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
     elif quick_reply == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
         send_tracker("button-submit-product", recipient_id, "")
@@ -1243,7 +1244,7 @@ def received_payload_button(recipient_id, payload):
 
     elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
         send_tracker("button-share", recipient_id, "")
-        send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_SHARE_STOREFRONT)
+        send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_STOREFRONT_SHARE)
         send_admin_carousel(recipient_id)
 
 
@@ -1406,7 +1407,7 @@ def webook():
                                     db.session.commit()
 
                                     send_text(sender_id, "Here's what your Shopbot will look like:")
-                                    send_storefront_card(sender_id, storefront.id, Const.CARD_TYPE_PREVIEW_STOREFRONT)
+                                    send_storefront_card(sender_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
 
                             #------- VIDEO MESSAGE
                             elif attachment['type'] == "video":
