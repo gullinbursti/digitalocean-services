@@ -557,16 +557,20 @@ def welcome_intro_seq(message, is_mention=False):
         h, m = divmod(m, 60)
         
         try:
+          if len(row['video_url']) > 0:
+            kik.send_messages([
+              VideoMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                video_url = row['video_url'],
+                autoplay = True,
+                loop = True,
+                muted = True,
+                attribution = custom_attribution(" ")
+              )
+            ])
+
           kik.send_messages([
-            VideoMessage(
-              to = message.from_user,
-              chat_id = message.chat_id,
-              video_url = row['video_url'],
-              autoplay = True,
-              loop = True,
-              muted = True,
-              attribution = custom_attribution(" ")
-            ),
             # TextMessage(
             #   to = message.from_user,
             #   chat_id = message.chat_id,
@@ -577,7 +581,6 @@ def welcome_intro_seq(message, is_mention=False):
               chat_id = message.chat_id,
               pic_url = row['image_url'],
               url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              #url = "http://prekey.co/stripe.php?from_user={from_user}&item_id={item_id}".format(from_user=message.from_user, item_id=row['id']),
               title = "",
               text = "", 
               attribution = custom_attribution("Buy Now")
