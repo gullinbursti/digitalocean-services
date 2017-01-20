@@ -7,9 +7,7 @@ Test page subscription:
 curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
 
 User API:
-curl -X GET "https://graph.facebook.com/v2.6/1182705821791569?fields=is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
-
-curl -X GET "https://graph.facebook.com/v2.6/1182705821791569?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/1219553058088713?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
 
 
 Payments privacy policy:
