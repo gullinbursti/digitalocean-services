@@ -1,22 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-import os
-import sys
-import threading
-import time
 import csv
-import locale
 import hashlib
 import json
+import locale
+import os
 import random
-import sqlite3
 import re
+import sqlite3
+import threading
+import time
 
-import urllib.request, urllib.error, urllib.parse
-import requests
 import pymysql.cursors
-
+import requests
 import tornado.escape
 import tornado.httpclient
 import tornado.ioloop
@@ -25,7 +22,7 @@ import tornado.web
 import modd
 import const as Const
 
-from datetime import date, datetime
+from datetime import datetime
 from io import BytesIO
 from PIL import Image
 from urllib.parse import quote
@@ -156,7 +153,6 @@ def default_text_reply(message, delay=0, type_time=500):
         to = message.from_user,
         chat_id = message.chat_id,
         body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik & Facebook Messenger.".format(total=locale.format("%d", int(response.text), grouping=True)),
-        #body = "Welcome to Gamebots. WIN pre-sale games & items with {} players on Kik."),
         keyboards = default_keyboard(),
         type_time = type_time,
         delay = delay
@@ -662,12 +658,14 @@ def flip_result(message):
   
   if item_flips[message.chat_id]['flip'] is True:
     modd.utils.send_evt_tracker(category="flip-coin-win", action=message.chat_id, label=message.from_user)
-    
+
+    pin_code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+
     payload = {
       'channel'     : "#bot-alerts", 
       'username'    : "game.bots", 
       'icon_url'    : "http://icons.iconarchive.com/icons/chrisbanks2/cold-fusion-hd/128/kik-Messenger-icon.png",
-      'text'        : "Flip Win by {from_user}:\n{item_name}\n{trade_url}".format(from_user=message.from_user, item_name=item_flips[message.chat_id]['name'], trade_url=item_flips[message.chat_id]['trade_url']),
+      'text'        : "Flip Win by {from_user}:\n{item_name}\n{pin_code}".format(from_user=message.from_user, item_name=item_flips[message.chat_id]['name'], pin_code=pin_code),
       'attachments' : [{
         'image_url' : item_flips[message.chat_id]['image_url']
       }]
@@ -689,7 +687,7 @@ def flip_result(message):
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "YOU WON! {item_name} from {game_name}.\n\nTo claim:\n1. Share with 3 Friends\n2. Tap the Item Image above and select your items (we verify the items you select).".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
+          body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\n1. Share with 3 Friends.\n2. Get Gamebots on Messenger: m.me/gamebotsc\n3. Tap the item image above to pick your skin\n4. When you submit trade add the following comment for security: {pin_code}".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], pin_code=pin_code),
           type_time = 250,
           keyboards = flip_coin_keyboard()
           
@@ -702,7 +700,7 @@ def flip_result(message):
     try:
       with conn.cursor() as cur:
         cur = conn.cursor()
-        cur.execute("INSERT INTO `item_winners` (`kik_name`, `item_name`, `added`) VALUES (%s, %s, NOW())", (message.from_user, item_flips[message.chat_id]['name']))
+        cur.execute("INSERT INTO `item_winners` (`kik_name`, `pin`, `item_name`, `added`) VALUES (%s, %s, %s, NOW())", (message.from_user, pin_code, item_flips[message.chat_id]['name']))
         conn.commit()
         cur.execute("UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;".format(item_id=item_flips[message.chat_id]['id']))
         conn.commit()
@@ -740,7 +738,7 @@ def flip_result(message):
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "TRY AGAIN! You lost {item_name} from {game_name}.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
+          body = "TRY AGAIN! You lost {item_name} from {game_name}.\n\nIncrease your chances by getting Gamebots on Messenger.\nm.me/gamebotsc".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
           type_time = 500,
           delay = 500,
           keyboards = [
