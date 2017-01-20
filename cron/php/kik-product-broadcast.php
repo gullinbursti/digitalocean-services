@@ -88,7 +88,7 @@ $body_txt = preg_replace('/_\{SECONDS\}_/', $interval->s, $body_txt);
 $stripe_url = preg_replace('/_\{PRODUCT_ID\}_/', $product_obj->id, $config_arr['STRIPE_URL_TEMPLATE']);
 
 // use defined name as argv 'php kik-product-broadcast.php "btzDoh"'
-$query = (count($argv) == 2) ? 'SELECT `username`, `chat_id` FROM `kikbot_logs` WHERE `username` = "'. $argv[1] .'" LIMIT 1;' : 'SELECT DISTINCT(`username`), `chat_id` FROM `kikbot_logs` WHERE `id` > 105499;';
+$query = (count($argv) == 2) ? 'SELECT `username`, `chat_id` FROM `kikbot_logs` WHERE `username` = "'. $argv[1] .'" LIMIT 1;' : 'SELECT DISTINCT(`username`), `chat_id` FROM `kikbot_logs` WHERE `active` = 1;';
 $result = mysqli_query($db_conn, $query);
 
 echo("Sending to ". number_format(mysqli_num_rows($result)) ." total users w/ message: \"". $body_txt ."\" & card image: [". $product_obj->image_url ."]\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n");
