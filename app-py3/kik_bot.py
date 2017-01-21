@@ -1985,19 +1985,15 @@ class Message(tornado.web.RequestHandler):
           )
         ])
       
-      except KikError as e:
-        print("::::::=-=[KikError]=-=::::::e=(%s)\n%s" % (e, "-=-=-=-".join(e.args)))
-        #raise KikSendingError(e['error'], e['message']) from None
-        
-        #-- append error log
-        error_csv = "/opt/kik_bot/var/log/product-notify.error.%d.csv" % (int(time.time()) / 86400)
+      except KikError as err:
+        print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+        error_csv = "/opt/kik_bot/var/log/message.error.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
         with open(error_csv, 'a') as f:
           writer = csv.writer(f)
-          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), error, message])
+          writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), chat_id, to_user, err])
       
       else:
-        #-- send log
-        log_csv = "/opt/kik_bot/var/log/product-notify.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
+        log_csv = "/opt/kik_bot/var/log/message.sent.%s.csv" % (datetime.now().strftime('%Y-%m-%d'))
         with open(log_csv, 'a') as f:
           writer = csv.writer(f)
           writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%s'), chat_id, to_user])
