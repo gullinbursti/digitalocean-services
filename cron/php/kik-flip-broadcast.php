@@ -77,7 +77,7 @@ $body_txt = preg_replace('/_\{ITEM_NAME\}_/', $item_obj->name, $config_arr['BODY
 $body_txt = preg_replace('/_\{GAME_NAME\}_/', $item_obj->game_name, $body_txt);
 
 // use defined name as argv 'php kik-product-broadcast.php "btzDoh"'
-$query = (count($argv) == 2) ? 'SELECT `username`, `chat_id` FROM `kikbot_logs` WHERE `username` = "'. $argv[1] .'" LIMIT 1;' : 'SELECT DISTINCT(`username`), `chat_id` FROM `kikbot_logs` WHERE `active` = 1;';
+$query = (count($argv) == 2) ? 'SELECT `username`, `chat_id` FROM `kikbot_logs` WHERE `username` = "'. $argv[1] .'" ORDER BY `added` DESC LIMIT 1;' : 'SELECT DISTINCT(`username`), `chat_id` FROM `kikbot_logs` WHERE `active` = 1 ORDER BY `added` DESC;';
 $result = mysqli_query($db_conn, $query);
 
 echo("Sending to ". number_format(mysqli_num_rows($result)) ." total users w/ message: \"". $body_txt ."\" & card image: [". $item_obj->image_url ."]\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n");
@@ -92,7 +92,7 @@ while ($user_obj = mysqli_fetch_object($result)) {
   // curl off to webhook
   $ch = curl_init();
   curl_setopt_array($ch, array(
-    CURLOPT_USERAGENT      => "GameBots-Broadcaster-v3",
+    CURLOPT_USERAGENT      => BROADCASTER_USER_AGENT,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => 1,
     CURLOPT_POSTFIELDS     => http_build_query(array(
