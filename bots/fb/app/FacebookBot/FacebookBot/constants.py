@@ -91,6 +91,7 @@ class Const(Constants):
 
     PB_PAYLOAD_STRIPE_PAYMENT = 'STRIPE_PAYMENT'
 
-
-    RESERVED_MENU_REPLIES = "admin|main|main menu|menu|help|support"
+    RESERVED_ADMIN_REPLIES = "admin"
+    RESERVED_SHOP_REPLIES = "main|main menu|menu"
+    RESERVED_SUPPORT_REPLIES = "help|support"
     RESERVED_STOP_REPLIES = "cancel|end|quit|stop"
