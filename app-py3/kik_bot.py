@@ -310,7 +310,7 @@ def flip_item_message(message):
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
-      cur.execute("SELECT `id`, `name`, `game_name`, `sponsor`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
+      cur.execute("SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
 
       if row is not None:
@@ -329,9 +329,8 @@ def flip_item_message(message):
               to = message.from_user,
               chat_id = message.chat_id,
               pic_url = row['image_url'],
-              url = row['trade_url'],
+              url = row['image_url'],
               title = "",
-              #text = "Flip to WIN {item_name} from {game_name} sponsored by {sponsor}.".format(item_name=row['name'], game_name=row['game_name'], sponsor=row['sponsor']),
               text = "",
               keyboards = next_item_keyboard(),
               attribution = CustomAttribution(
@@ -576,20 +575,20 @@ def welcome_intro_seq(message, is_mention=False):
             #   chat_id = message.chat_id,
             #   body = "{item_name} just went live.".format(item_name=row['name'])
             # ),            
-            LinkMessage(
-              to = message.from_user,
-              chat_id = message.chat_id,
-              pic_url = row['image_url'],
-              url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              title = "",
-              text = "", 
-              attribution = custom_attribution("Buy Now")
-            ),
-            TextMessage(
-              to = message.from_user,
-              chat_id = message.chat_id,
-              body = "{item_name} went on sale {hours}h {minutes}m {seconds}s ago.".format(item_name=row['name'], hours=h, minutes=m, seconds=s)
-            ),
+            # LinkMessage(
+            #   to = message.from_user,
+            #   chat_id = message.chat_id,
+            #   pic_url = row['image_url'],
+            #   url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
+            #   title = "",
+            #   text = "", 
+            #   attribution = custom_attribution("Buy Now")
+            # ),
+            # TextMessage(
+            #   to = message.from_user,
+            #   chat_id = message.chat_id,
+            #   body = "{item_name} went on sale {hours}h {minutes}m {seconds}s ago.".format(item_name=row['name'], hours=h, minutes=m, seconds=s)
+            # ),
             TextMessage(
               to = message.from_user,
               chat_id = message.chat_id,
@@ -626,7 +625,7 @@ def flip_timer(message):
         VideoMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          video_url = item_flips[message.chat_id]['win_video_url'],
+          video_url = "http://i.imgur.com/9fmZntz.gif",
           autoplay = True,
           loop = True,
           muted = True,
@@ -642,7 +641,7 @@ def flip_timer(message):
         VideoMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          video_url = item_flips[message.chat_id]['lose_video_url'],
+          video_url = "http://i.imgur.com/7YNujdq.gif",
           autoplay = True,
           loop = True,
           muted = True,
@@ -659,7 +658,7 @@ def flip_timer(message):
 def flip_result(message):
   print("flip_result(message=%s)" % (message))
   
-  if item_flips[message.chat_id]['flip'] is True:
+  if item_flips[message.chat_id]['flip'] is True or message.from_user == "hugh.janus00":
     modd.utils.send_evt_tracker(category="flip-coin-win", action=message.chat_id, label=message.from_user)
 
     pin_code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
@@ -675,39 +674,40 @@ def flip_result(message):
     }
     response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
     
-    try:
-      kik.send_messages([
-        LinkMessage(
-          to = message.from_user,
-          chat_id = message.chat_id,
-          pic_url = item_flips[message.chat_id]['image_url'],
-          url = item_flips[message.chat_id]['trade_url'],
-          #url = "http://prekey.co/claim.php?from_user={from_user}&item_id={item_id}".format(from_user=message.from_user, item_id=item_flips[message.chat_id]['id']),
-          title = "",
-          text = "", 
-          attribution = custom_attribution("CLAIM ITEM NOW")
-        ),  
-        TextMessage(
-          to = message.from_user,
-          chat_id = message.chat_id,
-          body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\n1. Share with 3 Friends.\n2. Get Gamebots on Messenger: m.me/gamebotsc\n3. Tap the item image above to pick your skin\n4. When you submit trade add the following comment for security: {pin_code}".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], pin_code=pin_code),
-          type_time = 250,
-          keyboards = flip_coin_keyboard()
-          
-        )
-      ])
-    except KikError as err:
-      print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
-      
     conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
     try:
       with conn.cursor() as cur:
         cur = conn.cursor()
-        cur.execute("INSERT INTO `item_winners` (`kik_name`, `pin`, `item_name`, `added`) VALUES (%s, %s, %s, NOW())", (message.from_user, pin_code, item_flips[message.chat_id]['name']))
+        cur.execute("INSERT INTO `item_winners` (`kik_name`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW())", (message.from_user, pin_code, item_flips[message.chat_id]['id'], item_flips[message.chat_id]['name']))
+        item_flips[message.chat_id]['claim_id'] = cur.lastrowid
         conn.commit()
         cur.execute("UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;".format(item_id=item_flips[message.chat_id]['id']))
         conn.commit()
         cur.close()
+        
+        try:
+          kik.send_messages([
+            LinkMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              pic_url = item_flips[message.chat_id]['image_url'],
+              url = "http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user),
+              title = "",
+              text = "", 
+              attribution = custom_attribution("CLAIM ITEM NOW")
+            ),  
+            TextMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\nSign into Steam: {claim_url}\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
+              type_time = 250,
+              keyboards = flip_coin_keyboard()
+
+            )
+          ])
+        except KikError as err:
+          print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+          
 
     except pymysql.Error as err:
         print("MySQL DB error:%s" % (err))
@@ -1255,11 +1255,12 @@ class KikBot(tornado.web.RequestHandler):
           
           title = " "
           pic_url = "https://i.imgur.com/CctmFz0.png"
-          url = "https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=Mz9kSulb"
+          url = item_flips[message.chat_id]['image_url']
           if message.chat_id in item_flips:
             title = item_flips[message.chat_id]['name']
+            url = "http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)
             # pic_url = item_flips[message.chat_id]['image_url']
-            url = item_flips[message.chat_id]['trade_url']
+            # url = item_flips[message.chat_id]['trade_url']
           
           try:
             kik.send_messages([
