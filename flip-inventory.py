@@ -63,8 +63,8 @@ def update_db(inventory):
                     if value['quantity'] > 0:
                         cur.execute('INSERT IGNORE INTO `flip_inventory` (`id`, `name`, `description`, `image_url`, `steam_id`, `quantity`, `added`) VALUES (NULL, "{name}", "{description}", "{image_url}", "{steam_id}", {quantity}, NOW());'.format(name=value['name'], description=value['description'], image_url=value['image_url'], steam_id=key, quantity=value['quantity']))
                         
-                        if "frontside" in value['name'].lower():
-                          cur.execute('UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `id` = {asset_id} LIMIT 1;'.format(quantity=value['quantity'], asset_id=cur.lastrowid))
+                    if "frontside" in value['name'].lower():
+                      cur.execute('UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `id` = {asset_id} LIMIT 1;'.format(quantity=value['quantity'], asset_id=cur.cur.lastrowid))
 
                 else:
                     cur.execute('UPDATE `flip_inventory` SET `enabled` = 0 WHERE `id` = {asset_id} LIMIT 1;'.format(asset_id=row[0]))
