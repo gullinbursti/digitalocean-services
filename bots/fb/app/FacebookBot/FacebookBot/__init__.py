@@ -520,7 +520,7 @@ def add_payment(recipient_id):
     elif payment.creation_state == 5:
         send_text(
             recipient_id = recipient_id,
-            message_text= "Are these details correct?\nEmail: {email}\nName: {full_name}\nCard #: {acct_number}\nExpiration: {expiration:%m/%Y}\nCVC / CVV2: {cvc}".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+            message_text= "Are these details correct?\n\nEmail: {email}\n\nName: {full_name}\n\nCard #: {acct_number}\n\nExpiration: {expiration:%m/%Y}\n\nCVC / CVV2: {cvc}".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
             quick_replies = [
                 build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
                 build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
@@ -656,7 +656,8 @@ def build_button(btn_type, caption="", url="", payload=""):
         button = {
             'type'  : Const.CARD_BTN_URL,
             'url'   : url,
-            'title' : caption
+            'title' : caption,
+            'webview_height_ratio': "compact"
         }
 
     elif btn_type == Const.CARD_BTN_INVITE:
@@ -1070,7 +1071,6 @@ def send_admin_carousel(recipient_id):
                         ]
                     )
 )
-
             cards.append(
                 build_card_element(
                     title = product.display_name,
@@ -1090,7 +1090,8 @@ def send_admin_carousel(recipient_id):
                     image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                     item_url = None,
                     buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                        build_button(Const.CARD_BTN_URL, caption="Share Shop", url="http://prebot.me/share/{storefront_id}".format(storefront_id=storefront.id))
+                        #build_button(Const.CARD_BTN_POSTBACK, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
                 )
             )
@@ -1922,11 +1923,25 @@ def recieved_attachment(recipient_id, attachment_type, payload):
 
             send_text(recipient_id, "Here's what your Shopbot will look like:")
             send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
+            return "OK", 200
+
+
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4)
+        query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 0)
+        if query.count() > 0:
+            product = query.order_by(Product.added.desc()).scalar()
+            product.creation_state = 1
+            product.image_url = payload['url']
+            product.video_url = ""
+            db.session.commit()
+
+            send_text(recipient_id, "Give your product a title.")
+            return "OK", 200
 
         else:
             handle_wrong_reply(recipient_id)
 
-        return "OK", 200
 
     #------- VIDEO MESSAGE
     elif attachment_type == "video":

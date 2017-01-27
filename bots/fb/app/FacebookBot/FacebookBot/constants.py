@@ -18,12 +18,12 @@ class Const(Constants):
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/Mr5nLPv.png"
-    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/za3e16d.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/nItiQnP.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/UWPgP6N.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/v2yFGAJ.png"
-    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/zFlsVGN.png"
+    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/D9lKezN.png"
+    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/Cl7slH1.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/GwrlB0P.png"
+    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/gJkr07U.png"
+    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/jDubJJX.png"
+    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/eBJnsHh.png"
     IMAGE_URL_SUPPORT = "https://i.imgur.com/tQ9mBeG.png"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
