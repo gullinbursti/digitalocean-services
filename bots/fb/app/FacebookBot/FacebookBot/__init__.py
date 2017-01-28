@@ -614,6 +614,8 @@ def purchase_product(recipient_id):
                 if conn:
                     conn.close()
 
+            send_text(storefront.owner_id, "Soneone ({fb_psid}) just purchased your item {product_name}!".format(fb_psid=recipient_id, product_name=product.display_name))
+
             return True
 
         else:
@@ -654,10 +656,12 @@ def build_button(btn_type, caption="", url="", payload=""):
 
     elif btn_type == Const.CARD_BTN_URL:
         button = {
-            'type'  : Const.CARD_BTN_URL,
-            'url'   : url,
-            'title' : caption,
-            'webview_height_ratio': "compact"
+            'type'                 : Const.CARD_BTN_URL,
+            'url'                  : url,
+            'title'                : caption,
+            'messenger_extensions' : True,
+            'webview_height_ratio' : "full",
+            'fallback_url'         : url
         }
 
     elif btn_type == Const.CARD_BTN_INVITE:
@@ -1010,24 +1014,24 @@ def send_admin_carousel(recipient_id):
         if product_query.count() == 0:
             cards.append(
                 build_card_element(
-                    title = "Add Video",
+                    title = "Add Item",
                     subtitle = "Tap here now",
                     image_url = Const.IMAGE_URL_ADD_PRODUCT,
                     item_url = None,
                     buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Add Video", payload=Const.PB_PAYLOAD_ADD_PRODUCT)
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Add Item", payload=Const.PB_PAYLOAD_ADD_PRODUCT)
                     ]
                 )
             )
 
             cards.append(
                 build_card_element(
-                    title = "Share Shop",
+                    title = "Share on Messenger",
                     subtitle = "",
                     image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                     item_url = None,
                     buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_STOREFRONT)
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_STOREFRONT)
                     ]
                 )
             )
@@ -1085,13 +1089,13 @@ def send_admin_carousel(recipient_id):
 
             cards.append(
                 build_card_element(
-                    title = "Share Shop",
+                    title = "Share on Messenger",
                     subtitle = "",
                     image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                     item_url = None,
                     buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="Share Shop", url="http://prebot.me/share/{storefront_id}".format(storefront_id=storefront.id))
-                        #build_button(Const.CARD_BTN_POSTBACK, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                        build_button(Const.CARD_BTN_URL, caption="Share on Messenger", url="http://prebot.me/share/{storefront_id}".format(storefront_id=storefront.id))
+                        #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
                 )
             )
@@ -1609,7 +1613,7 @@ def received_quick_reply(recipient_id, quick_reply):
         db.session.add(Product(storefront_query.first().id))
         db.session.commit()
 
-        send_text(recipient_id, "Upload a 30 second video about what you are selling.")
+        send_text(recipient_id, "Upload a photo of what you are selling.")
 
     elif quick_reply == Const.PB_PAYLOAD_CANCEL_PRODUCT:
         send_tracker("button-undo-product", recipient_id, "")
@@ -1756,7 +1760,7 @@ def received_payload_button(recipient_id, payload):
             if conn:
                 conn.close()
 
-        send_text(recipient_id, "Upload a 30 second video about what you are selling.")
+        send_text(recipient_id, "Upload a photo of what you are selling.")
 
 
     elif payload == Const.PB_PAYLOAD_DELETE_PRODUCT:
@@ -1786,7 +1790,7 @@ def received_payload_button(recipient_id, payload):
 
         db.session.add(Product(storefront.id))
         db.session.commit()
-        send_text(recipient_id, "Upload a 30 second video about what you are selling.")
+        send_text(recipient_id, "Upload a photo of what you are selling.")
 
     elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
         send_tracker("button-share", recipient_id, "")
@@ -1911,6 +1915,8 @@ def received_payload_button(recipient_id, payload):
 def recieved_attachment(recipient_id, attachment_type, payload):
     logger.info("recieved_attachment(recipient_id={recipient_id}, attachment_type={attachment_type}, payload={payload})".format(recipient_id=recipient_id, attachment_type=attachment_type, payload=payload))
 
+    #return "OK", 200
+
     #------- IMAGE MESSAGE
     if attachment_type == "image":
         logger.info("IMAGE: %s" % (payload))
@@ -1946,8 +1952,6 @@ def recieved_attachment(recipient_id, attachment_type, payload):
     #------- VIDEO MESSAGE
     elif attachment_type == "video":
         logger.info("VIDEO: %s" % (payload['url']))
-
-        #return "OK", 200
 
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4)
         if storefront_query.count() > 0:
@@ -2342,11 +2346,10 @@ def handle_wrong_reply(recipient_id):
         storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
         query = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 5)
         if query.count() > 0:
-            product = query.order_by(Product.added.desc()).scalar()
 
             send_text(recipient_id, "Incorrect response!")
             if product.creation_state == 0:
-                send_text(recipient_id, "Upload a 30 second video about what you are selling.")
+                send_text(recipient_id, "Upload a photo of what you are selling.")
 
             elif product.creation_state == 1:
                 send_text(recipient_id, "Give your product video a title.")

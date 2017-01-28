@@ -22,7 +22,7 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Welcome to Pre, {{user_first_name}}. The fastest way to sell in chat."
+    "text":"Hi {{user_first_name}}! Welcome to Pre. The fastest way to sell anything inside of chat."
   }
 }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
 

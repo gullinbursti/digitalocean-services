@@ -14,7 +14,7 @@ class Const(Constants):
     STRIPE_DEV_API_KEY = "sk_test_3QTHaM9IjN2g3AI91Gqqaoxo"
     STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
 
-    ORTHODOX_GREETING = "Welcome to Pre. The fastest way to sell in chat."
+    ORTHODOX_GREETING = "Hi! Welcome to Pre. The fastest way to sell anything inside of chat."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
