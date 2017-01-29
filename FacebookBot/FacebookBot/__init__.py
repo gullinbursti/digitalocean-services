@@ -124,11 +124,27 @@ def write_message_log(sender_id, message_id, message_txt):
             conn.close()
 
 
+def main_menu_quick_replies():
+    logger.info("main_menu_quick_replies()")
+    return [
+        {
+            'content_type' : "text",
+            'title'        : "Today's Big Item",
+            'payload'      : "TODAYS_ITEM"
+        }, {
+            'content_type' : "text",
+            'title'        : "Invite Friends Now",
+            'payload'      : "INVITE"
+        }, {
+            'content_type' : "text",
+            'title'        : "Support",
+            'payload'      : "SUPPORT"
+        }
+    ]
 
 
 def coin_flip_quick_replies():
     logger.info("coin_flip_quick_replies()")
-
     return [
         {
             'content_type' : "text",
@@ -156,17 +172,7 @@ def default_carousel(sender_id):
     send_carousel(
         recipient_id=sender_id,
         elements=elements,
-        quick_replies=[
-            {
-                'content_type': "text",
-                'title': "Invite Friends",
-                'payload': "INVITE"
-            }, {
-                'content_type': "text",
-                'title': "Support",
-                'payload': "SUPPORT"
-            }
-        ]
+        quick_replies=main_menu_quick_replies()
     )
 
 def coin_flip_element(sender_id, standalone=False):
@@ -236,7 +242,7 @@ def coin_flip_results(sender_id, item_id=None):
             if cur.fetchone() is not None:
                 win_boost = 0.5
 
-            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = {sender_id};'.format(sender_id=sender_id))
+            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = {sender_id} AND `added` > DATE_SUB(NOW(), INTERVAL 2 HOUR);'.format(sender_id=sender_id))
             row = cur.fetchone()
             if row is not None:
                 total_wins = row['tot']
@@ -270,6 +276,7 @@ def coin_flip_results(sender_id, item_id=None):
 
 
     if random.uniform(0, flip_item['win_boost']) <= (1 / float(3)) * (abs(float(1 - (total_wins * (1 / float(100)))))):
+        total_wins += 1
         payload = {
             'channel': "#bot-alerts",
             'username': "gamebotsc",
@@ -306,17 +313,21 @@ def coin_flip_results(sender_id, item_id=None):
                 {
                     'type'  : "element_share"
                 }, {
-                    'type'  : "web_url",
-                    'url'   : "http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
-                    'title' : "Trade"
+                    'type'                 : "web_url",
+                    'url'                  : "http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
+                    'title'                : "Trade",
+                    'webview_height_ratio' : "compact"
                 }
             ],
             quick_replies=coin_flip_quick_replies()
         )
 
+        if total_wins >= 5:
+            send_text(sender_id, "You must install one of these apps before claiming {item_name}.\n\nhttp://taps.io/BgNYg".format(item_name=flip_item['name']))
+
         send_text(
             recipient_id=sender_id,
-            message_text="WINNER! You won {item_name} - {pin_code} from {game_name}.\n\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\nSign into Steam: {claim_url}\nFollow all instructions to get items.".format(item_name=flip_item['name'], pin_code=flip_item['pin_code'], game_name=flip_item['game_name'],claim_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
+            message_text="WINNER! You won {item_name} - {pin_code} from {game_name}.\n\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=flip_item['name'], pin_code=flip_item['pin_code'], game_name=flip_item['game_name'],claim_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
             quick_replies=coin_flip_quick_replies()
         )
 
@@ -552,6 +563,10 @@ def webook():
 
                             elif quick_reply == "NO_THANKS":
                                 send_tracker("no-thanks", sender_id, "")
+                                default_carousel(sender_id)
+
+                            elif quick_reply == "TODAYS_ITEM":
+                                send_tracker("todays-item", sender_id, "")
                                 default_carousel(sender_id)
 
                             else:

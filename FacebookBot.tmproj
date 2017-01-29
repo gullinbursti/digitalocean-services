@@ -48,14 +48,30 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>10</integer>
+				<integer>22</integer>
 				<key>line</key>
-				<integer>356</integer>
+				<integer>92</integer>
 			</dict>
+			<key>columnSelection</key>
+			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>347</integer>
+			<integer>82</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>91</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>22</integer>
+				<key>line</key>
+				<integer>92</integer>
+			</dict>
 		</dict>
 		<key>FacebookBot/FacebookBot/curl_tests.txt</key>
 		<dict>
@@ -80,6 +96,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{405, -156}, {1070, 774}}</string>
+	<string>{{-1689, 23}, {1070, 774}}</string>
 </dict>
 </plist>
