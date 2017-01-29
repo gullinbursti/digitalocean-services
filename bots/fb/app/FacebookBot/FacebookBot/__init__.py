@@ -10,7 +10,6 @@ import os
 import re
 import sqlite3
 import subprocess
-import sys
 import threading
 import time
 
@@ -149,16 +148,18 @@ class Storefront(db.Model):
     logo_url = db.Column(db.String(255))
     video_url = db.Column(db.String(255))
     prebot_url = db.Column(db.String(255))
+    giveaway = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
     def __init__(self, owner_id, type=1):
         self.owner_id = owner_id
         self.creation_state = 0
         self.type = type
+        self.giveaway = 0
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Storefront owner_id=%s, creation_state=%d, display_name=%s, logo_url=%s>" % (self.owner_id, self.creation_state, self.display_name, self.logo_url)
+        return "<Storefront owner_id=%s, creation_state=%d, display_name=%s, giveaway=%d>" % (self.owner_id, self.creation_state, self.display_name, self.giveaway)
 
 
 class Subscription(db.Model):
@@ -647,6 +648,7 @@ def write_message_log(recipient_id, message_id, message_txt):
 def build_button(btn_type, caption="", url="", payload=""):
     logger.info("build_button(btn_type={btn_type}, caption={caption}, url={url}, payload={payload})".format(btn_type=btn_type, caption=caption, url=url, payload=payload))
 
+    button = None
     if btn_type == Const.CARD_BTN_POSTBACK:
         button = {
             'type'    : Const.CARD_BTN_POSTBACK,
@@ -659,9 +661,8 @@ def build_button(btn_type, caption="", url="", payload=""):
             'type'                 : Const.CARD_BTN_URL,
             'url'                  : url,
             'title'                : caption,
-            'messenger_extensions' : True,
-            'webview_height_ratio' : "full",
-            'fallback_url'         : url
+            #'messenger_extensions' : True,
+            'webview_height_ratio' : "compact"
         }
 
     elif btn_type == Const.CARD_BTN_INVITE:
@@ -878,6 +879,15 @@ def build_carousel(recipient_id, cards, quick_replies=None):
         data['message']['quick_replies'] = quick_replies
 
     return data
+
+
+def main_menu_quick_replies():
+    logger.info("main_menu_quick_replies()")
+
+    return [
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Giveaway", payload=Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)
+    ]
 
 
 def welcome_message(recipient_id, entry_type, deeplink=""):
@@ -1112,20 +1122,21 @@ def send_admin_carousel(recipient_id):
         )
     )
 
-    # cards.append(
-    #     build_card_element(
-    #         title = "Support",
-    #         subtitle = "",
-    #         image_url = Const.IMAGE_URL_SUPPORT,
-    #         item_url = "http://prebot.me/support",
-    #         buttons = [
-    #             build_button(Const.CARD_BTN_URL, caption="Get Support", url="http://prebot.me/support")
-    #         ]
-    #     )
-    # )
-
     if storefront_query.count() > 0:
         storefront = storefront_query.first()
+        if storefront.giveaway == 0:
+            cards.append(
+                build_card_element(
+                    title = "Add Giveaway",
+                    subtitle = "",
+                    image_url = Const.IMAGE_URL_SUPPORT,
+                    item_url = None,
+                    buttons = [
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Add Giveaway", payload=Const.PB_PAYLOAD_ADD_GIVEAWAYS)
+                    ]
+                )
+            )
+
         cards.append(
             build_card_element(
                 title = storefront.display_name,
@@ -1141,10 +1152,7 @@ def send_admin_carousel(recipient_id):
     data = build_carousel(
         recipient_id = recipient_id,
         cards = cards,
-        quick_replies = [
-            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Giveaway", payload=Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY),
-            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)
-        ]
+        quick_replies = main_menu_quick_replies()
     )
 
     send_message(json.dumps(data))
@@ -1241,10 +1249,7 @@ def send_storefront_carousel(recipient_id, storefront_id):
                     #     ]
                     # )
                 ],
-                quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Giveaway", payload=Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)
-                ]
+                quick_replies = main_menu_quick_replies()
             )
 
             send_message(json.dumps(data))
@@ -1403,10 +1408,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                         image_url = storefront.logo_url,
                         item_url = None
                     ),
-                    quick_replies = [
-                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Giveaway", payload=Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)
-                    ]
+                    quick_replies = main_menu_quick_replies()
                 )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT:
@@ -1501,7 +1503,7 @@ def received_quick_reply(recipient_id, quick_reply):
                     conn.close()
 
 
-            send_text(recipient_id, "Great! You have created {storefront_name}. Now add a video explaining what you are selling.".format(storefront_name=storefront.display_name))
+            send_text(recipient_id, "Great! You have created {storefront_name}. Now add an item to sell.".format(storefront_name=storefront.display_name))
             send_admin_carousel(recipient_id)
 
             send_tracker("shop-sign-up", recipient_id, "")
@@ -1551,10 +1553,11 @@ def received_quick_reply(recipient_id, quick_reply):
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).scalar()
             product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(int(match.group('days')) / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
-            product.description = "Pre-release ends {release_date}".format(release_date=datetime.fromtimestamp(product.release_date).strftime('%a, %b %-d'))
+            product.description = "Pre-release ends {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
             product.creation_state = 4
             db.session.commit()
 
+            send_text(recipient_id, "This item will be available {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%A, %b %-d')))
             send_text(recipient_id, "Here's what your product will look like:")
             send_product_card(recipient_id=recipient_id, product_id=product.id, card_type=Const.CARD_TYPE_PRODUCT_PREVIEW)
 
@@ -1588,7 +1591,11 @@ def received_quick_reply(recipient_id, quick_reply):
 
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             send_admin_carousel(recipient_id)
-            send_text(recipient_id, "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)))
+            send_text(
+                recipient_id = recipient_id,
+                message_text = "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)),
+                quick_replies= main_menu_quick_replies()
+            )
 
             payload = {
                 'channel' : "#pre",
@@ -1649,9 +1656,47 @@ def received_quick_reply(recipient_id, quick_reply):
         else:
             send_storefront_carousel(recipient_id, customer.storefront_id)
 
+    elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_YES:
+        send_tracker("button-giveaways-yes", recipient_id, "")
+
+        storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
+        storefront.giveaway = 1
+        db.session.commit()
+
+        try:
+            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
+                conn.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        product_query = Product.query.filter(Product.storefront_id == storefront.id)
+        if product_query.count() > 0:
+            product = product_query.order_by(Product.added.desc()).scalar()
+            subscriber_query = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.enabled == 1)
+            if subscriber_query.count() < 20:
+                send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
+
+            else:
+                send_text(recipient_id, "Great! Item giveaways will now be unlocked for {storefront_name}.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
+
+        else:
+            send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
+
+
+    elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_NO:
+        send_tracker("button-giveaways-no", recipient_id, "")
+        send_admin_carousel(recipient_id)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_YES:
-        send_tracker("payment-yes", recipient_id, "")
+        send_tracker("button-payment-yes", recipient_id, "")
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
 
         if payment is not None and payment.creation_state == 5:
@@ -1665,13 +1710,13 @@ def received_quick_reply(recipient_id, quick_reply):
                 send_product_card(recipient_id=recipient_id, product_id=customer.product_id, storefront_id=customer.storefront_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASE)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_NO:
-        send_tracker("payment-no", recipient_id, "")
+        send_tracker("button-payment-no", recipient_id, "")
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
         add_payment(recipient_id)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_CANCEL:
-        send_tracker("payment-cancel", recipient_id, "")
+        send_tracker("button-payment-cancel", recipient_id, "")
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
@@ -1797,6 +1842,7 @@ def received_payload_button(recipient_id, payload):
         send_text(recipient_id, "Share your Shopbot on Instagram, Facebook, Twitter, and Snapchat.")
         send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_STOREFRONT_SHARE)
 
+
     elif payload == Const.PB_PAYLOAD_SHARE_PRODUCT:
         send_tracker("button-share", recipient_id, "")
         send_text(recipient_id, "Share your Shopbot on Instagram, Facebook, Twitter, and Snapchat.")
@@ -1808,9 +1854,11 @@ def received_payload_button(recipient_id, payload):
         else:
             send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_STOREFRONT_SHARE)
 
+
     elif payload == Const.PB_PAYLOAD_SUPPORT:
         send_tracker("button-support", recipient_id, "")
         send_text(recipient_id, "Support for Prebot:\nprebot.me/support")
+
 
     elif payload == Const.PB_PAYLOAD_RESERVE_PRODUCT:
         send_tracker("button-reserve", recipient_id, "")
@@ -1879,6 +1927,19 @@ def received_payload_button(recipient_id, payload):
 
             send_storefront_carousel(recipient_id, storefront.id)
 
+
+    elif payload == Const.PB_PAYLOAD_ADD_GIVEAWAYS:
+        send_tracker("button-add-giveaways", recipient_id, "")
+        if storefront_query.count() > 0:
+            storefront = storefront_query.first()
+
+            if storefront.giveaway == 0:
+                send_text(recipient_id, "Do you want to offer your customers the ability to win Steam in-game items?", [
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Yes", payload=Const.PB_PAYLOAD_GIVEAWAYS_YES),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="No", payload=Const.PB_PAYLOAD_GIVEAWAYS_NO),
+                ])
+
+
     elif payload == Const.PB_PAYLOAD_PRODUCT_VIDEO:
         send_tracker("button-view-video", recipient_id, "")
 
@@ -1886,6 +1947,7 @@ def received_payload_button(recipient_id, payload):
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).scalar()
             send_video(recipient_id, product.video_url)
+
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS:
         if storefront_query.count() > 0:
@@ -1900,12 +1962,14 @@ def received_payload_button(recipient_id, payload):
 
                 send_text(recipient_id, "Send a message or video to your Pre subscribers.")
 
+
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
         send_tracker("button-message-owner", recipient_id, "")
 
         storefront = Storefront.query.filter(Storefront.id == customer.storefront_id).first()
         send_text(recipient_id, "Notifying {storefront_name}…".format(storefront_name=storefront.display_name))
         send_storefront_carousel(recipient_id, customer.storefront_id)
+
 
     else:
         send_tracker("unknown-button", recipient_id, "")
@@ -1932,18 +1996,21 @@ def recieved_attachment(recipient_id, attachment_type, payload):
             return "OK", 200
 
 
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        if storefront_query.count() > 0:
+            query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 0)
+            if query.count() > 0:
+                product = query.order_by(Product.added.desc()).scalar()
+                product.creation_state = 1
+                product.image_url = payload['url']
+                product.video_url = ""
+                db.session.commit()
 
-        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4)
-        query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 0)
-        if query.count() > 0:
-            product = query.order_by(Product.added.desc()).scalar()
-            product.creation_state = 1
-            product.image_url = payload['url']
-            product.video_url = ""
-            db.session.commit()
+                send_text(recipient_id, "Give your product a title.")
+                return "OK", 200
 
-            send_text(recipient_id, "Give your product a title.")
-            return "OK", 200
+            else:
+                handle_wrong_reply(recipient_id)
 
         else:
             handle_wrong_reply(recipient_id)
@@ -2116,7 +2183,7 @@ def received_text_response(recipient_id, message_text):
 
 
     #-- show storefront carousel
-    elif message_text.lower() in Const.RESERVED_SHOP_REPLIES:
+    elif message_text.lower() in Const.RESERVED_CUSTOMER_REPLIES:
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
@@ -2346,7 +2413,7 @@ def handle_wrong_reply(recipient_id):
         storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
         query = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 5)
         if query.count() > 0:
-
+            product = query.order_by(Product.added.desc()).scalar()
             send_text(recipient_id, "Incorrect response!")
             if product.creation_state == 0:
                 send_text(recipient_id, "Upload a photo of what you are selling.")
