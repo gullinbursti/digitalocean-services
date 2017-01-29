@@ -59,10 +59,9 @@ Const.ALWAYS_WIN_PATTERN = '^Xersss'
 
 def default_keyboard(hidden=False):
   buttons = [
-    TextResponse("Today's Game"),
+    TextResponse("Today's BIG WIN Item"),
     TextResponse("Play Flip Coin"),
-    TextResponse("Invite Friends"),
-    TextResponse("Support")
+    TextResponse("Invite Friends Now")
   ]
   
   keyboard = [
@@ -113,8 +112,8 @@ def flip_coin_keyboard(hidden=False):
     SuggestedResponseKeyboard(
       hidden = hidden,
       responses = [
-        TextResponse("Invite Friends"),
-        TextResponse("Steam Trade URL"),
+        TextResponse("Invite Friends Now"),
+        # TextResponse("Steam Trade URL"),
         TextResponse("No Thanks")
       ]
     )
@@ -247,8 +246,8 @@ def daily_product_message(message):
               to = message.from_user,
               chat_id = message.chat_id,
               pic_url = pic_url,
-              url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              #url = "http://prekey.co/stripe.php?from_user={from_user}&item_id={item_id}".format(from_user=message.from_user, item_id=row['id']),
+              #url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
+              url = "http://prebot.me/",
               title = "",
               text = "", 
               attribution = custom_attribution("Tap to Win"),
@@ -306,10 +305,21 @@ def daily_product_message(message):
   
 def flip_item_message(message):
   print("flip_item_message(message=%s)" % (message))
+  win_boost = 1
+  total_wins = 1
   
   conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
   try:
     with conn.cursor() as cur:
+      cur.execute('SELECT `fb_id` FROM `item_winners` WHERE `kik_name` = "{from_user}" LIMIT 1;'.format(from_user=message.from_user))
+      if cur.fetchone() is not None:
+        win_boost = 0.5
+        
+      cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `kik_name` = "{from_user}" AND `added` > DATE_SUB(NOW(), INTERVAL 2 HOUR);'.format(from_user=message.from_user))
+      row = cur.fetchone()
+      if row is not None:
+        total_wins = row['tot']
+                      
       cur.execute("SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;")
       row = cur.fetchone()
 
@@ -317,7 +327,7 @@ def flip_item_message(message):
         print("row[]={row}".format(row=row))
         item_flips[message.chat_id] = row
         
-        if random.random() <= 0.45 or re.search(Const.ALWAYS_WIN_PATTERN, message.from_user, re.IGNORECASE) is not None:
+        if random.uniform(0, win_boost) <= (1 / float(3)) * (abs(float(1 - (total_wins * (1 / float(100)))))) or re.search(Const.ALWAYS_WIN_PATTERN, message.from_user, re.IGNORECASE) is not None:
           item_flips[message.chat_id]['flip'] = True
           
         else:
@@ -403,7 +413,7 @@ def player_help_for_topic_level(username="", chat_id="", topic_name="", level=""
          
       cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_sessions` WHERE `topic_name` = %s AND `chat_id` != %s AND `username` != %s GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (topic_name, chat_id, username, amt))
       #cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s AND `username` != %s AND `body` != '__{MENTION}__' GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, username, amt))
-          
+      
       if cur2.rowcount < amt:
         #cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s AND `username` != %s AND `body` != '__{MENTION}__' GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, username, amt))
         cur2.execute("SELECT `chat_id`, `username` FROM `kikbot_logs` WHERE `chat_id` != %s AND `username` != %s AND `body` != '__{MENTION}__' AND `targeted` < DATE_SUB(NOW(), INTERVAL 12 HOUR) GROUP BY `chat_id` ORDER BY RAND() LIMIT %s;", (chat_id, username, amt))
@@ -568,7 +578,6 @@ def welcome_intro_seq(message, is_mention=False):
                 attribution = custom_attribution(" ")
               )
             ])
-
           kik.send_messages([
             # TextMessage(
             #   to = message.from_user,
@@ -674,10 +683,16 @@ def flip_result(message):
     }
     response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
     
+    total_wins = 1
     conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
     try:
       with conn.cursor() as cur:
         cur = conn.cursor()
+        cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `kik_name` = "{from_user}" AND `added` > DATE_SUB(NOW(), INTERVAL 2 HOUR);'.format(from_user=message.from_user))
+        row = cur.fetchone()
+        if row is not None:
+          total_wins += row['tot']
+          
         cur.execute("INSERT INTO `item_winners` (`kik_name`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW())", (message.from_user, pin_code, item_flips[message.chat_id]['id'], item_flips[message.chat_id]['name']))
         item_flips[message.chat_id]['claim_id'] = cur.lastrowid
         conn.commit()
@@ -695,16 +710,36 @@ def flip_result(message):
               title = "",
               text = "", 
               attribution = custom_attribution("CLAIM ITEM NOW")
-            ),  
-            TextMessage(
-              to = message.from_user,
-              chat_id = message.chat_id,
-              body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\nSign into Steam: {claim_url}\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
-              type_time = 250,
-              keyboards = flip_coin_keyboard()
-
             )
           ])
+          
+          if total_wins >= 5:
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "You must install one of these apps before claiming {item_name}.\n\nhttp://taps.io/BgNYg".format(item_name=item_flips[message.chat_id]['name']),
+                type_time = 250
+              ),
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
+                type_time = 250,
+                keyboards = flip_coin_keyboard()
+              )
+            ])
+          
+          else:
+            kik.send_messages([
+              TextMessage(
+                to = message.from_user,
+                chat_id = message.chat_id,
+                body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
+                type_time = 250,
+                keyboards = flip_coin_keyboard()
+              )
+            ])
         except KikError as err:
           print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
           
@@ -793,8 +828,7 @@ class KikBot(tornado.web.RequestHandler):
         
         self.set_status(200)
         return
-        
-        
+                
       
       # -=-=-=-=-=-=-=-=- DELIVERY RECEIPT MESSAGE -=-=-=-=-=-=-=-=-
       elif isinstance(message, DeliveryReceiptMessage):
@@ -1219,7 +1253,7 @@ class KikBot(tornado.web.RequestHandler):
           
           
         # -=-=-=-=-=-=-=-=-=- PRESALE -=-=-=-=-=-=-=-
-        if message.body == "Today's Game":
+        if message.body == "Today's BIG WIN Item":
           modd.utils.send_evt_tracker(category="todays-pre-sale-button", action=message.chat_id, label=message.from_user)
           daily_product_message(message)
           
@@ -1228,7 +1262,7 @@ class KikBot(tornado.web.RequestHandler):
         
         
         # -=-=-=-=-=-=-=-=- INVITE FRIENDS BTN -=-=-=-=-=-=-=-=-      
-        if message.body == "Invite Friends":
+        if message.body == "Invite Friends Now":
           modd.utils.send_evt_tracker(category="invite-button", action=message.chat_id, label=message.from_user)
           
           try:
@@ -1367,12 +1401,12 @@ class KikBot(tornado.web.RequestHandler):
         if message.body == "Play Flip Coin" or message.body == "Next Item":
           modd.utils.send_evt_tracker(category="play-flip-coin-button", action=message.chat_id, label=message.from_user)
           
-          payload = {
-            'action'    : "paid",
-            'username'  : message.from_user
-          }
-          response = requests.post("http://beta.modd.live/api/paypal.php", data=payload)
-          print("PAID: %s" % (response.json()))
+          #payload = {
+          #  'action'    : "paid",
+          #  'username'  : message.from_user
+          #}
+          #response = requests.post("http://beta.modd.live/api/paypal.php", data=payload)
+          #print("PAID: %s" % (response.json()))
           
           if message.chat_id not in button_taps:
             button_taps[message.chat_id] = 1

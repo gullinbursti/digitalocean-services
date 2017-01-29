@@ -122,14 +122,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>29</integer>
+				<integer>10</integer>
 				<key>line</key>
-				<integer>688</integer>
+				<integer>521</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>671</integer>
+			<integer>1891</integer>
 		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
@@ -156,6 +156,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{-1788, -171}, {1670, 1049}}</string>
+	<string>{{265, 43}, {1119, 828}}</string>
 </dict>
 </plist>
