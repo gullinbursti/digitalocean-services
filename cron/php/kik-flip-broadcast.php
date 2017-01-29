@@ -59,7 +59,7 @@ if ($handle) {
 
 
 // select enabled product
-$query = ($config_arr['ITEM_ID'] != 0) ? 'SELECT `id`, `name`, `game_name`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `id` = '. $config_arr['ITEM_ID'] .' LIMIT 1;' : 'SELECT `id`, `name`, `game_name`, `image_url`, `trade_url`, `win_video_url`, `lose_video_url` FROM `flip_inventory` WHERE `type` = 1 AND `quantity` > 0 LIMIT 1;';
+$query = ($config_arr['ITEM_ID'] != 0) ? 'SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = '. $config_arr['ITEM_ID'] .' LIMIT 1;' : 'SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `type` = 1 AND `quantity` > 0 LIMIT 1;';
 $result = mysqli_query($db_conn, $query);
 
 // nothing found
