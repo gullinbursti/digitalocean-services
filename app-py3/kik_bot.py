@@ -247,7 +247,7 @@ def daily_product_message(message):
               chat_id = message.chat_id,
               pic_url = pic_url,
               #url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              url = "http://prebot.me/",
+              url = "http://m.me/gamebotsc",
               title = "",
               text = "", 
               attribution = custom_attribution("Tap to Win"),
@@ -327,7 +327,7 @@ def flip_item_message(message):
         print("row[]={row}".format(row=row))
         item_flips[message.chat_id] = row
         
-        if random.uniform(0, win_boost) <= (1 / float(3)) * (abs(float(1 - (total_wins * (1 / float(100)))))) or re.search(Const.ALWAYS_WIN_PATTERN, message.from_user, re.IGNORECASE) is not None:
+        if random.uniform(0, win_boost) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or re.search(Const.ALWAYS_WIN_PATTERN, message.from_user, re.IGNORECASE) is not None:
           item_flips[message.chat_id]['flip'] = True
           
         else:
