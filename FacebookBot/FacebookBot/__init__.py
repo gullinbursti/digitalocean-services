@@ -275,7 +275,7 @@ def coin_flip_results(sender_id, item_id=None):
         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
 
-    if random.uniform(0, flip_item['win_boost']) <= (1 / float(3)) * (abs(float(1 - (total_wins * (1 / float(100)))))):
+    if random.uniform(0, flip_item['win_boost']) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
         total_wins += 1
         payload = {
             'channel': "#bot-alerts",
@@ -310,6 +310,33 @@ def coin_flip_results(sender_id, item_id=None):
             image_url=flip_item['image_url'],
             card_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
             buttons=[
+                # {
+                #     'type'            : "payment",
+                #     'title'           : "buy",
+                #     'payload'         : "DEVELOPER_DEFINED_PAYLOAD",
+                #     'payment_summary' : {
+                #         'currency'            : "USD",
+                #         'payment_type'        : "FIXED_AMOUNT",
+                #         'is_test_payment'     : True,
+                #         'merchant_name'       : "Peter's Apparel",
+                #         'requested_user_info' : [
+                #             "shipping_address",
+                #             "contact_name",
+                #             "contact_phone",
+                #             "contact_email"
+                #         ],
+                #         'price_list' : [
+                #             {
+                #                 'label'  : "Subtotal",
+                #                 'amount' : "0.01"
+                #             },
+                #             {
+                #                 'label'  : "Taxes",
+                #                 'amount' :"0.01"
+                #             }
+                #         ]
+                #     }
+                # },
                 {
                     'type'  : "element_share"
                 }, {
@@ -318,8 +345,7 @@ def coin_flip_results(sender_id, item_id=None):
                     'title'                : "Trade",
                     'webview_height_ratio' : "compact"
                 }
-            ],
-            quick_replies=coin_flip_quick_replies()
+            ]
         )
 
         if total_wins >= 5:
