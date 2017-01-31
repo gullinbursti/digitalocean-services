@@ -660,6 +660,13 @@ def build_button(btn_type, caption="", url="", payload=""):
         button = {
             'type'                 : Const.CARD_BTN_URL,
             'url'                  : url,
+            'title'                : caption
+        }
+
+    elif btn_type == Const.CARD_BTN_URL_EXTENTION:
+        button = {
+            'type'                 : Const.CARD_BTN_URL,
+            'url'                  : url,
             'title'                : caption,
             #'messenger_extensions' : True,
             'webview_height_ratio' : "compact"
@@ -927,7 +934,6 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
 
             send_video(recipient_id, product.video_url)
-            send_text(recipient_id, "Type \"menu\" to view all of {storefront_name}'s details".format(storefront_name=storefront.display_name))
 
             if customer.stripe_id is not None and customer.card_id is not None:
                 if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
@@ -962,7 +968,6 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
 
             send_video(recipient_id, product.video_url)
-            send_text(recipient_id, "Type \"menu\" to view all of {storefront_name}'s details".format(storefront_name=storefront.display_name))
 
             if customer.stripe_id is not None and customer.card_id is not None:
                 if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
@@ -1033,18 +1038,6 @@ def send_admin_carousel(recipient_id):
                 )
             )
 
-            cards.append(
-                build_card_element(
-                    title = "Share Shop Bot",
-                    subtitle = "",
-                    image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
-                    item_url = None,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
-                    ]
-                )
-            )
-
         else:
             product = product_query.order_by(Product.added.desc()).scalar()
 
@@ -1096,18 +1089,30 @@ def send_admin_carousel(recipient_id):
                 )
             )
 
-            cards.append(
-                build_card_element(
-                    title = "Share Shop Bot",
-                    subtitle = "",
-                    image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
-                    item_url = None,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
-                        #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
-                    ]
-                )
+        cards.append(
+            build_card_element(
+                title = "Share on Messenger",
+                subtitle = "",
+                image_url = Const.IMAGE_URL_SHARE_MESSENGER,
+                item_url = None,
+                buttons = [
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_STOREFRONT)
+                ]
             )
+        )
+
+        cards.append(
+            build_card_element(
+                title = "Share Shop Bot",
+                subtitle = "",
+                image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
+                item_url = None,
+                buttons = [
+                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
+                    #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                ]
+            )
+        )
 
     cards.append(
         build_card_element(
@@ -1116,7 +1121,7 @@ def send_admin_carousel(recipient_id):
             image_url = Const.IMAGE_URL_MARKETPLACE,
             item_url = None,
             buttons = [
-                build_button(Const.CARD_BTN_URL, caption="View Shops", url="http://prebot.me/shops")
+                build_button(Const.CARD_BTN_URL_EXTENTION, caption="View Shops", url="http://prebot.me/shops")
             ]
         )
     )
@@ -1198,7 +1203,7 @@ def send_storefront_carousel(recipient_id, storefront_id):
                 if recipient_id == "1328567820538012" or recipient_id == "996171033817503":
                     product_button = build_button(Const.CARD_BTN_POSTBACK, caption="Pre-Order", payload=Const.PB_PAYLOAD_RESERVE_PRODUCT)
                 else:
-                    product_button = build_button(Const.CARD_BTN_URL, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
+                    product_button = build_button(Const.CARD_BTN_URL_EXTENTION, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
 
 
                 product_element = build_card_element(
@@ -1244,7 +1249,7 @@ def send_storefront_carousel(recipient_id, storefront_id):
                     #     image_url = Const.IMAGE_URL_SUPPORT,
                     #     item_url = "http://prebot.me/support",
                     #     buttons = [
-                    #         build_button(Const.CARD_BTN_URL, caption="Get Support", url="http://prebot.me/support")
+                    #         build_button(Const.CARD_BTN_URL_EXTENTION, caption="Get Support", url="http://prebot.me/support")
                     #     ]
                     # )
                 ],
@@ -1305,7 +1310,8 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.prebot_url),
                     build_button(Const.CARD_BTN_INVITE)
-                ]
+                ],
+                quick_replies = main_menu_quick_replies()
             )
 
         else:
@@ -1348,7 +1354,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1380,7 +1386,8 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.prebot_url),
                     build_button(Const.CARD_BTN_INVITE)
-                ]
+                ],
+                quick_replies = main_menu_quick_replies()
             )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_PURCHASE:
@@ -1458,7 +1465,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1726,7 +1733,8 @@ def received_payload_button(recipient_id, payload):
         logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
         send_tracker("signup-fb-pre", recipient_id, "")
 
-        welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+        send_image(recipient_id, Const.IMAGE_URL_GREETING)
+        #welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -1832,13 +1840,13 @@ def received_payload_button(recipient_id, payload):
 
     elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
         send_tracker("button-share", recipient_id, "")
-        send_text(recipient_id, "Share your Shopbot on Instagram, Facebook, Twitter, and Snapchat.")
+        send_text(recipient_id, "Share your Shopbot with your friends on messenger")
         send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_STOREFRONT_SHARE)
 
 
     elif payload == Const.PB_PAYLOAD_SHARE_PRODUCT:
         send_tracker("button-share", recipient_id, "")
-        send_text(recipient_id, "Share your Shopbot on Instagram, Facebook, Twitter, and Snapchat.")
+        send_text(recipient_id, "Share your Shopbot with your friends on messenger")
 
         query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 5)
         if query.count() > 0:
@@ -2509,7 +2517,6 @@ def webook():
     logger.info(data)
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
-    #drop_sqlite()
     #return "OK", 200
 
     if data['object'] == "page":
@@ -2558,7 +2565,7 @@ def webook():
                             send_tracker("sign-up", sender_id, "")
 
                             add_new_user(sender_id, referral)
-                            send_image(sender_id, Const.IMAGE_URL_GREETING)
+                            #send_image(sender_id, Const.IMAGE_URL_GREETING)
                             #send_video(sender_id, "http://{ip_addr}/videos/intro_all.mp4".format(ip_addr=Const.WEB_SERVER_IP), "179590205850150")
 
                 except mysql.Error, e:

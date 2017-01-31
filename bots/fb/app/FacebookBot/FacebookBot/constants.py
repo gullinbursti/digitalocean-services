@@ -24,7 +24,8 @@ class Const(Constants):
     IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/aShmYBR.png"
     IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/0EbJPhk.png"
     IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/arjLQFV.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/MvZR73I.png" #https://i.imgur.com/FLmisom.png
+    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/MvZR73I.png"
+    IMAGE_URL_SHARE_MESSENGER = "https://i.imgur.com/FLmisom.png"
     IMAGE_URL_MARKETPLACE = "https://i.imgur.com/oeDnbGx.png"
     IMAGE_URL_GIVEAWAYS = "https://i.imgur.com/huwkiVo.png"
     IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/Bd8H09A.png"
@@ -52,6 +53,7 @@ class Const(Constants):
 
     CARD_BTN_POSTBACK = 'postback'
     CARD_BTN_URL = 'web_url'
+    CARD_BTN_URL_EXTENTION = 'web_url'
     CARD_BTN_INVITE = 'element_share'
     KWIK_BTN_TEXT = 'text'
     KWIK_BTN_LOCATION = 'location'

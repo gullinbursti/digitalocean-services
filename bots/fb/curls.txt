@@ -22,7 +22,7 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Hi {{user_first_name}}, this is Lemonade. The fastest way to sell on Messenger."
+    "text":"Hi {{user_first_name}}, this is Lemonade. The fastest way to sell on Messenger. Use Lemonade to set up a shopbot and start selling immediately. To begin tap the Get Started button below."
   }
 }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAEaJZCHO4bSF36ZB8Jlue86Sp3g1QujTbTOjBoA4N92IOAxZA7JHgX5tPHT62m0sZCG5TUZATLw5uvsUCjtgHkmzveAWZAyR9V9NUiBPNxG5lXKsl71gyROy8hZBHfZA1yMH0ZBieu6RIIID8Tynbh3EZCVzv4nJZBowAZDZD"
 
