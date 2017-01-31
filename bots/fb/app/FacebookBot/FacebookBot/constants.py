@@ -4,6 +4,8 @@ class Const(Constants):
     VERIFY_TOKEN = "AC7F552BD16A775B653F6EF6CD3902E6"
     ACCESS_TOKEN = "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
+    COIN_FLIP_API = "http://beta.modd.live/api/coin_flip.php"
+
     WEB_SERVER_IP = "192.241.212.32"
 
     MYSQL_HOST = '138.197.216.56'
@@ -14,16 +16,18 @@ class Const(Constants):
     STRIPE_DEV_API_KEY = "sk_test_3QTHaM9IjN2g3AI91Gqqaoxo"
     STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
 
-    ORTHODOX_GREETING = "Hi! Welcome to Pre. The fastest way to sell anything inside of chat."
+    ORTHODOX_GREETING = "Hi, this is Lemonade. The fastest way to sell on Messenger."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/D9lKezN.png"
-    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/Cl7slH1.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/GwrlB0P.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/gJkr07U.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/jDubJJX.png"
-    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/eBJnsHh.png"
+    IMAGE_URL_GREETING = "http://i.imgur.com/FMQP1YU.gif"
+    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/aShmYBR.png"
+    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/0EbJPhk.png"
+    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/arjLQFV.png"
+    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/MvZR73I.png" #https://i.imgur.com/FLmisom.png
+    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/oeDnbGx.png"
+    IMAGE_URL_GIVEAWAYS = "https://i.imgur.com/huwkiVo.png"
+    IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/Bd8H09A.png"
     IMAGE_URL_SUPPORT = "https://i.imgur.com/tQ9mBeG.png"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
@@ -90,11 +94,14 @@ class Const(Constants):
     PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER = 'NOTIFY_STOREFRONT_OWNER'
     PB_PAYLOAD_NOTIFY_SUBSCRIBERS = 'NOTIFY_SUBSCRIBERS'
 
+    PB_PAYLOAD_AFFILIATE_GIVEAWAY = 'GIVEAWAY'
     PB_PAYLOAD_ADD_GIVEAWAYS = 'ADD_GIVEAWAYS'
     PB_PAYLOAD_GIVEAWAYS_YES = 'GIVEAWAYS_YES'
     PB_PAYLOAD_GIVEAWAYS_NO = 'GIVEAWAYS_NO'
 
-    PB_PAYLOAD_AFFILIATE_GIVEAWAY = 'GIVEAWAY'
+    PB_PAYLOAD_FLIP_COIN_NEXT_ITEM = 'FLIP_COIN_NEXT_ITEM'
+    PB_PAYLOAD_FLIP_COIN_DO_FLIP = 'FLIP_COIN_DO_FLIP'
+
     PB_PAYLOAD_STRIPE_PAYMENT = 'STRIPE_PAYMENT'
 
     RESERVED_ADMIN_REPLIES = "admin"#|main|main menu|menu"
