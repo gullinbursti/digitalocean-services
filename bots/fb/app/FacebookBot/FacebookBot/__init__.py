@@ -126,6 +126,7 @@ class Purchase(db.Model):
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
     charge_id = db.Column(db.String(255))
+    claim_state = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
     def __init__(self, customer_id, storefront_id, product_id, charge_id):
@@ -133,10 +134,11 @@ class Purchase(db.Model):
         self.storefront_id = storefront_id
         self.product_id = product_id
         self.charge_id = charge_id
+        self.claim_state = 0
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Purchase id=%d, customer_id=%d, storefront_id=%d, product_id=%d, charge_id=%s, added=%d>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.charge_id, self.added)
+        return "<Purchase id=%d, customer_id=%d, storefront_id=%d, product_id=%d, charge_id=%s, claim_state=%d, added=%d>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.charge_id, self.claim_state, self.added)
 
 
 class Storefront(db.Model):
@@ -181,6 +183,18 @@ class Subscription(db.Model):
 
     def __repr__(self):
         return "<Subscription storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d>" % (self.storefront_id, self.product_id, self.customer_id, self.enabled)
+
+
+class ImageCopier(threading.Thread):
+    def __init__(self, src_url, out_file=None):
+        threading.Thread.__init__(self)
+        self.src_url = src_url
+        self.out_file = out_file
+
+    def run(self):
+        os.chdir(os.path.dirname(self.out_file))
+
+
 
 
 class ImageSizer(threading.Thread):
@@ -663,7 +677,7 @@ def build_button(btn_type, caption="", url="", payload=""):
             'title'                : caption
         }
 
-    elif btn_type == Const.CARD_BTN_URL_EXTENTION:
+    elif btn_type == Const.CARD_BTN_URL_EXTENSION:
         button = {
             'type'                 : Const.CARD_BTN_URL,
             'url'                  : url,
@@ -760,7 +774,7 @@ def build_receipt_card(recipient_id, purchase_id):
         purchase = purchase_query.first()
         customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
         storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
-        product = Product.query.filter(Product.id == purchase.product_id).order_by(Product.added.desc()).scalar()
+        product = Product.query.filter(Product.id == purchase.product_id).order_by(Product.added.desc()).first()
         stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
 
         data = {
@@ -918,7 +932,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
         product_query = Product.query.filter(Product.name == deeplink.split("/")[-1])
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             storefront_query = Storefront.query.filter(Storefront.id == product.storefront_id)
             if storefront_query.count() > 0:
                 storefront = storefront_query.first()
@@ -938,7 +952,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
             if customer.stripe_id is not None and customer.card_id is not None:
                 if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
                     send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-                    #send_storefront_carousel(recipient_id, product.storefront_id)
+                    #send_customer_carousel(recipient_id, product.storefront_id)
 
                 else:
                     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
@@ -946,7 +960,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
             else:
                 send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-            #send_storefront_carousel(recipient_id, product.storefront_id)
+            #send_customer_carousel(recipient_id, product.storefront_id)
             return
 
 
@@ -955,7 +969,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
             storefront = storefront_query.first()
             product_query = Product.query.filter(Product.storefront_id == storefront.id)
             if product_query.count() > 0:
-                product = product_query.order_by(Product.added.desc()).scalar()
+                product = product_query.order_by(Product.added.desc()).first()
 
                 customer.storefront_id = storefront.id
                 customer.product_id = product.id
@@ -971,7 +985,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
             if customer.stripe_id is not None and customer.card_id is not None:
                 if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                    #send_storefront_carousel(recipient_id, product.storefront_id)
+                    #send_customer_carousel(recipient_id, product.storefront_id)
                     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
                 else:
@@ -980,7 +994,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
             else:
                 send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-            #send_storefront_carousel(recipient_id, storefront.id)
+            #send_customer_carousel(recipient_id, storefront.id)
             return
 
 
@@ -990,6 +1004,8 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
 def send_admin_carousel(recipient_id):
     logger.info("send_admin_carousel(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     #-- look for created storefront
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id)
@@ -1039,7 +1055,7 @@ def send_admin_carousel(recipient_id):
             )
 
         else:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
 
             if product.prebot_url is None:
                 product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
@@ -1076,7 +1092,33 @@ def send_admin_carousel(recipient_id):
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
                         ]
                     )
-)
+                )
+
+            purchases = []
+            for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+                for purchase in Purchase.query.filter(Purchase.storefront_id == storefront.id):
+                    purchases.append(purchase)
+
+            if len(purchases) > 0:
+                if len(purchases) == 1:
+                    subtitle = "1 Purchase"
+
+                else:
+                    subtitle = "{total} Purchases".format(total=len(purchases))
+
+                cards.append(
+                    build_card_element(
+                        title = "Purchases",
+                        subtitle = subtitle,
+                        image_url = Const.IMAGE_URL_PURCHASES,
+                        buttons = [
+                            build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
+                        ]
+                    )
+                )
+
+
             cards.append(
                 build_card_element(
                     title = product.display_name,
@@ -1108,7 +1150,7 @@ def send_admin_carousel(recipient_id):
                 image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
+                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
                     #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ]
             )
@@ -1121,7 +1163,7 @@ def send_admin_carousel(recipient_id):
             image_url = Const.IMAGE_URL_MARKETPLACE,
             item_url = None,
             buttons = [
-                build_button(Const.CARD_BTN_URL_EXTENTION, caption="View Shops", url="http://prebot.me/shops")
+                build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Shops", url="http://prebot.me/shops")
             ]
         )
     )
@@ -1162,9 +1204,12 @@ def send_admin_carousel(recipient_id):
     send_message(json.dumps(data))
 
 
-def send_storefront_carousel(recipient_id, storefront_id):
-    logger.info("send_storefront_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
+def send_customer_carousel(recipient_id, storefront_id):
+    logger.info("send_customer_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+
+
+    elements = []
 
     query = Storefront.query.filter(Storefront.id == storefront_id)
     if query.count() > 0:
@@ -1186,73 +1231,82 @@ def send_storefront_carousel(recipient_id, storefront_id):
 
         query = Product.query.filter(Product.storefront_id == storefront.id)
         if query.count() > 0:
-            product = query.order_by(Product.added.desc()).scalar()
+            product = query.order_by(Product.added.desc()).first()
 
             if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                product_element = build_card_element(
-                    title = "You have pre-ordered {product_name}".format(product_name=product.display_name),
-                    subtitle = product.description,
-                    image_url = product.image_url,
-                    item_url = None,
-                    buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload=Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER)
-                    ]
+                elements.append(
+                    build_card_element(
+                        title = "You have pre-ordered {product_name}".format(product_name=product.display_name),
+                        subtitle = product.description,
+                        image_url = product.image_url,
+                        item_url = None,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload=Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_STOREFRONT)
+                        ]
+                    )
                 )
 
             else:
                 if recipient_id == "1328567820538012" or recipient_id == "996171033817503":
                     product_button = build_button(Const.CARD_BTN_POSTBACK, caption="Pre-Order", payload=Const.PB_PAYLOAD_RESERVE_PRODUCT)
                 else:
-                    product_button = build_button(Const.CARD_BTN_URL_EXTENTION, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
+                    product_button = build_button(Const.CARD_BTN_URL_EXTENSION, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
 
-
-                product_element = build_card_element(
-                    title = product.display_name,
-                    subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
-                    image_url = product.image_url,
-                    item_url = None,
-                    buttons = [
-                        product_button
-                    ]
+                elements.append(
+                    build_card_element(
+                        title = product.display_name,
+                        subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
+                        image_url = product.image_url,
+                        item_url = None,
+                        buttons = [
+                            product_button
+                        ]
+                    )
                 )
+
+
+            purchase_query = Purchase.query.filter(Purchase.customer_id == customer.id)
+            if purchase_query.count() > 0:
+                if purchase_query.count() == 1:
+                    subtitle = "1 item"
+
+                else:
+                    subtitle = "{total} items".format(total=purchase_query.count())
+
+                elements.append(
+                    build_card_element(
+                        title = "Purchases",
+                        subtitle = subtitle,
+                        image_url = Const.IMAGE_URL_PURCHASES,
+                        buttons = [
+                            build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
+                        ]
+                    )
+                )
+
 
             title = product.display_name
             # if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
             #     title = "I Pre-ordered {product_name}".format(product_name=product.display_name)
 
+            elements.append(
+                build_card_element(
+                    title = title,
+                    subtitle = "View Shopbot",
+                    image_url = product.image_url,
+                    item_url = product.prebot_url,
+                    buttons = [
+                        build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.prebot_url),
+                        build_button(Const.CARD_BTN_INVITE)
+                    ]
+                )
+            )
+
+
             data = build_carousel(
                 recipient_id = recipient_id,
-                cards = [
-                    product_element,
-                    build_card_element(
-                        title = title,
-                        subtitle = "View Shopbot",
-                        image_url = product.image_url,
-                        item_url = product.prebot_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.prebot_url),
-                            build_button(Const.CARD_BTN_INVITE)
-                        ]
-                    )
-                    # build_card_element(
-                    #     title = "View Video",
-                    #     subtitle = "",
-                    #     image_url = product.image_url,
-                    #     item_url = None,
-                    #     buttons = [
-                    #         build_button(Const.CARD_BTN_POSTBACK, caption="View Video", payload=Const.PB_PAYLOAD_PRODUCT_VIDEO)
-                    #     ]
-                    # ),
-                    # build_card_element(
-                    #     title = "Support",
-                    #     subtitle = "",
-                    #     image_url = Const.IMAGE_URL_SUPPORT,
-                    #     item_url = "http://prebot.me/support",
-                    #     buttons = [
-                    #         build_button(Const.CARD_BTN_URL_EXTENTION, caption="Get Support", url="http://prebot.me/support")
-                    #     ]
-                    # )
-                ],
+                cards = elements,
                 quick_replies = main_menu_quick_replies()
             )
 
@@ -1264,7 +1318,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     query = Storefront.query.filter(Storefront.id == storefront_id)
-    product = Product.query.filter(Product.storefront_id == storefront_id).order_by(Product.added.desc()).scalar()
+    product = Product.query.filter(Product.storefront_id == storefront_id).order_by(Product.added.desc()).first()
 
     if query.count() > 0:
         storefront = query.first()
@@ -1341,7 +1395,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
     data = None
     query = Product.query.filter(Product.id == product_id)
     if query.count() > 0:
-        product = query.order_by(Product.added.desc()).scalar()
+        product = query.order_by(Product.added.desc()).first()
 
         if product.image_url is None:
             product.image_url = Const.IMAGE_URL_ADD_PRODUCT
@@ -1354,7 +1408,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1465,11 +1519,48 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENTION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
         send_message(json.dumps(data))
+
+
+def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASES):
+    logger.info("send_purchases_list_card(recipient_id={recipient_id}, card_type={card_type})".format(recipient_id=recipient_id, card_type=card_type))
+
+    elements = []
+
+    if card_type == Const.CARD_TYPE_PRODUCT_PURCHASES:
+        for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+            for purchase in Purchase.query.filter(Purchase.storefront_id == storefront.id):
+                product = Product.query.filter(Product.id == purchase.product_id).first()
+                customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
+
+                elements.append(
+                    build_card_element(
+                        title = "{product_name} - ${price:.2f}".format(product_name=product.display_name, price=product.price),
+                        subtitle = customer.email,
+                        image_url = product.image_url,
+                        item_url = None,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id))
+                        ]
+                    )
+                )
+
+    elif card_type == Const.CARD_TYPE_CUSTOMER_PURCHASES:
+        pass
+
+    else:
+        pass
+
+    send_message(json.dumps(
+        build_list_card(
+            recipient_id=recipient_id,
+            body_elements=elements
+        )
+    ))
 
 
 
@@ -1489,7 +1580,7 @@ def received_quick_reply(recipient_id, quick_reply):
         if storefront_query.count() > 0:
             storefront = storefront_query.first()
             storefront.creation_state = 4
-            storefront.added = datetime.utcnow()
+            storefront.added = int(time.time())
             db.session.commit()
 
             try:
@@ -1557,7 +1648,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
         product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 3)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(int(match.group('days')) / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
             product.description = "Pre-release ends {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
             product.creation_state = 4
@@ -1573,7 +1664,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
         product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 4)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             product.creation_state = 5
             product.added = int(time.time())
             db.session.commit()
@@ -1620,7 +1711,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
         product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
 
         db.session.add(Product(storefront_query.first().id))
@@ -1634,7 +1725,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
         product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             send_text(recipient_id, "Canceling your {product_name} product creation...".format(product_name=product.display_name))
 
             Product.query.filter(Product.storefront_id == storefront_query.first().id).delete()
@@ -1654,7 +1745,7 @@ def received_quick_reply(recipient_id, quick_reply):
             send_admin_carousel(recipient_id)
 
         else:
-            send_storefront_carousel(recipient_id, customer.storefront_id)
+            send_customer_carousel(recipient_id, customer.storefront_id)
 
     elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_YES:
         send_tracker("button-giveaways-yes", recipient_id, "")
@@ -1679,7 +1770,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
         product_query = Product.query.filter(Product.storefront_id == storefront.id)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             subscriber_query = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.enabled == 1)
             if subscriber_query.count() < 20:
                 send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
@@ -1721,7 +1812,7 @@ def received_quick_reply(recipient_id, quick_reply):
         db.session.commit()
 
         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-        # send_storefront_carousel(recipient_id, customer.storefront_id)
+        # send_customer_carousel(recipient_id, customer.storefront_id)
 
 def received_payload_button(recipient_id, payload):
     logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload})".format(recipient_id=recipient_id, payload=payload))
@@ -1734,7 +1825,8 @@ def received_payload_button(recipient_id, payload):
         send_tracker("signup-fb-pre", recipient_id, "")
 
         send_image(recipient_id, Const.IMAGE_URL_GREETING)
-        #welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+        welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+        return "OK", 200
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -1880,7 +1972,7 @@ def received_payload_button(recipient_id, payload):
 
         if product_query.count() > 0:
             storefront = storefront_query.first()
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
 
             if customer.stripe_id is None or customer.card_id is None:
                 try:
@@ -1918,7 +2010,7 @@ def received_payload_button(recipient_id, payload):
 
         if product_query.count() > 0:
             storefront = storefront_query.first()
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
 
             send_text(recipient_id, "Completing your purchase…")
             if purchase_product(recipient_id):
@@ -1926,7 +2018,7 @@ def received_payload_button(recipient_id, payload):
             else:
                 pass
 
-            send_storefront_carousel(recipient_id, storefront.id)
+            send_customer_carousel(recipient_id, storefront.id)
 
 
     elif payload == Const.PB_PAYLOAD_ADD_GIVEAWAYS:
@@ -1941,12 +2033,16 @@ def received_payload_button(recipient_id, payload):
                 ])
 
 
+    elif payload == Const.PB_PAYLOAD_RATE_STOREFRONT:
+        send_tracker("button-rate-storefront", recipient_id, "")
+
+
     elif payload == Const.PB_PAYLOAD_PRODUCT_VIDEO:
         send_tracker("button-view-video", recipient_id, "")
 
         product_query = Product.query.filter(Product.id == customer.product_id)
         if product_query.count() > 0:
-            product = product_query.order_by(Product.added.desc()).scalar()
+            product = product_query.order_by(Product.added.desc()).first()
             send_video(recipient_id, product.video_url)
 
 
@@ -1957,19 +2053,34 @@ def received_payload_button(recipient_id, payload):
 
             product_query = Product.query.filter(Product.storefront_id == storefront.id)
             if product_query.count() > 0:
-                product = product_query.order_by(Product.added.desc()).scalar()
+                product = product_query.order_by(Product.added.desc()).first()
                 product.broadcast_message = "_{PENDING}_"
                 db.session.commit()
 
                 send_text(recipient_id, "Send a message or video to your Lemonade subscribers.")
 
+    elif payload == Const.PB_PAYLOAD_MESSAGE_CUSTOMERS:
+        send_tracker("button-message-customers", recipient_id, "")
+        send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCT_PURCHASES)
+
+    elif re.search('PURCHASE_MESSAGE\-(\d+)', payload) is not None:
+        send_tracker("button-message-customer", recipient_id, "")
+        match = re.match(r'PURCHASE_MESSAGE\-(?P<purchase_id>\d+)', payload)
+        purchase = Purchase.query.filter(Purchase.id == match.group('purchase_id')).first()
+
+        if purchase is not None:
+            customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
+            purchase.claim_state = 1
+            db.session.commit()
+
+            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email))
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
         send_tracker("button-message-owner", recipient_id, "")
 
         storefront = Storefront.query.filter(Storefront.id == customer.storefront_id).first()
         send_text(recipient_id, "Notifying {storefront_name}…".format(storefront_name=storefront.display_name))
-        send_storefront_carousel(recipient_id, customer.storefront_id)
+        send_customer_carousel(recipient_id, customer.storefront_id)
 
     elif payload == Const.PB_PAYLOAD_FLIP_COIN_NEXT_ITEM:
         send_tracker("button-flip-next-item", recipient_id, "")
@@ -2010,13 +2121,32 @@ def recieved_attachment(recipient_id, attachment_type, payload):
         logger.info("IMAGE: %s" % (payload))
         query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 2)
         if query.count() > 0:
+            timestamp = ("%.03f" % (time.time())).replace(".", "_")
+            image_file = "/var/www/html/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
+
+            copy_thread = threading.Thread(
+                target=copy_remote_asset,
+                name="image_copy",
+                kwargs={
+                    'src_url'    : payload['url'],
+                    'local_file' : image_file
+                }
+            )
+            copy_thread.start()
+            copy_thread.join()
+
             storefront = query.first()
             storefront.creation_state = 3
-            storefront.logo_url = payload['url']
+            storefront.logo_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
             db.session.commit()
 
             send_text(recipient_id, "Here's what your Shopbot will look like:")
             send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
+
+            image_sizer = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
+            image_sizer.start()
+            image_sizer.join()
+
             return "OK", 200
 
 
@@ -2024,13 +2154,31 @@ def recieved_attachment(recipient_id, attachment_type, payload):
         if storefront_query.count() > 0:
             query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state == 0)
             if query.count() > 0:
-                product = query.order_by(Product.added.desc()).scalar()
+                timestamp = ("%.03f" % (time.time())).replace(".", "_")
+                image_file = "/var/www/html/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
+
+                copy_thread = threading.Thread(
+                    target=copy_remote_asset,
+                    name="image_copy",
+                    kwargs={
+                        'src_url'    : payload['url'],
+                        'local_file' : image_file
+                    }
+                )
+                copy_thread.start()
+                copy_thread.join()
+
+                product = query.order_by(Product.added.desc()).first()
                 product.creation_state = 1
-                product.image_url = payload['url']
+                product.image_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
                 product.video_url = ""
                 db.session.commit()
 
                 send_text(recipient_id, "Give your product a title.")
+
+                image_sizer = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
+                image_sizer.start()
+                image_sizer.join()
                 return "OK", 200
 
             else:
@@ -2081,7 +2229,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
                 image_sizer_banner.start()
 
-                product = query.order_by(Product.added.desc()).scalar()
+                product = query.order_by(Product.added.desc()).first()
                 product.creation_state = 1
                 product.image_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
                 product.video_url = "http://prebot.me/videos/{timestamp}.mp4".format(timestamp=timestamp)
@@ -2138,7 +2286,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                     if conn:
                         conn.close()
 
-                send_text(recipient_id, "Your message will be broadcasted as soon as resources allow.")
+                send_text(recipient_id, "Great! Your message will be sent to your customers shortly.")
                 send_admin_carousel(recipient_id)
 
     else:
@@ -2214,13 +2362,13 @@ def received_text_response(recipient_id, message_text):
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
-        send_storefront_carousel(recipient_id, storefront.id)
+        send_customer_carousel(recipient_id, storefront.id)
 
 
     #-- show admin carousel if not deeplinked
     elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES:
         if customer.storefront_id is not None and customer.product_id is not None:
-            # send_storefront_carousel(recipient_id, customer.storefront_id)
+            # send_customer_carousel(recipient_id, customer.storefront_id)
             send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
         else:
@@ -2242,6 +2390,35 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, Const.GOODBYE_MESSAGE)
 
     else:
+        #-- check for message to customer
+        purchase = None
+        for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+            purchase = Purchase.query.filter(Purchase.storefront_id == storefront.id).filter(Purchase.claim_state == 1).first()
+
+            if purchase is not None:
+                customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
+                purchase.claim_state = 2
+                db.session.commit()
+
+                try:
+                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('UPDATE `purchases` SET `claim_state` = 2 WHERE `id` = {purchase_id};'.format(purchase_id=purchase.id))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+
+                send_text(customer.fb_psid, "{storefront_name} says:\n{message}".format(storefront_name=storefront.display_name, message=message_text))
+                send_text(recipient_id, "Message sent to {customer_email}".format(customer_email=customer.email), quick_replies=main_menu_quick_replies())
+                return "OK", 200
+
         #-- check for in-progress payment
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
         if payment is not None:
@@ -2305,7 +2482,7 @@ def received_text_response(recipient_id, message_text):
             #-- look for in-progress product creation
             product_query = Product.query.filter(Product.storefront_id == storefront_query.first().id).filter(Product.creation_state < 5)
             if product_query.count() > 0:
-                product = product_query.order_by(Product.added.desc()).scalar()
+                product = product_query.order_by(Product.added.desc()).first()
 
                 #-- name submitted
                 if product.creation_state == 1:
@@ -2381,7 +2558,7 @@ def received_text_response(recipient_id, message_text):
                         if conn:
                             conn.close()
 
-                    send_text(recipient_id, "Your message will be broadcasted as soon as resources allow.")
+                    send_text(recipient_id, "Great! Your message will be sent to your customers shortly.")
                     send_admin_carousel(recipient_id)
 
                 else:
@@ -2442,6 +2619,16 @@ def received_text_response(recipient_id, message_text):
 def handle_wrong_reply(recipient_id):
     logger.info("handle_wrong_reply(recipient_id={recipient_id})".format(recipient_id=recipient_id))
 
+    #-- customer message
+    purchase = None
+    for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+        purchase = Purchase.query.filter(Purchase.storefront_id == storefront.id).filter(Purchase.claim_state == 1).first()
+
+        if purchase is not None:
+            customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
+            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email))
+            return "OK", 200
+
     #-- payment creation in-progress
     query = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.creation_state < 6)
     if query.count() > 0:
@@ -2467,13 +2654,17 @@ def handle_wrong_reply(recipient_id):
             send_text(recipient_id, "Here's what your Shopbot will look like:")
             send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
 
-
     #-- product creation in progress
     else:
         storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
+
+        if storefront is None:
+            send_admin_carousel(recipient_id)
+            return "OK", 200
+
         query = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 5)
         if query.count() > 0:
-            product = query.order_by(Product.added.desc()).scalar()
+            product = query.order_by(Product.added.desc()).first()
             send_text(recipient_id, "Incorrect response!")
             if product.creation_state == 0:
                 send_text(recipient_id, "Upload a photo of what you are selling.")

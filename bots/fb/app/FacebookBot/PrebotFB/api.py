@@ -534,7 +534,7 @@ def send_admin_carousel(recipient_id):
 
 
 def send_storefront_carousel(recipient_id, storefront_id, product_name=""):
-    logger.info("send_storefront_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
+    logger.info("send_customer_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
 
     query = Storefront.query.filter(Storefront.id == storefront_id)
     if query.count() > 0:
