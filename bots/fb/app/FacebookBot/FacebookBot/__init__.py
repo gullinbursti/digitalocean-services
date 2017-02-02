@@ -677,13 +677,31 @@ def build_button(btn_type, caption="", url="", payload=""):
             'title'                : caption
         }
 
-    elif btn_type == Const.CARD_BTN_URL_EXTENSION:
+    elif btn_type == Const.CARD_BTN_URL_COMPACT:
         button = {
             'type'                 : Const.CARD_BTN_URL,
             'url'                  : url,
             'title'                : caption,
             #'messenger_extensions' : True,
             'webview_height_ratio' : "compact"
+        }
+
+    elif btn_type == Const.CARD_BTN_URL_TALL:
+        button = {
+            'type'                 : Const.CARD_BTN_URL,
+            'url'                  : url,
+            'title'                : caption,
+            #'messenger_extensions' : True,
+            'webview_height_ratio' : "tall"
+        }
+
+    elif btn_type == Const.CARD_BTN_URL_FULL:
+        button = {
+            'type'                 : Const.CARD_BTN_URL,
+            'url'                  : url,
+            'title'                : caption,
+            #'messenger_extensions' : True,
+            'webview_height_ratio' : "full"
         }
 
     elif btn_type == Const.CARD_BTN_INVITE:
@@ -794,11 +812,11 @@ def build_receipt_card(recipient_id, purchase_id):
                         'order_url'      : "http://prebot.me/orders/{order_id}".format(order_id=purchase.id),
                         'timestamp'      : "{timestamp}".format(timestamp=purchase.added),
                         'elements'       : [{
-                            'title' : product.display_name,
-                            'subtitle' : product.description,
-                            'quantity' : 1,
-                            'price' : product.price,
-                            'currency' : "USD",
+                            'title'     : product.display_name,
+                            'subtitle'  : product.description,
+                            'quantity'  : 1,
+                            'price'     : product.price,
+                            'currency'  : "USD",
                             'image_url' : product.image_url
                         }],
                         'summary'        : {
@@ -824,7 +842,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
         },
         'message' : {
             'attachment' : {
-                'type' : "template",
+                'type'    : "template",
                 'payload' : {
                     'template_type'     : "list",
                     'top_element_style' : "large",
@@ -852,10 +870,10 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url, butto
         },
         'message' : {
             'attachment' : {
-                'type' : "template",
+                'type'    : "template",
                 'payload' : {
                     'template_type' : "generic",
-                    'elements' : [
+                    'elements'      : [
                         build_card_element(
                             title = title,
                             subtitle = subtitle,
@@ -887,7 +905,7 @@ def build_carousel(recipient_id, cards, quick_replies=None):
         },
         'message' : {
             'attachment' : {
-                'type' : "template",
+                'type'    : "template",
                 'payload' : {
                     'template_type' : "generic",
                     'elements'      : cards
@@ -1071,12 +1089,12 @@ def send_admin_carousel(recipient_id):
             if subscriber_query.count() == 1:
                 cards.append(
                     build_card_element(
-                        title = "Message Customers",
+                        title = "Message Subscribers",
                         subtitle =  "Notify your 1 subscriber",
                         image_url = Const.IMAGE_URL_NOTIFY_SUBSCRIBERS,
                         item_url = None,
                         buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Subscriber", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
                         ]
                     )
                 )
@@ -1084,12 +1102,12 @@ def send_admin_carousel(recipient_id):
             elif subscriber_query.count() > 1:
                 cards.append(
                     build_card_element(
-                        title = "Message Customers",
+                        title = "Message Subscribers",
                         subtitle =  "Notify your {total} subscribers.".format(total=subscriber_query.count()),
                         image_url = Const.IMAGE_URL_NOTIFY_SUBSCRIBERS,
                         item_url = None,
                         buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Subscribers", payload=Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS)
                         ]
                     )
                 )
@@ -1112,12 +1130,12 @@ def send_admin_carousel(recipient_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL),
+                            build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
                         ]
                     )
                 )
-
 
             cards.append(
                 build_card_element(
@@ -1150,23 +1168,23 @@ def send_admin_carousel(recipient_id):
                 image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
+                    build_button(Const.CARD_BTN_URL_COMPACT, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
                     #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ]
             )
         )
 
-    cards.append(
-        build_card_element(
-            title = "View Shops",
-            subtitle = "",
-            image_url = Const.IMAGE_URL_MARKETPLACE,
-            item_url = None,
-            buttons = [
-                build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Shops", url="http://prebot.me/shops")
-            ]
-        )
-    )
+    # cards.append(
+    #     build_card_element(
+    #         title = "View Shops",
+    #         subtitle = "",
+    #         image_url = Const.IMAGE_URL_MARKETPLACE,
+    #         item_url = None,
+    #         buttons = [
+    #             build_button(Const.CARD_BTN_URL_COMPACT, caption="View Shops", url="http://prebot.me/shops")
+    #         ]
+    #     )
+    # )
 
     if storefront_query.count() > 0:
         storefront = storefront_query.first()
@@ -1251,7 +1269,7 @@ def send_customer_carousel(recipient_id, storefront_id):
                 if recipient_id == "1328567820538012" or recipient_id == "996171033817503":
                     product_button = build_button(Const.CARD_BTN_POSTBACK, caption="Pre-Order", payload=Const.PB_PAYLOAD_RESERVE_PRODUCT)
                 else:
-                    product_button = build_button(Const.CARD_BTN_URL_EXTENSION, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
+                    product_button = build_button(Const.CARD_BTN_URL_COMPACT, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
 
                 elements.append(
                     build_card_element(
@@ -1280,7 +1298,7 @@ def send_customer_carousel(recipient_id, storefront_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            build_button(Const.CARD_BTN_URL_EXTENSION, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
+                            build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
                         ]
                     )
                 )
@@ -1408,7 +1426,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_COMPACT, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1519,7 +1537,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 image_url = product.image_url,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_EXTENSION, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
+                    build_button(Const.CARD_BTN_URL_COMPACT, caption="Tap to Reserve", url="http://prebot.me/reserve/{product_id}/{recipient_id}".format(product_id=product_id, recipient_id=recipient_id))
                 ]
             )
 
@@ -1557,8 +1575,9 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
 
     send_message(json.dumps(
         build_list_card(
-            recipient_id=recipient_id,
-            body_elements=elements
+            recipient_id = recipient_id,
+            body_elements = elements,
+            quick_replies = main_menu_quick_replies()
         )
     ))
 
@@ -1814,19 +1833,19 @@ def received_quick_reply(recipient_id, quick_reply):
         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
         # send_customer_carousel(recipient_id, customer.storefront_id)
 
-def received_payload_button(recipient_id, payload):
-    logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload})".format(recipient_id=recipient_id, payload=payload))
+def received_payload_button(recipient_id, payload, referral=None):
+    logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload}, referral={referral})".format(recipient_id=recipient_id, payload=payload, referral=referral))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
 
     if payload == Const.PB_PAYLOAD_GREETING:
         logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
-        send_tracker("signup-fb-pre", recipient_id, "")
 
-        send_image(recipient_id, Const.IMAGE_URL_GREETING)
-        welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
-        return "OK", 200
+        if referral is None:
+            send_image(recipient_id, Const.IMAGE_URL_GREETING)
+            welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+            return "OK", 200
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -1843,7 +1862,6 @@ def received_payload_button(recipient_id, payload):
         db.session.commit()
 
         send_text(recipient_id, "Give your Shopbot a name.")
-
 
     elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
         send_tracker("button-delete-shop", recipient_id, "")
@@ -2074,6 +2092,12 @@ def received_payload_button(recipient_id, payload):
             db.session.commit()
 
             send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email))
+
+    elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
+        send_tracker("button-paypal-payout", recipient_id, "")
+
+
+
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
         send_tracker("button-message-owner", recipient_id, "")
@@ -2694,6 +2718,7 @@ def handle_wrong_reply(recipient_id):
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
+
 @app.route('/', methods=['POST'])
 def webook():
 
@@ -2726,7 +2751,7 @@ def webook():
                     logger.info("-=- MESSAGE-ECHO -=-")
                     return "OK", 200
 
-                if 'delivery' in messaging_event:  # delivery confirmation
+                if 'delivery' in messaging_event:  # delivery confirmatio
                     logger.info("-=- DELIVERY-CONFIRM -=-")
                     return "OK", 200
 
@@ -2754,10 +2779,12 @@ def webook():
 
                         if row is None:
                             send_tracker("sign-up", sender_id, "")
-
                             add_new_user(sender_id, referral)
-                            #send_image(sender_id, Const.IMAGE_URL_GREETING)
-                            #send_video(sender_id, "http://{ip_addr}/videos/intro_all.mp4".format(ip_addr=Const.WEB_SERVER_IP), "179590205850150")
+
+                        else:
+                            if referral is not None:
+                                cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(referrer=referral, fb_psid=sender_id))
+                                cur.commit()
 
                 except mysql.Error, e:
                     logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -2787,7 +2814,7 @@ def webook():
                 if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                     payload = messaging_event['postback']['payload']
                     logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
-                    received_payload_button(sender_id, payload)
+                    received_payload_button(sender_id, payload, referral)
                     return "OK", 200
 
 
@@ -2891,7 +2918,7 @@ def send_image(recipient_id, url, quick_replies=None):
         },
         'message' : {
             'attachment' : {
-                'type' : "image",
+                'type'    : "image",
                 'payload' : {
                     'url' : url
                 }
@@ -2915,9 +2942,9 @@ def send_video(recipient_id, url, attachment_id=None, quick_replies=None):
         },
         'message' : {
             'attachment' : {
-                'type' : "video",
+                'type'    : "video",
                 'payload' : {
-                    'url' : url,
+                    'url'         : url,
                     'is_reusable' : True
                 }
             }
