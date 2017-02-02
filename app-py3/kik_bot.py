@@ -151,7 +151,7 @@ def default_text_reply(message, delay=0, type_time=500):
       TextMessage(
         to = message.from_user,
         chat_id = message.chat_id,
-        body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik & Facebook Messenger.".format(total=locale.format("%d", int(response.text), grouping=True)),
+        body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
         keyboards = default_keyboard(),
         type_time = type_time,
         delay = delay
@@ -247,7 +247,7 @@ def daily_product_message(message):
               chat_id = message.chat_id,
               pic_url = pic_url,
               #url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              url = "http://m.me/gamebotsc",
+              url = None,
               title = "",
               text = "", 
               attribution = custom_attribution("Tap to Win"),
@@ -601,7 +601,7 @@ def welcome_intro_seq(message, is_mention=False):
             TextMessage(
               to = message.from_user,
               chat_id = message.chat_id,
-              body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik & Facebook Messenger.".format(total=locale.format("%d", int(response.text), grouping=True)),
+              body = "Welcome to Gamebots. WIN pre-sale games & items with {total} players on Kik.".format(total=locale.format("%d", int(response.text), grouping=True)),
               type_time = 500,
               keyboards = default_keyboard()
             )
@@ -706,40 +706,19 @@ def flip_result(message):
               to = message.from_user,
               chat_id = message.chat_id,
               pic_url = item_flips[message.chat_id]['image_url'],
-              url = "http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user),
+              url = item_flips[message.chat_id]['trade_url'],#"http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user),
               title = "",
               text = "", 
               attribution = custom_attribution("CLAIM ITEM NOW")
+            ),
+            TextMessage(
+              to = message.from_user,
+              chat_id = message.chat_id,
+              body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to kik.me/game.bots\n\nTap here to claim: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url=item_flips[message.chat_id]['trade_url']),
+              type_time = 250,
+              keyboards = flip_coin_keyboard()
             )
           ])
-          
-          if total_wins >= 5:
-            kik.send_messages([
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "You must install one of these apps before claiming {item_name}.\n\nhttp://taps.io/BgNYg".format(item_name=item_flips[message.chat_id]['name']),
-                type_time = 250
-              ),
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
-                type_time = 250,
-                keyboards = flip_coin_keyboard()
-              )
-            ])
-          
-          else:
-            kik.send_messages([
-              TextMessage(
-                to = message.from_user,
-                chat_id = message.chat_id,
-                body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url="http://prebot.me/claim/{claim_id}/{from_user}".format(claim_id=item_flips[message.chat_id]['claim_id'], from_user=message.from_user)),
-                type_time = 250,
-                keyboards = flip_coin_keyboard()
-              )
-            ])
         except KikError as err:
           print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
           
@@ -776,7 +755,7 @@ def flip_result(message):
         TextMessage(
           to = message.from_user,
           chat_id = message.chat_id,
-          body = "TRY AGAIN! You lost {item_name} from {game_name}.\n\nIncrease your chances by getting Gamebots on Messenger.\nm.me/gamebotsc".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
+          body = "TRY AGAIN! You lost {item_name} from {game_name}.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name']),
           type_time = 500,
           delay = 500,
           keyboards = [

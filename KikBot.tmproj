@@ -122,14 +122,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>57</integer>
+				<integer>31</integer>
 				<key>line</key>
-				<integer>329</integer>
+				<integer>721</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>308</integer>
+			<integer>693</integer>
 		</dict>
 		<key>app-py3/modd/utils.py</key>
 		<dict>
