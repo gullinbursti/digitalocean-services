@@ -195,8 +195,6 @@ class ImageCopier(threading.Thread):
         os.chdir(os.path.dirname(self.out_file))
 
 
-
-
 class ImageSizer(threading.Thread):
     def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
         if out_file is None:
@@ -924,7 +922,8 @@ def main_menu_quick_replies():
     logger.info("main_menu_quick_replies()")
 
     return [
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="URL", payload=Const.PB_PAYLOAD_SHOP_URL)
     ]
 
 
@@ -1043,7 +1042,7 @@ def send_admin_carousel(recipient_id):
         )
 
     else:
-        storefront = storefront_query.first()
+        storefront = storefront_query.order_by(Storefront.added.desc()).first()
 
         if storefront.display_name is None:
             storefront.display_name = "[NAME NOT SET]"
@@ -1168,14 +1167,14 @@ def send_admin_carousel(recipient_id):
                 image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
                 item_url = None,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL_COMPACT, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_name}".format(storefront_name=storefront.name))
+                    build_button(Const.CARD_BTN_URL_COMPACT, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_id}".format(storefront_id=storefront.id))
                     #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ]
             )
         )
 
     # cards.append(
-    #     build_card_element(
+    #     build_card_element
     #         title = "View Shops",
     #         subtitle = "",
     #         image_url = Const.IMAGE_URL_MARKETPLACE,
@@ -1709,7 +1708,7 @@ def received_quick_reply(recipient_id, quick_reply):
             send_admin_carousel(recipient_id)
             send_text(
                 recipient_id = recipient_id,
-                message_text = "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)),
+                message_text = "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nFor setting up your first shopbot you can select a free CSGO item: taps.io/BlaVg".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'https?:\/\/', '', product.prebot_url)),
                 quick_replies= main_menu_quick_replies()
             )
 
@@ -1765,6 +1764,14 @@ def received_quick_reply(recipient_id, quick_reply):
 
         else:
             send_customer_carousel(recipient_id, customer.storefront_id)
+
+    elif quick_reply == Const.PB_PAYLOAD_SHOP_URL:
+        send_tracker("button-url", recipient_id, "")
+
+        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
+        if storefront_query.count() > 0:
+            storefront = storefront_query.first()
+            send_text(recipient_id, storefront.prebot_url, main_menu_quick_replies())
 
     elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_YES:
         send_tracker("button-giveaways-yes", recipient_id, "")
@@ -2096,7 +2103,7 @@ def received_payload_button(recipient_id, payload, referral=None):
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         send_tracker("button-paypal-payout", recipient_id, "")
 
-
+        
 
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
@@ -2520,7 +2527,7 @@ def received_text_response(recipient_id, message_text):
                             if row is None:
                                 product.creation_state = 2
                                 product.display_name = message_text
-                                product.name = re.sub(r'[\'\"\ \:\/\?\#\&\=\\]', "", message_text)
+                                product.name = re.sub(r'[\,\'\"\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\\]', "", message_text)
                                 product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
                                 db.session.commit()
 
@@ -2606,7 +2613,7 @@ def received_text_response(recipient_id, message_text):
                             if row is None:
                                 storefront.creation_state = 1
                                 storefront.display_name = message_text
-                                storefront.name = re.sub(r'[\'\"\ \:\/\?\#\&\=\\]', "", message_text)
+                                storefront.name = re.sub(r'[\,\'\"\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\\]', "", message_text)
                                 storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
                                 db.session.commit()
                                 send_text(recipient_id, "Explain what you are making or selling.")
@@ -2784,7 +2791,7 @@ def webook():
                         else:
                             if referral is not None:
                                 cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(referrer=referral, fb_psid=sender_id))
-                                cur.commit()
+                                conn.commit()
 
                 except mysql.Error, e:
                     logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
