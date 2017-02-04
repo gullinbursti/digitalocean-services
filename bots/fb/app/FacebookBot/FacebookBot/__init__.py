@@ -431,7 +431,7 @@ def add_new_user(recipient_id, deeplink):
 
             #-- go ahead n' add 'em
             if row is None:
-                cur.execute('INSERT IGNORE INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, "{fb_psid}", "{referrer}", UTC_TIMESTAMP());'.format(fb_psid=recipient_id, referrer=deeplink))
+                cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, "{fb_psid}", "{referrer}", UTC_TIMESTAMP());'.format(fb_psid=recipient_id, referrer=deeplink))
                 conn.commit()
 
                 #-- now update sqlite w/ the new guy
@@ -474,7 +474,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
             conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('INSERT IGNORE INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, "{user_id}", "{storefront_id}", "{product_id}", "{deeplink}", UTC_TIMESTAMP())'.format(user_id=customer.id, storefront_id=storefront.id, product_id=product.id, deeplink=("/%s" % (deeplink))))
+                cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, "{user_id}", "{storefront_id}", "{product_id}", "{deeplink}", UTC_TIMESTAMP())'.format(user_id=customer.id, storefront_id=storefront.id, product_id=product.id, deeplink=("/%s" % (deeplink))))
                 conn.commit()
                 subscription.id = cur.lastrowid
                 db.session.commit()
@@ -613,7 +613,7 @@ def purchase_product(recipient_id):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT IGNORE INTO `purchases` (`id`, `user_id`, `product_id`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, "{user_id}", "{product_id}", "{charge_id}", "{transaction_id}", "{refund_url}", UTC_TIMESTAMP())'.format(user_id=customer.id, product_id=customer.product_id, charge_id=purchase.charge_id, transaction_id=stripe_charge['balance_transaction'], refund_url=stripe_charge['refunds']['url']))
+                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, "{user_id}", "{product_id}", "{charge_id}", "{transaction_id}", "{refund_url}", UTC_TIMESTAMP())'.format(user_id=customer.id, product_id=customer.product_id, charge_id=purchase.charge_id, transaction_id=stripe_charge['balance_transaction'], refund_url=stripe_charge['refunds']['url']))
                     conn.commit()
 
                     purchase.id = cur.lastrowid
@@ -645,7 +645,7 @@ def write_message_log(recipient_id, message_id, message_txt):
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('INSERT IGNORE INTO `chat_logs` (`id`, `fbps_id`, `message_id`, `body`, `added`) VALUES (NULL, "{fbps_id}", "{message_id}", "{body}", UTC_TIMESTAMP())'.format(fbps_id=recipient_id, message_id=message_id, body=message_txt))
+            cur.execute('INSERT INTO `chat_logs` (`id`, `fbps_id`, `message_id`, `body`, `added`) VALUES (NULL, "{fbps_id}", "{message_id}", "{body}", UTC_TIMESTAMP())'.format(fbps_id=recipient_id, message_id=message_id, body=message_txt))
             conn.commit()
 
     except mysql.Error, e:
@@ -966,18 +966,17 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
             send_video(recipient_id, product.video_url)
 
-            if customer.stripe_id is not None and customer.card_id is not None:
-                if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                    send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-                    #send_customer_carousel(recipient_id, product.storefront_id)
+            send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            # if customer.stripe_id is not None and customer.card_id is not None:
+            #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
+            #         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            #
+            #     else:
+            #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            #
+            # else:
+            #     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-                else:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-            else:
-                send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-
-            #send_customer_carousel(recipient_id, product.storefront_id)
             return
 
 
@@ -1000,19 +999,18 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
             send_video(recipient_id, product.video_url)
 
-            if customer.stripe_id is not None and customer.card_id is not None:
-                if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                    #send_customer_carousel(recipient_id, product.storefront_id)
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-
-                else:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-            else:
-                send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-
-            #send_customer_carousel(recipient_id, storefront.id)
-            return
+            send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            # if customer.stripe_id is not None and customer.card_id is not None:
+            #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
+            #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            #
+            #     else:
+            #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            #
+            # else:
+            #     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            #
+            # return
 
 
     send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1129,9 +1127,10 @@ def send_admin_carousel(recipient_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL),
                             build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS),
+                            # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via Bitcoin", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL)
                         ]
                     )
                 )
@@ -1265,11 +1264,6 @@ def send_customer_carousel(recipient_id, storefront_id):
                 )
 
             else:
-                if recipient_id == "1328567820538012" or recipient_id == "996171033817503":
-                    product_button = build_button(Const.CARD_BTN_POSTBACK, caption="Pre-Order", payload=Const.PB_PAYLOAD_RESERVE_PRODUCT)
-                else:
-                    product_button = build_button(Const.CARD_BTN_URL_COMPACT, caption="Pre-Order", url="https://prebot.chat/reserve/{product_id}/{recipient_id}".format(product_id=product.id, recipient_id=recipient_id))
-
                 elements.append(
                     build_card_element(
                         title = product.display_name,
@@ -1277,7 +1271,7 @@ def send_customer_carousel(recipient_id, storefront_id):
                         image_url = product.image_url,
                         item_url = None,
                         buttons = [
-                            product_button
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pre-Order", payload=Const.PB_PAYLOAD_RESERVE_PRODUCT)
                         ]
                     )
                 )
@@ -1319,7 +1313,6 @@ def send_customer_carousel(recipient_id, storefront_id):
                     ]
                 )
             )
-
 
             data = build_carousel(
                 recipient_id = recipient_id,
@@ -1475,7 +1468,25 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                             image_url = product.image_url,
                             item_url = product.prebot_url,
                             buttons = [
-                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
+                                build_button(Const.CARD_BTN_URL_TALL, caption="Buy via PayPal", url="http://prebot.me/checkout/paypal/{product_id}".format(product_id=product.id))
+                            ]
+                        ),
+                        build_card_element(
+                            title = product.display_name,
+                            subtitle = "${price:.2f}".format(price=product.price),
+                            image_url = product.image_url,
+                            item_url = product.prebot_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
+                            ]
+                        ),
+                        build_card_element(
+                            title = product.display_name,
+                            subtitle = "${price:.2f}".format(price=product.price),
+                            image_url = product.image_url,
+                            item_url = product.prebot_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy via Bitcoin", payload=Const.PB_PAYLOAD_PAYMENT_BITCOIN)
                             ]
                         )
                     ],
@@ -1605,7 +1616,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT IGNORE INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, {owner_id}, "{name}", "{display_name}", "{description}", "{logo_url}", "{prebot_url}", UTC_TIMESTAMP())'.format(owner_id=users_query.first().id, name=storefront.name, display_name=storefront.display_name, description=storefront.description, logo_url=storefront.logo_url, prebot_url=storefront.prebot_url))
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, {owner_id}, "{name}", "{display_name}", "{description}", "{logo_url}", "{prebot_url}", UTC_TIMESTAMP())'.format(owner_id=users_query.first().id, name=storefront.name, display_name=storefront.display_name, description=storefront.description, logo_url=storefront.logo_url, prebot_url=storefront.prebot_url))
                     conn.commit()
                     storefront.id = cur.lastrowid
                     db.session.commit()
@@ -1691,7 +1702,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT IGNORE INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, {storefront_id}, "{name}", "{display_name}", "{description}", "{image_url}", "{video_url}", "{attachment_id}", {price}, "{prebot_url}", FROM_UNIXTIME({release_date}), UTC_TIMESTAMP())'.format(storefront_id=product.storefront_id, name=product.name, display_name=product.display_name, description=product.description, image_url=product.image_url, video_url=product.video_url, attachment_id=product.attachment_id, price=product.price, prebot_url=product.prebot_url, release_date=product.release_date))
+                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, {storefront_id}, "{name}", "{display_name}", "{description}", "{image_url}", "{video_url}", "{attachment_id}", {price}, "{prebot_url}", FROM_UNIXTIME({release_date}), UTC_TIMESTAMP())'.format(storefront_id=product.storefront_id, name=product.name, display_name=product.display_name, description=product.description, image_url=product.image_url, video_url=product.video_url, attachment_id=product.attachment_id, price=product.price, prebot_url=product.prebot_url, release_date=product.release_date))
                     conn.commit()
                     product.id = cur.lastrowid
                     db.session.commit()
@@ -1839,6 +1850,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
         # send_customer_carousel(recipient_id, customer.storefront_id)
+
 
 def received_payload_button(recipient_id, payload, referral=None):
     logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload}, referral={referral})".format(recipient_id=recipient_id, payload=payload, referral=referral))
@@ -1988,6 +2000,13 @@ def received_payload_button(recipient_id, payload, referral=None):
             product = product_query.first()
             send_product_card(recipient_id=recipient_id, product_id=product.id, storefront_id=storefront.id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASE)
 
+    elif payload == Const.PB_PAYLOAD_PAYMENT_BITCOIN:
+        send_tracker("button-payment-bitcoin", recipient_id, "")
+
+        customer.fb_name = "_{BITCOIN}_"
+        db.session.commit()
+
+        send_text(recipient_id, "Enter your Bitcoin address")
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
         send_tracker("button-checkout", recipient_id, "")
@@ -2103,8 +2122,20 @@ def received_payload_button(recipient_id, payload, referral=None):
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         send_tracker("button-paypal-payout", recipient_id, "")
 
-        
+        storefront = storefront_query.first()
+        storefront.video_url = "_{PAYPAL}_"
+        db.session.commit()
 
+        send_text(recipient_id, "Enter your PayPal email address")
+
+    elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
+        send_tracker("button-bitcoin-payout", recipient_id, "")
+
+        storefront = storefront_query.first()
+        storefront.video_url = "_{BITCOIN}_"
+        db.session.commit()
+
+        send_text(recipient_id, "Enter your Bitcoin address")
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
         send_tracker("button-message-owner", recipient_id, "")
@@ -2223,8 +2254,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
     elif attachment_type == "video":
         logger.info("VIDEO: %s" % (payload['url']))
 
-        storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4)
-        if storefront_query.count() > 0:
+        if Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4).count() > 0:
             handle_wrong_reply(recipient_id)
 
         storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
@@ -2421,6 +2451,70 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, Const.GOODBYE_MESSAGE)
 
     else:
+        #-- entering payout info
+        if Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.video_url == "_{PAYPAL}_").count() > 0:
+            if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
+                send_text(recipient_id, "Invalid email address, try again")
+
+            else:
+                for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+                    storefront.video_url = None
+
+                try:
+                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('SELECT `id` FROM `payout` = 2 WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
+                        row = cur.fetchone()
+                        if row is None:
+                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal`, `updated`, `added`) VALUES (NULL, {user_id}, "{paypal}", UTC_TIMESTAMP(), UTC_TIMESTAMP())'.format(user_id=customer.id, paypal=message_text))
+                        else:
+                            cur.execute('UPDATE `payout` SET `paypal` = "{paypal}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} LIMIT 1;'.format(paypal=message_text, payout_id=row['id']))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+                send_text(recipient_id, "PayPal email address set", main_menu_quick_replies())
+            return "OK", 200
+
+        elif Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.video_url == "_{BITCOIN}_").count() > 0:
+            if re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', message_text) is None:
+                send_text(recipient_id, "Invalid bitcoin address, try again")
+                return "OK", 200
+
+            else:
+                for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
+                    storefront.video_url = None
+
+                try:
+                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('SELECT `id` FROM `payout` = 2 WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
+                        row = cur.fetchone()
+                        if row is None:
+                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `bitcoin`, `updated`, `added`) VALUES (NULL, {user_id}, "{bitcoin}", UTC_TIMESTAMP(), UTC_TIMESTAMP())'.format(user_id=customer.id, bitcoin=message_text))
+                        else:
+                            cur.execute('UPDATE `payout` SET `bitcoin` = "{bitcoin}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} LIMIT 1;'.format(bitcoin=message_text, payout_id=row['id']))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+                send_text(recipient_id, "Bitcoin payout address set", main_menu_quick_replies())
+            return "OK", 200
+
+
+
         #-- check for message to customer
         purchase = None
         for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
