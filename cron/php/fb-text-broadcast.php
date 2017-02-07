@@ -73,7 +73,7 @@ mysqli_set_charset($db_conn, 'utf8');
 $config_arr = array(
   'FB_GRAPH_API'        => "https://graph.facebook.com/v2.6/me/messages",
   'FB_ACCESS_TOKEN'     => "EAAXFDiMELKsBADVw92wLSx3GMEpeYcMqgCoFsyw4oZCw2LyMO4MIDJljsVvh4ZAsBp5A9476i7knpaJZAiPpmVnFrRKkJ7DCdWamXJeF0HRKYDMNbJYImDoOmD3B0WmIZBEZAl3jaWusenO6jmUBg1NOEHdGp7ZAV09JxsBUBpVQZDZD",
-  'BODY_TEMPLATE'       => "Want a chance to win a Frontside Misty? Get Gamebots on Kik.me/game.bots"
+  'BODY_TEMPLATE'       => "I am selling a yellow jock for 80% off right now in Lemonade. http://m.me/prebotme?ref=/YellowJock"
 );
 
 $handle = @fopen(FB_MESSAGE_TEMPLATE_PATH, 'r');
@@ -86,7 +86,9 @@ if ($handle) {
     
     } else {
       preg_match('/^(?P<key>[A-Z_]+)\t(?P<val>.*)$/', $buffer, $match_arr);
-      $config_arr[$match_arr['key']] = $match_arr['val'];
+      if (array_key_exists('key', $match_arr) && array_key_exists('val', $match_arr)) {
+        $config_arr[$match_arr['key']] = $match_arr['val'];
+      }
     }
   }
 
