@@ -59,7 +59,7 @@ Const.ALWAYS_WIN_PATTERN = '^Xersss'
 
 def default_keyboard(hidden=False):
   buttons = [
-    TextResponse("Today's BIG WIN Item"),
+    # TextResponse("Today's BIG WIN Item"),
     TextResponse("Play Flip Coin"),
     TextResponse("Invite Friends Now")
   ]
@@ -247,7 +247,7 @@ def daily_product_message(message):
               chat_id = message.chat_id,
               pic_url = pic_url,
               #url = "http://prekey.co/stripe/{item_id}/{from_user}".format(item_id=row['id'], from_user=message.from_user),
-              url = None,
+              url = pic_url,
               title = "",
               text = "", 
               attribution = custom_attribution("Tap to Win"),
@@ -1249,7 +1249,7 @@ class KikBot(tornado.web.RequestHandler):
               TextMessage(
                 to = message.from_user,
                 chat_id = message.chat_id,
-                body = "Invite 5 friends now for a FREE CS:GO item, then send a screenshot of the invite to @support.gamebots.1",
+                body = "Invite 5 friends now, then send a screenshot of the invite to @support.gamebots.1",
                 type_time = 150,
                 keyboards = friend_picker_keyboard()
               )
