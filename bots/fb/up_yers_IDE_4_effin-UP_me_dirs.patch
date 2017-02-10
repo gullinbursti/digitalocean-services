@@ -1,0 +1,48 @@
+Index: app/FacebookBot/FacebookBot/__init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- app/FacebookBot/FacebookBot/__init__.py	(revision )
++++ app/FacebookBot/FacebookBot/__init__.py	(revision )
+@@ -2166,7 +2166,7 @@
+         send_tracker("button-menu", recipient_id, "")
+ 
+         if customer.storefront_id is not None or customer.product_id is not None:
+-            send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
++            send_product_card(recipient_id, customer.product_id, customer.storefront_id, )
+ 
+         # if customer.purchase_id is not None or customer.purchase_id != 0:
+         #     purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).filter(Purchase.claim_state == 0).first()
+@@ -3443,8 +3443,8 @@
+                 if 'referral' in messaging_event:
+                     referral = messaging_event['referral']['ref'].encode('ascii', 'ignore')
+ 
++
+                 customer = Customer(fb_psid=sender_id, referrer=referral)
+-                
+ 
+                 #-- check mysql for user
+                 try:
+@@ -3454,8 +3454,9 @@
+                         cur.execute('SELECT `id`, `fb_name`, `email`, `bitcoin_addr`, `stripe_id`, `card_id`, `added` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=customer.fb_psid))
+                         row = cur.fetchone()
+ 
+-                        if row is None or customer is None:
++                        if row is None:
+                             send_tracker("sign-up", sender_id, "")
++                            customer = add_new_user(customer)
+ 
+                         else:
+                             if Customer.query.filter(Customer.id  == row['id']):
+@@ -3469,9 +3470,7 @@
+                                 customer.card_id = row['card_id']
+                                 customer.added = row['added']
+                             customer.id = row['id']
+-
+-
+-                        db.session.commit()
++                            db.session.commit()
+ 
+                             if referral is not None:
+                                 cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" AND `referrer` != "{referrer}"LIMIT 1;'.format(referrer=customer.referrer, fb_psid=customer.fb_psid))

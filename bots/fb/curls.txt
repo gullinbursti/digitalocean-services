@@ -9,13 +9,10 @@ https://www.facebook.com/Pre-Shopping-Network-177712676037903/
 https://www.facebook.com/messages/Pre-Shopping-Network-177712676037903/
 
 Verify Token:
-6ba2254db1c8eed1e52815287f85acb8da96aeaae36db217
+AC7F552BD16A775B653F6EF6CD3902E6
 
 Page Access Token:
-EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD
-
-
-
+EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD
 
 
 Greeting:
@@ -24,7 +21,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
   "greeting":{
     "text":"Hi {{user_first_name}}, this is Lemonade. The fastest way to sell on Messenger. Use Lemonade to set up a shopbot and start selling immediately. To begin tap the Get Started button below."
   }
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
 
 {{user_first_name}}
 {{user_last_name}}
@@ -33,11 +30,11 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 
 Subscribe page:
-curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
 
 
 Test page subscription:
-curl -F "object_id=177712676037903" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 177712676037903}' -F "access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD" "https://graph.facebook.com/v2.6/267184583696625/subscriptions_sample"
+curl -F "object_id=177712676037903" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 177712676037903}' -F "access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD" "https://graph.facebook.com/v2.6/267184583696625/subscriptions_sample"
 
 
 Whitelist Domains:
@@ -45,17 +42,29 @@ curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type" : "domain_whitelisting",
   "whitelisted_domains" : ["https://scard.tv", "https://prebot.chat", "http://prebot.me"],
   "domain_action_type": "add"
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
 
 
 User API:
-curl -X GET "https://graph.facebook.com/v2.6/1251020481631082?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/1251020481631082?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
 
 
 Sender Action:
 curl -X POST -H "Content-Type: application/json" -d '{
   "recipient":{
-  	"id":"177712676037903"
+  	"id":"1328567820538012"
   },
   "sender_action":"typing_on"
-}' "https://graph.facebook.com/v2.6/me/messages?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+}' "https://graph.facebook.com/v2.6/me/messages?access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
+
+
+test api
+curl -X POST -H "Content-Type: application/json" -d '{
+  "recipient":{
+    	"id":"1328567820538012"
+  },
+  "message":{
+      "text":"WTF BUTTHOLE!"
+  }
+}' "https://graph.facebook.com/v2.6/me/messages?access_token=EAADzAMIzYPEBAIEaFSCWLxUuMVphmS0ud02JpcUgZAhnZCUCs92pjaS92CLprVOkc0IkDWawCWa3fZCiqQ4idByGnDSWqxNP9LFfrtZBkpdPPcoGH6ADl7ldzI6SqorhkuEMZAjxBGdwfSe2sbDQIBH7Ew8bpsmeosMapXc2yCQZDZD"
+
