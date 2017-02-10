@@ -43,7 +43,7 @@ Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
 Const.VERIFY_TOKEN = "d41d8cd98f00b204e9800998ecf8427e"
-Const.ACCESS_TOKEN = "EAAXFDiMELKsBAP2Qlqx7pjMKcXIMZBeAsnMo6MsNUw0WoZAemrZBFPrbHBHHLhrSyNPWE0AFDnQZAoHiaNx03aYCwuCfU7ZBrmZCUpeKL7eTl6klU75IVBajQV4GZB58mzuaZAk9zOuun6W2ZBBLnb80va8BNNzQju08b3CcEJtaOiwZDZD"
+Const.ACCESS_TOKEN = "EAAXFDiMELKsBAPlXHAFMeJBuTkDFJAIz9Wk6P146CRSnyaQhbEklxKTnEvIpa3rh5MZBEo6HyBozcv98FUbSaspnEq2heMeZBElMwdELVr8KZCeJiQRCvk7r0tdEvwlZC7GpX4lsLLLqIzGZBlD5dabLHxGzTaLHPk6QxzpER1wZDZD"
 
 Const.FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
 Const.FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
@@ -51,6 +51,7 @@ Const.FLIP_COIN_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
 
 Const.MAX_IGNORES = 4
 
+Const.OPT_OUT_REPLIES = "optout|quit|end|stop|cancel|exit"
 
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
@@ -90,11 +91,11 @@ def send_tracker(category, action, label):
         }
     )
 
-    t1.setDaemon(True)
-    t1.start()
+    #t1.setDaemon(True)
+    #t1.start()
 
-    t2.setDaemon(True)
-    t2.start()
+    #t2.setDaemon(True)
+    #t2.start()
 
     return True
 
@@ -487,6 +488,18 @@ def webook():
 
                 sender_id = messaging_event['sender']['id']
 
+                try:
+                    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+                    cur = conn.cursor()
+                    cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}";'.format(fb_psid=sender_id))
+                    if sender_id in list(cur.fetchall()):
+                        return "OK", 200
+
+                    conn.close()
+
+                except sqlite3.Error as er:
+                    logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
 
                 #-- new entry
                 if get_session_state(sender_id) == 0:
@@ -757,3 +770,7 @@ def async_send_message(payload):
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+# =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+

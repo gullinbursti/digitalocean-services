@@ -36,7 +36,7 @@
 			<key>filename</key>
 			<string>FacebookBot/FacebookBot/curl_tests.txt</string>
 			<key>lastUsed</key>
-			<date>2017-01-05T07:41:22Z</date>
+			<date>2017-02-09T04:00:44Z</date>
 		</dict>
 	</array>
 	<key>fileHierarchyDrawerWidth</key>
@@ -50,27 +50,27 @@
 				<key>column</key>
 				<integer>22</integer>
 				<key>line</key>
-				<integer>92</integer>
+				<integer>44</integer>
 			</dict>
 			<key>columnSelection</key>
 			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>82</integer>
+			<integer>22</integer>
 			<key>selectFrom</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>54</integer>
 				<key>line</key>
-				<integer>91</integer>
+				<integer>44</integer>
 			</dict>
 			<key>selectTo</key>
 			<dict>
 				<key>column</key>
 				<integer>22</integer>
 				<key>line</key>
-				<integer>92</integer>
+				<integer>44</integer>
 			</dict>
 		</dict>
 		<key>FacebookBot/FacebookBot/curl_tests.txt</key>
@@ -78,9 +78,9 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>106</integer>
 				<key>line</key>
-				<integer>8</integer>
+				<integer>2</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
@@ -96,6 +96,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{-1689, 23}, {1070, 774}}</string>
+	<string>{{-1369, 210}, {1070, 774}}</string>
 </dict>
 </plist>
