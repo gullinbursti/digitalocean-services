@@ -10,20 +10,19 @@ import random
 import re
 import sqlite3
 import sys
-import threading
 import time
 
+from StringIO import StringIO
+
 import MySQLdb as mdb
+import pycurl
 import requests
 
-from datetime import datetime
 from flask import Flask, request
-from gevent import monkey
 from urllib2 import quote
 
 import const as Const
 
-monkey.patch_all()
 reload(sys)
 sys.setdefaultencoding('utf8')
 
@@ -43,7 +42,7 @@ Const.DB_USER = 'db4086_modd_usr'
 Const.DB_PASS = 'f4zeHUga.age'
 
 Const.VERIFY_TOKEN = "d41d8cd98f00b204e9800998ecf8427e"
-Const.ACCESS_TOKEN = "EAAXFDiMELKsBAPlXHAFMeJBuTkDFJAIz9Wk6P146CRSnyaQhbEklxKTnEvIpa3rh5MZBEo6HyBozcv98FUbSaspnEq2heMeZBElMwdELVr8KZCeJiQRCvk7r0tdEvwlZC7GpX4lsLLLqIzGZBlD5dabLHxGzTaLHPk6QxzpER1wZDZD"
+Const.ACCESS_TOKEN = "EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
 
 Const.FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
 Const.FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
@@ -59,53 +58,20 @@ Const.OPT_OUT_REPLIES = "optout|quit|end|stop|cancel|exit"
 def send_tracker(category, action, label):
     logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
 
-    t1 = threading.Thread(
-        target=async_tracker,
-        name="bot_tracker-1",
-        kwargs={
-            'url'     : "http://beta.modd.live/api/bot_tracker.php",
-            'payload' : {
-                'src'      : "facebook",
-                'category' : category,
-                'action'   : category,
-                'label'    : action,
-                'value'    : "",
-                'cid'      : hashlib.md5(action.encode()).hexdigest()
-            }
-        }
-    )
 
-    t2 = threading.Thread(
-        target=async_tracker,
-        name="bot_tracker-2",
-        kwargs={
-            'url'     : "http://beta.modd.live/api/bot_tracker.php",
-            'payload' : {
-                'src'      : "facebook",
-                'category' : "user-message",
-                'action'   : "user-message",
-                'label'    : action,
-                'value'    : "",
-                'cid'      : hashlib.md5(action.encode()).hexdigest()
-            }
-        }
-    )
+    c = pycurl.Curl()
+    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={category}&label={label}&value=&cid={cid}".format(category=category, action=category, label=action, cid=hashlib.md5(action.encode()).hexdigest()))
+    c.setopt(c.WRITEDATA, StringIO())
+    c.perform()
+    c.close()
 
-    #t1.setDaemon(True)
-    #t1.start()
-
-    #t2.setDaemon(True)
-    #t2.start()
+    c = pycurl.Curl()
+    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value=&cid={cid}".format(label=action, cid=hashlib.md5(action.encode()).hexdigest()))
+    c.setopt(c.WRITEDATA, StringIO())
+    c.perform()
+    c.close()
 
     return True
-
-
-def async_tracker(url, payload):
-    #logger.info("async_tracker(url={url}, payload={payload}".format(url=url, payload=payload))
-
-    response = requests.get(url, params=payload)
-    if response.status_code != 200:
-        logger.info("TRACKER ERROR:%s" % (response.text))
 
 
 def write_message_log(sender_id, message_id, message_txt):
@@ -468,7 +434,6 @@ def webook():
     logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
     logger.info(data)
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
     if data['object'] == "page":
         for entry in data['entry']:
@@ -756,16 +721,28 @@ def send_video(recipient_id, url, quick_replies=None):
 def send_message(payload):
     logger.info("send_message(payload={payload})".format(payload=payload))
 
-    response = requests.post("https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),data=payload, headers={'Content-Type': "application/json"})
+
+    response = requests.post(
+        url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
+        params={ 'access_token' : Const.ACCESS_TOKEN },
+        json=json.loads(payload)
+    )
+
     logger.info("GRAPH RESPONSE ({code}): {result}".format(code=response.status_code, result=response.text))
 
     return True
-
-def async_send_message(payload):
-    #logger.info("async_send_message(payload={payload})".format(payload=payload))
-
-    response = requests.post("https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),data=payload, headers={'Content-Type': "application/json"})
-    logger.info("GRAPH RESPONSE ({code}): {result}".format(code=response.status_code, result=response.text))
+    # buffer = StringIO()
+    # 
+    # c = pycurl.Curl()
+    # c.setopt(pycurl.URL, "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN), params={ Const.VERIFY_TOKEN })
+    # c.setopt(pycurl.HTTPHEADER, ['Accept: application/json'])
+    # c.setopt(pycurl.POST, 1)
+    # c.setopt(c.WRITEDATA, buffer)
+    # c.setopt(pycurl.POSTFIELDS, payload)
+    # c.perform()
+    # c.close()
+    # logger.info("SEND RESULT --> %s" % (buffer.getvalue()))
+    
 
 
 if __name__ == '__main__':
