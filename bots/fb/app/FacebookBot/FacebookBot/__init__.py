@@ -31,7 +31,7 @@ from constants import Const
 
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///{file_path}/data/sqlite3/lemonade-.db".format(file_path=os.path.dirname(os.path.realpath(__file__)))
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///{file_path}/data/sqlite3/lemonade.db".format(file_path=os.path.dirname(os.path.realpath(__file__)))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 locale.setlocale(locale.LC_ALL, 'en_US.utf8')
@@ -42,12 +42,12 @@ locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 db = SQLAlchemy(app)
 db.text_factory = str
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler("/var/log/FacebookBot.log")
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 stripe.api_key = Const.STRIPE_LIVE_API_KEY
 # stripe.api_key = Const.STRIPE_DEV_API_KEY
@@ -319,11 +319,11 @@ class ImageSizer(threading.Thread):
                 self.canvas_size[1] - padding[1]
             )
 
-            logger.info("[::|::|::|::] CROP ->org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s" % (src_image.size, scale_factor, scale_size, padding, area))
+            # logger.info("[::|::|::|::] CROP ->org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s" % (src_image.size, scale_factor, scale_size, padding, area))
 
             out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
             os.chdir(os.path.dirname(self.out_file))
-            out_image.save("{out_file}".format(out_file=("-{sq}.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))))
+            out_image.save("%s".format(out_file=("-%s.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))))
 
 
 class VideoImageRenderer(threading.Thread):
@@ -360,7 +360,7 @@ class VideoMetaData(threading.Thread):
         stdout, stderr = p.communicate()
 
         list = stderr.split("\n")
-        dur = re.sub(r'\s{2,}', "", [s for s in list if "Duration:" in s][0]).split()[1][:-1]
+        dur = re.sub(r'\s%s,}', "", [s for s in list if "Duration:" in s][0]).split()[1][:-1]
         duration = (float(dur.split(":")[0]) * 3600) + (float(dur.split(":")[1]) * 60) + float(dur.split(":")[2])
         size = [s for s in list if "Stream" in s][0].split(", ")[2].split()[0]
         frmt = [s for s in list if "Stream" in s][0].split(", ")[0].split()[3]
@@ -377,7 +377,7 @@ class VideoMetaData(threading.Thread):
 
 
 def drop_sqlite(flag=15):
-    #logger.info("drop_sql(flag={flag)".format(flag=flag))
+    #logger.info("drop_sql(flag=%s)".format(flag=flag))
 
     if flag & 1:
         try:
@@ -408,9 +408,9 @@ def drop_sqlite(flag=15):
             db.session.rollback()
 
 def add_column(table_name, column_name, data_type):
-    logger.info("add_column(table_name={table_name}, column_name={column_name}, data_type={data_type})".format(table_name=table_name, column_name=column_name, data_type=data_type))
+    # logger.info("add_column(table_name=%s, column_name=%s, data_type=%s)".format(table_name=table_name, column_name=column_name, data_type=data_type))
 
-    connection = sqlite3.connect("{file_path}/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))))
+    connection = sqlite3.connect("%s/data/sqlite3/lemonade.db".format(file_path=os.path.dirname(os.path.realpath(__file__))))
     cursor = connection.cursor()
 
     if data_type == "Integer":
@@ -429,7 +429,7 @@ def add_column(table_name, column_name, data_type):
     return "OK", 200
 
 def next_storefront_id(storefront=None):
-    logger.info("next_storefront_id(storefront={storefront})".format(storefront=storefront))
+    # logger.info("next_storefront_id(storefront=%s)".format(storefront=storefront))
 
     if storefront is not None:
         storefront.id = Storefront.query.filter(Storefront.creation_state < 4).order_by(Storefront.id.desc()).first().id + 1
@@ -437,25 +437,20 @@ def next_storefront_id(storefront=None):
 
 
 def copy_remote_asset(src_url, local_file):
-    logger.info("copy_remote_asset(src_url={src_url}, local_file={local_file})".format(src_url=src_url, local_file=local_file))
+    # logger.info("copy_remote_asset(src_url=%s, local_file=%s)".format(src_url=src_url, local_file=local_file))
 
     with open(local_file, 'wb') as handle:
         response = requests.get(src_url, stream=True)
         if response.status_code == 200:
             for block in response.iter_content(1024):
                 handle.write(block)
-        else:
-            logger.info("DOWNLOAD FAILED!!! %s" % (response.text))
-        del response
-
-
 
 def send_tracker(category, action, label, value=""):
-    logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
+    # logger.info("send_tracker(category=%s, action=%s, label=%s)".format(category=category, action=action, label=label))
 
-    # "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
-    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
-    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
+    # "http://beta.modd.live/api/user_tracking.php?username=%s&chat_id=%s".format(username=label, chat_id=action),
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=%s&action=%s&label=%s&value=%s&cid=%s".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label=%s&value=%s&cid=%s".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
 
     t1 = threading.Thread(
         target=async_tracker,
@@ -508,19 +503,19 @@ def send_tracker(category, action, label, value=""):
     return True
 
 def async_tracker(url, payload):
-    #logger.info("async_tracker(url={url}, payload={payload}".format(url=url, payload=payload))
+    #logger.info("async_tracker(url=%s, payload=%s".format(url=url, payload=payload))
 
     response = requests.get(url, params=payload)
     if response.status_code != 200:
-        logger.info("TRACKER ERROR:%s" % (response.text))
+        pass# logger.info("TRACKER ERROR:%s" % (response.text))
 
 
-def add_new_user(customer):
-    logger.info("add_new_user(customer={customer}".format(customer=customer))
+def add_new_user(fb_psid, refferal):
+    # logger.info("add_new_user(fb_psid=%s, refferal=%s".format(fb_psid=fb_psid, referral=fb_psid))
     if customer.referrer is None:
         customer.referrer = "/"
 
-    logger.info("add_new_user(fb_psid={fb_psid}, deeplink={deeplink})".format(fb_psid=customer.fb_psid, deeplink=customer.referrer))
+    #logger.info("add_new_user(fb_psid=%s, deeplink=%s)".format(fb_psid=customer.fb_psid, deeplink=customer.referrer))
 
     try:
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -533,15 +528,15 @@ def add_new_user(customer):
 
 
             # #-- check db for existing user
-            # cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=customer.fb_psid))
-            # row = cur.fetchone()
-            #
-            # #-- go ahead n' add 'em
+            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=customer.fb_psid))
+            row = cur.fetchone()
+
+            #-- go ahead n' add 'em
             if row is None or Customer.query.filter(Customer.fb_psid == customer.fb_psid).first() is None:
                 db.session.add(customer)
 
                 #-- now update sqlite w/ the new guy
-                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == customer.fb_psid).all()))
+                # logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == customer.fb_psid).all()))
 
                 if users_query.count() == 0:
                     customer.id = cur.lastrowid
@@ -551,8 +546,8 @@ def add_new_user(customer):
                 db.session.commit()
 
 
-    except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+    except mysql.Error as e:
+        pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
     finally:
         if conn:
@@ -561,7 +556,7 @@ def add_new_user(customer):
     return customer
 
 def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
-    logger.info("add_subscription(recipient_id={recipient_id}, storefront_id={storefront_id}, product_id={product_id}, deeplink={deeplink})".format(recipient_id=recipient_id, storefront_id=storefront_id, product_id=product_id, deeplink=deeplink))
+    # logger.info("add_subscription(recipient_id=%s, storefront_id=%s, product_id=%s, deeplink=%s)".format(recipient_id=recipient_id, storefront_id=storefront_id, product_id=product_id, deeplink=deeplink))
 
     has_subscribed = False
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
@@ -582,28 +577,28 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
                 cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, storefront.id, product.id, deeplink))
                 conn.commit()
 
-                logger.info("[:|:] NEW SUBSCRIPTION w/ ID : {mysql_id}".format(mysql_id=cur.lastrowid))
+                # logger.info("[:|:] NEW SUBSCRIPTION w/ ID : %s".format(mysql_id=cur.lastrowid))
 
                 subscription = Subscription(storefront.id, product.id, customer.id)
                 subscription.id = cur.lastrowid
                 db.session.add(subscription)
 
             else:
-                logger.info("[:|:] FOUND PREV ((MYSQL)) SUBSCRIPTION w/ ID : {mysql_id}".format(mysql_id=row['id']))
+                # logger.info("[:|:] FOUND PREV ((MYSQL)) SUBSCRIPTION w/ ID : %s".format(mysql_id=row['id']))
                 subscription = Subscription.query.filter(Subscription.id == row['id']).first()
                 if subscription is None:
-                    logger.info("[:|:] NOT IN SQLITE")
+                    # logger.info("[:|:] NOT IN SQLITE")
 
                     subscription = Subscription(storefront.id, product.id, customer.id)
                     db.session.add(subscription)
 
                 subscription.id = row['id']
             db.session.commit()
-            logger.info("[:|:] SQLITE SUBSCRIPTION UPD --> : {mysql_id}".format(mysql_id=subscription.id))
+            # logger.info("[:|:] SQLITE SUBSCRIPTION UPD --> : %s".format(mysql_id=subscription.id))
 
 
-    except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+    except mysql.Error as e:
+        pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
     finally:
         if conn:
@@ -613,7 +608,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
         'channel' : "#pre",
         'username' : "fbprebot",
         'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-        'text' : "*{sender_id}* just subscribed to _{product_name}_ from a shop named _{storefront_name}_.\n{video_url}".format(sender_id=recipient_id, product_name=product.display_name, storefront_name=storefront.display_name, video_url=product.video_url),
+        'text' : "*%s* just subscribed to _%s_ from a shop named _%s_.\n%s".format(sender_id=recipient_id, product_name=product.display_name, storefront_name=storefront.display_name, video_url=product.video_url),
         'attachments' : [{
             'image_url' : product.image_url
         }]
@@ -623,7 +618,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
 
 
 def add_payment(recipient_id):
-    logger.info("add_payment(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("add_payment(recipient_id=%s)".format(recipient_id=recipient_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
@@ -635,7 +630,7 @@ def add_payment(recipient_id):
         db.session.add(payment)
         db.session.commit()
 
-    logger.info("::::: PAYMENT:\n%s" % (payment))
+    # logger.info("::::: PAYMENT:\n%s" % (payment))
     if payment.creation_state == 0:
         send_text(recipient_id, "Enter your email address", quick_replies=cancel_payment_quick_reply())
 
@@ -654,7 +649,7 @@ def add_payment(recipient_id):
     elif payment.creation_state == 5:
         send_text(
             recipient_id = recipient_id,
-            message_text= "Are these details correct?\n\nEmail: {email}\n\nName: {full_name}\n\nCard #: {acct_number}\n\nExpiration: {expiration:%m/%Y}\n\nCVC / CVV2: {cvc}".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+            message_text= "Are these details correct?\n\nEmail: %s\n\nName: %s\n\nCard #: %s\n\nExpiration: %s:%m/%Y}\n\nCVC / CVV2: %s".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
             quick_replies = [
                 build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
                 build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO)
@@ -663,7 +658,7 @@ def add_payment(recipient_id):
     elif payment.creation_state == 6:
         try:
             stripe_customer = stripe.Customer.create(
-                description = "Customer for {fb_psid}".format(fb_psid=recipient_id),
+                description = "Customer for %s".format(fb_psid=recipient_id),
                 email = customer.email,
                 source = {
                     'object'    : "card",
@@ -674,10 +669,10 @@ def add_payment(recipient_id):
                     'cvc'       : payment.cvc
                 }
             )
-            logger.info("[:::|:::] STRIPE CUSTOMER RESPONSE [:::|:::]\n%s" % (stripe_customer))
+            # logger.info("[:::|:::] STRIPE CUSTOMER RESPONSE [:::|:::]\n%s" % (stripe_customer))
 
-        except stripe.CardError, e:
-            send_text(recipient_id, "Payment details are incorrect.\n{message}".format(message=e.message))
+        except stripe.CardError as e:
+            send_text(recipient_id, "Payment details are incorrect.\n%s".format(message=e.message))
             Payment.query.filter(Payment.id == payment.id).delete()
             db.session.commit()
             return False
@@ -696,8 +691,8 @@ def add_payment(recipient_id):
                     cur.execute('UPDATE `users` SET `email` = "{email}", `stripe_id` = "{stripe_id}", `card_id` = "{card_id}" WHERE `id` = {user_id} LIMIT 1;'.format(email=customer.email, stripe_id=customer.stripe_id, card_id=customer.card_id, user_id=customer.id))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -708,7 +703,7 @@ def add_payment(recipient_id):
 
 
 def purchase_product(recipient_id):
-    logger.info("purchase_product(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("purchase_product(recipient_id=%s)".format(recipient_id=recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
@@ -719,7 +714,7 @@ def purchase_product(recipient_id):
             currency = "usd",
             customer = customer.stripe_id,
             source = customer.card_id,
-            description = "Charge for {fb_psid} - {storefront_name} / {product_name}".format(fb_psid=customer.fb_psid, storefront_name=storefront.display_name, product_name=product.display_name)
+            description = "Charge for %s - %s / %s".format(fb_psid=customer.fb_psid, storefront_name=storefront.display_name, product_name=product.display_name)
         )
 
         #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
@@ -740,8 +735,8 @@ def purchase_product(recipient_id):
                     customer.purchase_id = purchase.id
                     db.session.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -749,9 +744,9 @@ def purchase_product(recipient_id):
 
             send_text(
                 recipient_id = storefront.owner_id,
-                message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
+                message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
                 quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_MAIN_MENU)
                 ]
             )
@@ -759,21 +754,21 @@ def purchase_product(recipient_id):
             return True
 
         else:
-            send_text(recipient_id, "Error making payment:\n{reason}".format(reason=stripe_charge['outcome']['reason']), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Error making payment:\n%s".format(reason=stripe_charge['outcome']['reason']), main_menu_quick_replies(recipient_id))
 
     return False
 
 def convert_prebot_url(prebot_url):
-    logger.info("convert_prebot_url(prebot_url={prebot_url})".format(prebot_url=prebot_url))
+    # logger.info("convert_prebot_url(prebot_url=%s)".format(prebot_url=prebot_url))
     return re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', prebot_url)
 
 
 def latest_created_storefront(recipient_id):
-    logger.info("latest_incomplete_storefront(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("latest_incomplete_storefront(recipient_id=%s)".format(recipient_id=recipient_id))
     return Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).first()
 
 def latest_incomplete_storefront(recipient_id, storefront_id=None, amt=1):
-    logger.info("latest_incomplete_storefront(recipient_id={recipient_id}, storefront_id={storefront_id}, amt={amt})".format(recipient_id=recipient_id, storefront_id=storefront_id, amt=amt))
+    # logger.info("latest_incomplete_storefront(recipient_id=%s, storefront_id=%s, amt=%s)".format(recipient_id=recipient_id, storefront_id=storefront_id, amt=amt))
 
     storefront = None
     if storefront_id is not None:
@@ -789,13 +784,13 @@ def latest_incomplete_storefront(recipient_id, storefront_id=None, amt=1):
 
 
 def latest_created_product(recipient_id, amt=1):
-    logger.info("latest_created_product(recipient_id={recipient_id}, amt={amt})".format(recipient_id=recipient_id, amt=amt))
+    # logger.info("latest_created_product(recipient_id=%s, amt=%s)".format(recipient_id=recipient_id, amt=amt))
 
     storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
     return Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).order_by(Product.added.desc()).first()
 
 def latest_incomplete_product(recipient_id, amt=1):
-    logger.info("latest_incomplete_product(recipient_id={recipient_id}, amt={amt})".format(recipient_id=recipient_id, amt=amt))
+    # logger.info("latest_incomplete_product(recipient_id=%s, amt=%s)".format(recipient_id=recipient_id, amt=amt))
 
     storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4).order_by(Storefront.added.desc()).subquery('storefront_query')
     return Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state < 5).order_by(Product.added.desc()).first()
@@ -803,7 +798,7 @@ def latest_incomplete_product(recipient_id, amt=1):
 
 
 def clear_entry_sequences(recipient_id):
-    logger.info("clear_entry_sequences(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("clear_entry_sequences(recipient_id=%s)".format(recipient_id=recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
@@ -811,17 +806,17 @@ def clear_entry_sequences(recipient_id):
     Payment.query.filter(Payment.fb_psid == recipient_id).delete()
 
     #-- pending paypal payout
-    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.paypal_addr == "_{PENDING}_").first()
+    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.paypal_addr == "_%s_").first()
     if storefront is not None:
         storefront.paypal_addr = None
 
     #-- pending bitcoin payout
-    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.bitcoin_addr == "_{PENDING}_").first()
+    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.bitcoin_addr == "_%s_").first()
     if storefront is not None:
         storefront.bitcoin_addr = None
 
     #-- pending bitcoin payment
-    if customer.bitcoin_addr == "_{PENDING}_":
+    if customer.bitcoin_addr == "_%s_":
         customer.bitcoin_addr = None
 
     #-- pending product
@@ -837,7 +832,7 @@ def clear_entry_sequences(recipient_id):
 
 
 def write_message_log(recipient_id, message_id, message_txt):
-    logger.info("write_message_log(recipient_id={recipient_id}, message_id={message_id}, message_txt={message_txt})".format(recipient_id=recipient_id, message_id=message_id, message_txt=message_txt))
+    # logger.info("write_message_log(recipient_id=%s, message_id=%s, message_txt=%s)".format(recipient_id=recipient_id, message_id=message_id, message_txt=message_txt))
 
     try:
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -846,8 +841,8 @@ def write_message_log(recipient_id, message_id, message_txt):
             cur.execute('INSERT INTO `chat_logs` (`id`, `fbps_id`, `message_id`, `body`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (recipient_id, message_id, json.dumps(message_txt)))
             conn.commit()
 
-    except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+    except mysql.Error as e:
+        pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
     finally:
         if conn:
@@ -856,7 +851,7 @@ def write_message_log(recipient_id, message_id, message_txt):
 
 
 def build_button(btn_type, caption="", url="", payload=""):
-    logger.info("build_button(btn_type={btn_type}, caption={caption}, url={url}, payload={payload})".format(btn_type=btn_type, caption=caption, url=url, payload=payload))
+    # logger.info("build_button(btn_type=%s, caption=%s, url=%s, payload=%s)".format(btn_type=btn_type, caption=caption, url=url, payload=payload))
 
     button = None
     if btn_type == Const.CARD_BTN_POSTBACK:
@@ -916,7 +911,7 @@ def build_button(btn_type, caption="", url="", payload=""):
 
 
 def build_quick_reply(btn_type, caption, payload, image_url=""):
-    logger.info("build_quick_reply(btn_type={btn_type}, caption={caption}, payload={payload})".format(btn_type=btn_type, caption=caption, payload=payload))
+    # logger.info("build_quick_reply(btn_type=%s, caption=%s, payload=%s)".format(btn_type=btn_type, caption=caption, payload=payload))
 
     if btn_type == Const.KWIK_BTN_TEXT:
         button = {
@@ -952,7 +947,7 @@ def build_quick_reply(btn_type, caption, payload, image_url=""):
 
 
 def build_card_element(title, subtitle=None, image_url=None, item_url=None, buttons=None):
-    logger.info("build_card_element(title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons})".format(title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons))
+    # logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)".format(title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons))
 
     element = {
         'title'     : title,
@@ -967,7 +962,7 @@ def build_card_element(title, subtitle=None, image_url=None, item_url=None, butt
     return element
 
 def build_list_elements(body_elements, header_element=None):
-    logger.info("build_list_elements(body_elements={body_elements}, header_element={header_element})".format(body_elements=body_elements, header_element=header_element))
+    # logger.info("build_list_elements(body_elements=%s, header_element=%s)".format(body_elements=body_elements, header_element=header_element))
 
     elements = []
     if header_element is not None:
@@ -980,7 +975,7 @@ def build_list_elements(body_elements, header_element=None):
 
 
 def build_receipt_card(recipient_id, purchase_id):
-    logger.info("build_receipt_card(recipient_id={recipient_id}, purchase_id={purchase_id})".format(recipient_id=recipient_id, purchase_id=purchase_id))
+    # logger.info("build_receipt_card(recipient_id=%s, purchase_id=%s)".format(recipient_id=recipient_id, purchase_id=purchase_id))
 
     data = None
     purchase_query = Purchase.query.filter(Purchase.id == purchase_id)
@@ -1002,11 +997,11 @@ def build_receipt_card(recipient_id, purchase_id):
                         'template_type'  : "receipt",
                         'recipient_name' : customer.fb_psid,
                         'merchant_name'  : storefront.display_name,
-                        'order_number'   : "{order_id}".format(order_id=purchase.id),
+                        'order_number'   : "%s".format(order_id=purchase.id),
                         "currency"       : "USD",
-                        'payment_method' : "{cc_brand} · {cc_suffix}".format(cc_brand=stripe_card['brand'], cc_suffix=stripe_card['last4']),
-                        'order_url'      : "http://prebot.me/orders/{order_id}".format(order_id=purchase.id),
-                        'timestamp'      : "{timestamp}".format(timestamp=purchase.added),
+                        'payment_method' : "%s · %s".format(cc_brand=stripe_card['brand'], cc_suffix=stripe_card['last4']),
+                        'order_url'      : "http://prebot.me/orders/%s".format(order_id=purchase.id),
+                        'timestamp'      : "%s".format(timestamp=purchase.added),
                         'elements'       : [{
                             'title'     : product.display_name,
                             'subtitle'  : product.description,
@@ -1030,7 +1025,7 @@ def build_receipt_card(recipient_id, purchase_id):
 
 
 def build_list_card(recipient_id, body_elements, header_element=None, buttons=None, quick_replies=None):
-    logger.info("build_list_card(recipient_id={recipient_id}, body_elements={body_elements}, header_element={header_element}, buttons={buttons}, quick_replies={quick_replies})".format(recipient_id=recipient_id, body_elements=body_elements, header_element=header_element, buttons=buttons, quick_replies=quick_replies))
+    # logger.info("build_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)".format(recipient_id=recipient_id, body_elements=body_elements, header_element=header_element, buttons=buttons, quick_replies=quick_replies))
 
     data = {
         'recipient' : {
@@ -1058,7 +1053,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
 
 
 def build_content_card(recipient_id, title, subtitle, image_url, item_url=None, buttons=None, quick_replies=None):
-    logger.info("build_content_card(recipient_id={recipient_id}, title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons}, quick_replies={quick_replies})".format(recipient_id=recipient_id, title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons, quick_replies=quick_replies))
+    # logger.info("build_content_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)".format(recipient_id=recipient_id, title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons, quick_replies=quick_replies))
 
     data = {
         'recipient' : {
@@ -1093,7 +1088,7 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url=None, 
 
 
 def build_carousel(recipient_id, cards, quick_replies=None):
-    logger.info("build_carousel(recipient_id={recipient_id}, cards={cards}, quick_replies={quick_replies})".format(recipient_id=recipient_id, cards=cards, quick_replies=quick_replies))
+    # logger.info("build_carousel(recipient_id=%s, cards=%s, quick_replies=%s)".format(recipient_id=recipient_id, cards=cards, quick_replies=quick_replies))
 
     data = {
         'recipient' : {
@@ -1117,7 +1112,7 @@ def build_carousel(recipient_id, cards, quick_replies=None):
 
 
 def main_menu_quick_replies(recipient_id=None):
-    logger.info("main_menu_quick_replies(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("main_menu_quick_replies(recipient_id=%s)".format(recipient_id=recipient_id))
 
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
@@ -1130,7 +1125,7 @@ def main_menu_quick_replies(recipient_id=None):
     return quick_replies
 
 def cancel_payment_quick_reply():
-    logger.info("cancel_entry_quick_reply()")
+    # logger.info("cancel_entry_quick_reply()")
 
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel Purchase", payload=Const.PB_PAYLOAD_PAYMENT_CANCEL)
@@ -1138,7 +1133,7 @@ def cancel_payment_quick_reply():
 
 
 def dm_quick_replies(recipient_id, purchase):
-    logger.info("dm_quick_replies(recipient_id={recipient_id}, purchase={purchase})".format(recipient_id=recipient_id, purchase=purchase))
+    # logger.info("dm_quick_replies(recipient_id=%s, purchase=%s)".format(recipient_id=recipient_id, purchase=purchase))
 
     if recipient_id == purchase.customer_id:
         payload = Const.PB_PAYLOAD_DM_STOREFRONT_OWNER
@@ -1157,7 +1152,7 @@ def dm_quick_replies(recipient_id, purchase):
 
 
 def cancel_entry_quick_reply():
-    logger.info("cancel_entry_quick_reply()")
+    # logger.info("cancel_entry_quick_reply()")
 
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
@@ -1165,7 +1160,7 @@ def cancel_entry_quick_reply():
 
 
 def welcome_message(recipient_id, entry_type, deeplink=""):
-    logger.info("welcome_message(recipient_id={recipient_id}, entry_type={entry_type}, deeplink={deeplink})".format(recipient_id=recipient_id, entry_type=entry_type, deeplink=deeplink))
+    # logger.info("welcome_message(recipient_id=%s, entry_type=%s, deeplink=%s)".format(recipient_id=recipient_id, entry_type=entry_type, deeplink=deeplink))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     if entry_type == Const.MARKETPLACE_GREETING:
@@ -1200,11 +1195,11 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;)'.format(product_id=product.id))
+                    cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;'.format(product_id=product.id))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -1219,11 +1214,11 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = {storefront_id} LIMIT 1;)'.format(storefront_id=storefront.id))
+                        cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;' % (storefront.id))
                         conn.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError (%s): %s".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -1234,10 +1229,10 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
         if product is not None and storefront is not None:
             if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-                send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+                send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You have been subscribed to %s updates.".format(storefront_name=storefront.display_name))
 
             else:
-                send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+                send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You are already subscribed to %s updates.".format(storefront_name=storefront.display_name))
 
 
 
@@ -1283,10 +1278,10 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
     #                     send_image(recipient_id, product.image_url)
     #
     #             if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+    #                 send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You have been subscribed to %s updates.".format(storefront_name=storefront.display_name))
     #
     #             else:
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+    #                 send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You are already subscribed to %s updates.".format(storefront_name=storefront.display_name))
     #
     #         if product is None:
     #             send_image(recipient_id, storefront.logo_url)
@@ -1326,10 +1321,10 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
     #             db.session.commit()
     #
     #             if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+    #                 send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You have been subscribed to %s updates.".format(storefront_name=storefront.display_name))
     #
     #             else:
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
+    #                 send_text(recipient_id, "Welcome to %s's Shop Bot on Lemonade. You are already subscribed to %s updates.".format(storefront_name=storefront.display_name))
     #
     #         if product is None:
     #             send_image(recipient_id, storefront.logo_url)
@@ -1361,7 +1356,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
 
 def send_admin_carousel(recipient_id):
-    logger.info("send_admin_carousel(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("send_admin_carousel(recipient_id=%s)".format(recipient_id=recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = None
@@ -1397,7 +1392,7 @@ def send_admin_carousel(recipient_id):
             storefront.logo_url = Const.IMAGE_URL_ADD_PRODUCT
 
         if storefront.prebot_url is None:
-            storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
+            storefront.prebot_url = "http://prebot.me/%s".format(storefront_name=storefront.name)
 
 
         product_query = Product.query.filter(Product.storefront_id == storefront.id)
@@ -1418,7 +1413,7 @@ def send_admin_carousel(recipient_id):
             product = product_query.order_by(Product.added.desc()).first()
 
             if product.prebot_url is None:
-                product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
+                product.prebot_url = "http://prebot.me/%s".format(product_name=product.name)
 
             if product.display_name is None:
                 product.display_name = "[NAME NOT SET]"
@@ -1445,7 +1440,7 @@ def send_admin_carousel(recipient_id):
                 cards.append(
                     build_card_element(
                         title = "Message Subscribers",
-                        subtitle =  "Notify your {total} subscribers.".format(total=subscriber_query.count()),
+                        subtitle =  "Notify your %s subscribers.".format(total=subscriber_query.count()),
                         image_url = Const.IMAGE_URL_NOTIFY_SUBSCRIBERS,
                         item_url = None,
                         buttons = [
@@ -1464,7 +1459,7 @@ def send_admin_carousel(recipient_id):
                     subtitle = "1 Purchase"
 
                 else:
-                    subtitle = "{total} Purchases".format(total=len(purchases))
+                    subtitle = "%s Purchases".format(total=len(purchases))
 
                 cards.append(
                     build_card_element(
@@ -1472,7 +1467,7 @@ def send_admin_carousel(recipient_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
+                            build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/%s".format(user_id=customer.id)),
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS),
                             # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via Bitcoin", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
                             build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL)
@@ -1568,7 +1563,7 @@ def send_admin_carousel(recipient_id):
 
 
 def send_customer_carousel(recipient_id, storefront_id):
-    logger.info("send_customer_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
+    # logger.info("send_customer_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = None
     product = None
@@ -1586,8 +1581,9 @@ def send_customer_carousel(recipient_id, storefront_id):
                 cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
                 conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        except mysql.Error as e:
+            pass
+            pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
         finally:
             if conn:
@@ -1604,8 +1600,8 @@ def send_customer_carousel(recipient_id, storefront_id):
                     cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;'.format(product_id=product.id))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -1686,7 +1682,7 @@ def send_customer_carousel(recipient_id, storefront_id):
 
 
 def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_STOREFRONT):
-    logger.info("send_storefront_card(recipient_id={recipient_id}, storefront_id={storefront_id}, card_type={card_type})".format(recipient_id=recipient_id, storefront_id=storefront_id, card_type=card_type))
+    # logger.info("send_storefront_card(recipient_id={recipient_id}, storefront_id={storefront_id}, card_type={card_type})".format(recipient_id=recipient_id, storefront_id=storefront_id, card_type=card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     storefront = Storefront.query.filter(Storefront.id == storefront_id).first()
@@ -1741,7 +1737,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
 
 
 def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Const.CARD_TYPE_PRODUCT):
-    logger.info("send_product_card(recipient_id={recipient_id}, product_id={product_id}, card_type={card_type})".format(recipient_id=recipient_id, product_id=product_id, card_type=card_type))
+    # logger.info("send_product_card(recipient_id={recipient_id}, product_id={product_id}, card_type={card_type})".format(recipient_id=recipient_id, product_id=product_id, card_type=card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.id == storefront_id)
     product = Product.query.filter(Product.id == product_id).order_by(Product.added.desc()).first()
@@ -1848,8 +1844,6 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 storefront = storefront_query.first()
 
                 customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-
-                if c
                 stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
 
                 data = build_list_card(
@@ -1936,7 +1930,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
 
 
 def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASES):
-    logger.info("send_purchases_list_card(recipient_id={recipient_id}, card_type={card_type})".format(recipient_id=recipient_id, card_type=card_type))
+    # logger.info("send_purchases_list_card(recipient_id={recipient_id}, card_type={card_type})".format(recipient_id=recipient_id, card_type=card_type))
 
     product = None
     storefront = None
@@ -1981,7 +1975,7 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
 
 
 def received_quick_reply(recipient_id, quick_reply):
-    logger.info("received_quick_reply(recipient_id={recipient_id}, quick_reply={quick_reply})".format(recipient_id=recipient_id, quick_reply=quick_reply))
+    # logger.info("received_quick_reply(recipient_id={recipient_id}, quick_reply={quick_reply})".format(recipient_id=recipient_id, quick_reply=quick_reply))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
@@ -2015,15 +2009,15 @@ def received_quick_reply(recipient_id, quick_reply):
                     cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (users_query.first().id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
 
-                    logger.info("::::::] UPDATING STOEFRONT ({sqlite_id}) W/ MYSQL ID --> {mysql_id}".format(sqlite_id=storefront.id, mysql_id=cur.lastrowid))
+                    # logger.info("::::::] UPDATING STOEFRONT ({sqlite_id}) W/ MYSQL ID --> {mysql_id}".format(sqlite_id=storefront.id, mysql_id=cur.lastrowid))
 
                     storefront.id = cur.lastrowid
                     db.session.commit()
 
-                    logger.info("::::::] WRITE RESULTS ::::: ({storefront_id})".format(storefront_id=storefront.id))
+                    # logger.info("::::::] WRITE RESULTS ::::: ({storefront_id})".format(storefront_id=storefront.id))
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -2115,8 +2109,8 @@ def received_quick_reply(recipient_id, quick_reply):
                     product.creation_state = 5
                     db.session.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -2247,8 +2241,8 @@ def received_quick_reply(recipient_id, quick_reply):
                 cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
                 conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        except mysql.Error as e:
+            pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
         finally:
             if conn:
@@ -2317,8 +2311,8 @@ def received_quick_reply(recipient_id, quick_reply):
                     cur.execute('INSERT INTO `product_ratings` (`id`, `product_id`, `user_id`, `stars`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (product.id, customer.id, rating.stars))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -2335,13 +2329,13 @@ def received_quick_reply(recipient_id, quick_reply):
 
 
 def received_payload_button(recipient_id, payload, referral=None):
-    logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload}, referral={referral})".format(recipient_id=recipient_id, payload=payload, referral=referral))
+    # logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload}, referral={referral})".format(recipient_id=recipient_id, payload=payload, referral=referral))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
 
     if payload == Const.PB_PAYLOAD_GREETING:
-        logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+        # logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
 
         if referral is None:
             send_image(recipient_id, Const.IMAGE_URL_GREETING)
@@ -2383,8 +2377,8 @@ def received_payload_button(recipient_id, payload, referral=None):
                     cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
             finally:
                 if conn:
@@ -2405,7 +2399,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('SELECT `id` FROM `storefronts` WHERE `name` = "{storefront_name}" LIMIT 1;'.format(storefront_name=storefront_query.first().name))
                 row = cur.fetchone()
-                logger.info("ADD PRODUCT TO STORE: %s" % (row))
+                # logger.info("ADD PRODUCT TO STORE: %s" % (row))
                 if row is not None:
                     product = Product(row['id'])
                     db.session.add(product)
@@ -2416,8 +2410,8 @@ def received_payload_button(recipient_id, payload, referral=None):
                 db.session.commit()
                 #next_product_id(product)
 
-        except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        except mysql.Error as e:
+            pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
         finally:
             if conn:
@@ -2444,8 +2438,8 @@ def received_payload_button(recipient_id, payload, referral=None):
                 cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
                 conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        except mysql.Error as e:
+            pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
         finally:
             if conn:
@@ -2513,8 +2507,8 @@ def received_payload_button(recipient_id, payload, referral=None):
                             customer.card_id = row['card_id']
                             db.session.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -2665,13 +2659,13 @@ def received_payload_button(recipient_id, payload, referral=None):
 
 
 def recieved_attachment(recipient_id, attachment_type, payload):
-    logger.info("recieved_attachment(recipient_id={recipient_id}, attachment_type={attachment_type}, payload={payload})".format(recipient_id=recipient_id, attachment_type=attachment_type, payload=payload))
+    # logger.info("recieved_attachment(recipient_id={recipient_id}, attachment_type={attachment_type}, payload={payload})".format(recipient_id=recipient_id, attachment_type=attachment_type, payload=payload))
 
     #return "OK", 200
 
     #------- IMAGE MESSAGE
     if attachment_type == "image":
-        logger.info("IMAGE: %s" % (payload))
+        # logger.info("IMAGE: %s" % (payload))
         query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 2)
         if query.count() > 0:
             timestamp = ("%.03f" % (time.time())).replace(".", "_")
@@ -2761,7 +2755,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
 
     #------- VIDEO MESSAGE
     elif attachment_type == "video":
-        logger.info("VIDEO: %s" % (payload['url']))
+        # logger.info("VIDEO: %s" % (payload['url']))
 
         if Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state < 4).count() > 0:
             handle_wrong_reply(recipient_id)
@@ -2855,8 +2849,8 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                         cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id} AND `product_id` = {product_id} AND `broadcast` = 0 AND `enabled` = 1;'.format(storefront_id=storefront_query.first().id, product_id=product.id))
                         conn.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -2872,7 +2866,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
 
 
 def received_text_response(recipient_id, message_text):
-    logger.info("received_text_response(recipient_id={recipient_id}, message_text={message_text})".format(recipient_id=recipient_id, message_text=message_text))
+    # logger.info("received_text_response(recipient_id={recipient_id}, message_text={message_text})".format(recipient_id=recipient_id, message_text=message_text))
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
@@ -2900,8 +2894,8 @@ def received_text_response(recipient_id, message_text):
                 cur.execute('UPDATE `users` SET `email` = "", `stripe_id` = "", `card_id` = "" WHERE `id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
                 conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        except mysql.Error as e:
+            pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
         finally:
             if conn:
@@ -3007,8 +3001,8 @@ def received_text_response(recipient_id, message_text):
                             cur.execute('UPDATE `payout` SET `paypal` = "{paypal}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} LIMIT 1;'.format(paypal=message_text, payout_id=row['id']))
                         conn.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -3038,8 +3032,8 @@ def received_text_response(recipient_id, message_text):
                             cur.execute('UPDATE `payout` SET `bitcoin` = "{bitcoin}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} AND `bitcoin` != "{bitcoin}" LIMIT 1;'.format(bitcoin=message_text, payout_id=row['id']))
                         conn.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -3062,8 +3056,8 @@ def received_text_response(recipient_id, message_text):
                         cur.execute('UPDATE `users` SET `bitcoin_addr` = "{bitcoin_addr}" WHERE `id` = {user_id} AND `bitcoin_addr` != "{bitcoin_addr}" LIMIT 1;'.format(bitcoin_addr=message_text, user_id=customer.id))
                         conn.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -3103,7 +3097,7 @@ def received_text_response(recipient_id, message_text):
         #             cur.execute('INSERT INTO `purchase_dms` (`id`, `purchase_id`, `sender_id`, `message_text`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (purchase.id, customer.id, message_text))
         #             conn.commit()
         #
-        #     except mysql.Error, e:
+        #     except mysql.Error as e:
         #         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
         #
         #     finally:
@@ -3198,8 +3192,8 @@ def received_text_response(recipient_id, message_text):
                             else:
                                 send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
 
-                    except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    except mysql.Error as e:
+                        pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                     finally:
                         if conn:
@@ -3244,8 +3238,8 @@ def received_text_response(recipient_id, message_text):
                             cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id} AND `broadcast` = 0;'.format(storefront_id=storefront_query.first().id))
                             conn.commit()
 
-                    except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    except mysql.Error as e:
+                        pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                     finally:
                         if conn:
@@ -3283,8 +3277,8 @@ def received_text_response(recipient_id, message_text):
                             else:
                                 send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
 
-                    except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    except mysql.Error as e:
+                        pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                     finally:
                         if conn:
@@ -3310,7 +3304,7 @@ def received_text_response(recipient_id, message_text):
 
 
 def handle_wrong_reply(recipient_id):
-    logger.info("handle_wrong_reply(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    # logger.info("handle_wrong_reply(recipient_id={recipient_id})".format(recipient_id=recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
@@ -3407,11 +3401,11 @@ def webook():
 
     data = request.get_json()
 
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info(data)
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info(data)
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
     #-- --#-- --#-- --#-- --#-- --#-- --#-- --#-- --#-- --#-- --#-- --#
     #// return "OK", 200
@@ -3430,20 +3424,20 @@ def webook():
                 referral = None
 
                 if sender_id == "132856782053801211":
-                    logger.info("-=- MESSAGE-ECHO -=-")
+                    # logger.info("-=- MESSAGE-ECHO -=-")
                     return "OK", 200
 
                 if 'delivery' in messaging_event:  # delivery confirmatio
-                    logger.info("-=- DELIVERY-CONFIRM -=-")
+                    # logger.info("-=- DELIVERY-CONFIRM -=-")
                     return "OK", 200
 
                 if 'read' in messaging_event:  # read confirmation
-                    logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
+                    # logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
                     send_tracker("read-receipt", sender_id, "")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
-                    logger.info("-=- OPT-IN -=-")
+                    # logger.info("-=- OPT-IN -=-")
                     return "OK", 200
 
 
@@ -3451,42 +3445,25 @@ def webook():
                 if 'referral' in messaging_event:
                     referral = messaging_event['referral']['ref'].encode('ascii', 'ignore')
 
-                intro_customer = Customer(fb_psid=sender_id, referrer=referral)
-
-
-                #-- check mysql for user
+                    #-- check mysql for user
                 try:
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=intro_customer.fb_psid))
+                        cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=sender_id))
                         row = cur.fetchone()
 
-
-                        logger.info(">>>>>>>|||||||||\\\\\\\\    row={row}".format(row=row))
-
-                        return "OK", 200
-
-
-                        if row is not None:
-                            # cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" AND `referrer` != "{referrer}"LIMIT 1;'.format(referrer=customer.referrer, fb_psid=intro_customer.fb_psid))
-                            customer.id = row['id']
-                            customer = Customer(fb_psid=intro_customer.fb_psid, referrer=intro_customer.referral)
-                            customer.fb_name = row['fb_name']
-                            customer.email = row['email']
-                            customer.bitcoin_addr = row['bitcoin_addr']
-                            customer.stripe_id = row['stripe_id']
-                            customer.card_id = row['card_id']
-                            customer.added = row['added']
-
+                        if row is None:
+                            send_tracker("sign-up", sender_id, "")
+                            add_new_user(sender_id, referral)
 
                         else:
-                            customer = add_new_user(intro_customer)
-                        db.session.commit()
+                            if referral is not None:
+                                cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(referrer=referral, fb_psid=sender_id))
+                                conn.commit()
 
-
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                except mysql.Error as e:
+                    pass# logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
                 finally:
                     if conn:
@@ -3500,21 +3477,20 @@ def webook():
                     return "OK", 200
 
 
-                #-- user
-                logger.info("CUSTOMER -->%s" % (customer))
+
 
                 #-- look for created storefront
                 storefront_query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 4)
-                logger.info("STOREFRONTS -->%s" % (Storefront.query.filter(Storefront.owner_id == sender_id).all()))
+                # logger.info("STOREFRONTS -->%s" % (Storefront.query.filter(Storefront.owner_id == sender_id).all()))
 
                 if storefront_query.count() > 0:
-                    logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront_query.first().id).all()))
-                    logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront_query.first().id).all()))
+                    pass# logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront_query.first().id).all()))
+                    pass# logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront_query.first().id).all()))
 
 
                 #-- actual message
                 if 'message' in messaging_event:
-                    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->{message}".format(message=messaging_event['sender']))
+                    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->{message}".format(message=messaging_event['sender']))
 
                     message = messaging_event['message']
                     message_id = message['mid']
@@ -3530,7 +3506,7 @@ def webook():
 
                     if 'quick_reply' in message:
                         quick_reply = message['quick_reply']['payload']
-                        logger.info("QR --> {quick_replies}".format(quick_replies=quick_reply))
+                        # logger.info("QR --> {quick_replies}".format(quick_replies=quick_reply))
                         received_quick_reply(sender_id, quick_reply)
                         return "OK", 200
 
@@ -3542,7 +3518,7 @@ def webook():
                 #-- postback response w/ payload
                 if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                     payload = messaging_event['postback']['payload']
-                    logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
+                    # logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
                     received_payload_button(sender_id, payload, referral)
                     if 'id' in messaging_event:
                         write_message_log(sender_id, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
@@ -3561,26 +3537,26 @@ def webook():
 # @app.route('/paypal-ipn/', methods=['POST'])
 @app.route('/paypal-ipn/', methods=['POST'])
 def paypal_ipn():
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\»  '/paypal-ipn'")
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("=-=-=-=-=-= POST --\»  '/paypal-ipn'")
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     data = request.get_json()
-    logger.info("request={request}".format(request=request))
-    logger.info("data={data}".format(data=data))
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("request={request}".format(request=request))
+    # logger.info("data={data}".format(data=data))
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     return "OK", 200
 
 @app.route('/', methods=['GET'])
 def verify():
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= GET --   ({hub_mode})->{request}".format(hub_mode=request.args.get('hub.mode'), request=request.args))
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("=-=-=-=-=-= GET --   ({hub_mode})->{request}".format(hub_mode=request.args.get('hub.mode'), request=request.args))
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
         if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
-            logger.info("TOKEN MISMATCH! [%s] != [%s]" % (request.args.get('hub.verify_token'), Const.VERIFY_TOKEN))
+            # logger.info("TOKEN MISMATCH! [%s] != [%s]" % (request.args.get('hub.verify_token'), Const.VERIFY_TOKEN))
             return "Verification token mismatch", 403
         return request.args['hub.challenge'], 200
 
@@ -3685,14 +3661,14 @@ def send_video(recipient_id, url, attachment_id=None, quick_replies=None):
 
 
 def send_message(payload):
-    logger.info("send_message(payload={payload})".format(payload=payload))
+    # logger.info("send_message(payload={payload})".format(payload=payload))
 
     response = requests.post(
         url = "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
         headers = { 'Content-Type' : "application/json" },
         data = payload
     )
-    logger.info("SEND MESSAGE response: {response}".format(response=response.json()))
+    # logger.info("SEND MESSAGE response: {response}".format(response=response.json()))
 
     return True
 
@@ -3705,5 +3681,5 @@ if __name__ == '__main__':
     from gevent import monkey
     monkey.patch_all()
 
-    logger.info("Firin up FbBot using verify token [{verify_token}].".format(verify_token=Const.VERIFY_TOKEN))
+    # logger.info("Firin up FbBot using verify token [{verify_token}].".format(verify_token=Const.VERIFY_TOKEN))
     app.run(debug=True)
