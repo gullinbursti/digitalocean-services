@@ -15,9 +15,6 @@ $db_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS) or die("Could not connect t
 mysqli_select_db($db_conn, DB_NAME) or die("Could not select database\n");
 mysqli_set_charset($db_conn, 'utf8');
 
-$inv_arr = array();
-$quantity_bit = 0x00;
-
 
 function desc_sort($a, $b) {
   if ($a == $b) {
@@ -28,6 +25,9 @@ function desc_sort($a, $b) {
 }
 
 
+$inv_arr = array();
+$quantity_bit = 0x00;
+
 // fetch total available steam inventory
 $query = 'SELECT SUM(`quantity`) AS `tot` FROM `flip_inventory` WHERE `type` = 1 AND `enabled` = 1;';
 $result = mysqli_query($db_conn, $query);
@@ -36,6 +36,8 @@ $tot = mysqli_fetch_object($result)->tot;
 $quantity_bit |= ($tot <= MINIUM_QUANTITY) ? 0x01 : 0x00;
 $quantity_bit |= ($tot == 0) ? 0x10 : 0x00;
 $payload_obj = array();
+
+echo ("Steam inventory left: ". $tot ."\n");
 
 // tot drops below threshhold
 if (($quantity_bit & 0x01) == 0x01) {
