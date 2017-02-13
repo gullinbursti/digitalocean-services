@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
+# encoding=utf8
 
 import calendar
 import hashlib
@@ -10,17 +10,17 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 
 from datetime import datetime
 
 import MySQLdb as mysql
-import pytz
 import requests
+import pytz
 import stripe
 
-from dateutil import tz
 from dateutil.relativedelta import relativedelta
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
@@ -31,17 +31,13 @@ from constants import Const
 
 
 app = Flask(__name__)
-<<<<<<< HEAD
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///{file_path}/data/sqlite3/lemonade.db".format(file_path=os.path.dirname(os.path.realpath(__file__)))
-=======
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data/sqlite3/prebotfb.db"
->>>>>>> bringing back this week's changes
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
-# reload(sys)
-# sys.setdefaultencoding('utf8')
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 db = SQLAlchemy(app)
 db.text_factory = str
@@ -63,32 +59,32 @@ class Customer(db.Model):
     fb_psid = db.Column(db.String(255))
     fb_name = db.Column(db.String(255))
     email = db.Column(db.String(255))
-    bitcoin_addr = db.Column(db.String(255))
     referrer = db.Column(db.String(255))
+    paypal_email = db.Column(db.String(255))
+    bitcoin_addr = db.Column(db.String(255))
     stripe_id = db.Column(db.String(255))
     card_id = db.Column(db.String(255))
+    bitcoin_id = db.Column(db.String(255))
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
     purchase_id = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
-    def __init__(self, id=None, fb_psid=None, referrer="/"):
-
-        # if id is not None:
-        #     self.id = id
-
+    def __init__(self, id, fb_psid, referrer="/"):
         self.id = id
         self.fb_psid = fb_psid
         self.referrer = referrer
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%d>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.storefront_id, self.product_id, self.purchase_id, self.added)
+        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
 
 
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fb_psid = db.Column(db.String(255))
+    source = db.Column(db.String(255))
+    email = db.Column(db.String(255))
     full_name = db.Column(db.String(255))
     acct_number = db.Column(db.String(255))
     expiration = db.Column(db.DateTime)
@@ -96,13 +92,14 @@ class Payment(db.Model):
     creation_state = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
-    def __init__(self, fb_psid):
+    def __init__(self, fb_psid, source):
         self.fb_psid = fb_psid
+        self.source = source
         self.creation_state = 0
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Payment id=%d, fb_psid=%s, full_name=%s, acct_number=%s, expiration=%s, cvc=%s, creation_state=%d, added=%d" % (self.id, self.fb_psid, self.full_name, self.acct_number, self.expiration, self.cvc, self.creation_state, self.added)
+        return "<Payment id=%d, fb_psid=%s, source=%s, email=%s, full_name=%s, acct_number=%s, expiration=%s, cvc=%s, creation_state=%d, added=%d" % (self.id, self.fb_psid, self.source, self.email, self.full_name, self.acct_number, self.expiration, self.cvc, self.creation_state, self.added)
 
 
 class Product(db.Model):
@@ -121,8 +118,6 @@ class Product(db.Model):
     views = db.Column(db.String(255))
     avg_rating = db.Column(db.Float)
     release_date = db.Column(db.Integer)
-    views = db.Column(db.Integer)
-    avg_rating = db.Column(db.Float)
     added = db.Column(db.Integer)
 
     def __init__(self, storefront_id):
@@ -135,7 +130,23 @@ class Product(db.Model):
 
     @property
     def messenger_url(self):
-        return re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', self.prebot_url)
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+
+    @property
+    def thumb_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.image_url)
+
+    @property
+    def landscape_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.image_url)
+
+    @property
+    def widescreen_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.image_url)
+
+    @property
+    def portrait_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
 
     def __repr__(self):
         return "<Product id=%d, storefront_id=%d, creation_state=%d, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%d, avg_rating=%.2f, added=%d>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
@@ -146,14 +157,16 @@ class Purchase(db.Model):
     customer_id = db.Column(db.Integer)
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
+    type = db.Column(db.Integer)
     charge_id = db.Column(db.String(255))
     claim_state = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
-    def __init__(self, customer_id, storefront_id, product_id, charge_id):
+    def __init__(self, customer_id, storefront_id, product_id, type, charge_id=None):
         self.customer_id = customer_id
         self.storefront_id = storefront_id
         self.product_id = product_id
+        self.type = type
         self.charge_id = charge_id
         self.claim_state = 0
         self.added = int(time.time())
@@ -163,7 +176,7 @@ class Purchase(db.Model):
         return re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', self.prebot_url)
 
     def __repr__(self):
-        return "<Purchase id=%d, customer_id=%d, storefront_id=%d, product_id=%d, charge_id=%s, claim_state=%d, added=%d>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.charge_id, self.claim_state, self.added)
+        return "<Purchase id=%d, customer_id=%d, storefront_id=%d, product_id=%d, type=%s, charge_id=%s, claim_state=%d, added=%d>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.type, self.charge_id, self.claim_state, self.added)
 
 
 class Rating(db.Model):
@@ -195,8 +208,6 @@ class Storefront(db.Model):
     video_url = db.Column(db.String(255))
     prebot_url = db.Column(db.String(255))
     giveaway = db.Column(db.Integer)
-    bitcoin_addr = db.Column(db.String(255))
-    paypal_addr = db.Column(db.String(255))
     views = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
@@ -210,10 +221,27 @@ class Storefront(db.Model):
 
     @property
     def messenger_url(self):
-        return re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', self.prebot_url)
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+
+    @property
+    def thumb_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.logo_url)
+
+    @property
+    def landscape_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.logo_url)
+
+    @property
+    def widescreen_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.logo_url)
+
+    @property
+    def protrait_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
+
 
     def __repr__(self):
-        return "<Storefront id=%s, owner_id=%s, creation_state=%d, display_name=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%d, bitcoin_addr=%s, paypal_addr=%s, added=%d>" % (self.id, self.owner_id, self.creation_state, self.display_name, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.bitcoin_addr, self.paypal_addr, self.added)
+        return "<Storefront id=%s, owner_id=%s, creation_state=%s, display_name=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.display_name, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
 class Subscription(db.Model):
@@ -232,7 +260,17 @@ class Subscription(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Subscription id=%s, storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d, added=%d>" % (self.id, self.storefront_id, self.product_id, self.customer_id, self.enabled, self.added)
+        return "<Subscription storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d>" % (self.storefront_id, self.product_id, self.customer_id, self.enabled)
+
+
+class ImageCopier(threading.Thread):
+    def __init__(self, src_url, out_file=None):
+        threading.Thread.__init__(self)
+        self.src_url = src_url
+        self.out_file = out_file
+
+    def run(self):
+        os.chdir(os.path.dirname(self.out_file))
 
 
 class ImageSizer(threading.Thread):
@@ -324,7 +362,7 @@ class VideoMetaData(threading.Thread):
 
 
 def drop_sqlite(flag=15):
-    #logger.info("drop_sql(flag={flag)".format(flag=flag))
+    logger.info("drop_sql(flag=%s)" % (flag))
 
     if flag & 1:
         try:
@@ -355,7 +393,7 @@ def drop_sqlite(flag=15):
             db.session.rollback()
 
 def add_column(table_name, column_name, data_type):
-    logger.info("add_column(table_name={table_name}, column_name={column_name}, data_type={data_type})".format(table_name=table_name, column_name=column_name, data_type=data_type))
+    logger.info("add_column(table_name=%s, column_name=%s, data_type=%s)" % (table_name, column_name, data_type))
 
     connection = sqlite3.connect("{file_path}/data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))))
     cursor = connection.cursor()
@@ -376,14 +414,14 @@ def add_column(table_name, column_name, data_type):
     return "OK", 200
 
 def next_product_id(product=None):
-    logger.info("next_product_id(product={product})".format(product=product))
+    logger.info("next_product_id(product=%s)" % (product))
 
     if product is not None:
         product.id = Product.query.filter(Product.creation_state < 5).order_by(Product.id.desc()).first().id + 1
         db.session.commit()
 
 def next_storefront_id(storefront=None):
-    logger.info("next_storefront_id(storefront={storefront})".format(storefront=storefront))
+    logger.info("next_storefront_id(storefront=%s)" % (storefront))
 
     if storefront is not None:
         storefront.id = Storefront.query.filter(Storefront.creation_state < 4).order_by(Storefront.id.desc()).first().id + 1
@@ -391,7 +429,7 @@ def next_storefront_id(storefront=None):
 
 
 def copy_remote_asset(src_url, local_file):
-    logger.info("copy_remote_asset(src_url={src_url}, local_file={local_file})".format(src_url=src_url, local_file=local_file))
+    logger.info("copy_remote_asset(src_url=%s, local_file=%s)" % (src_url, local_file))
 
     with open(local_file, 'wb') as handle:
         response = requests.get(src_url, stream=True)
@@ -405,11 +443,11 @@ def copy_remote_asset(src_url, local_file):
 
 
 def send_tracker(category, action, label, value=""):
-    logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
+    logger.info("send_tracker(category=%s, action=%s, label=%s)" % (category, action, label))
 
     # "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
-    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest()),
-    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value=value, cid=hashlib.md5(label.encode()).hexdigest())
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value, cid=hashlib.md5(label.encode()).hexdigest()),
+    # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value, cid=hashlib.md5(label.encode()).hexdigest())
 
     t1 = threading.Thread(
         target=async_tracker,
@@ -462,19 +500,18 @@ def send_tracker(category, action, label, value=""):
     return True
 
 def async_tracker(url, payload):
-    #logger.info("async_tracker(url={url}, payload={payload}".format(url=url, payload=payload))
+    #logger.info("async_tracker(url=%s, payload=%s" % (url, payload))
 
     response = requests.get(url, params=payload)
     if response.status_code != 200:
         logger.info("TRACKER ERROR:%s" % (response.text))
 
 
-def add_new_user(customer):
-    logger.info("add_new_user(customer={customer}".format(customer=customer))
-    if customer.referrer is None:
-        customer.referrer = "/"
+def add_new_user(recipient_id, deeplink):
+    logger.info("add_new_user(recipient_id=%s, deeplink=%s)" % (recipient_id, deeplink))
 
-    logger.info("add_new_user(fb_psid={fb_psid}, deeplink={deeplink})".format(fb_psid=customer.fb_psid, deeplink=customer.referrer))
+    if deeplink is None:
+        deeplink = "/"
 
     try:
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -482,40 +519,31 @@ def add_new_user(customer):
             cur = conn.cursor(mysql.cursors.DictCursor)
 
             #-- check db for existing user
-            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=customer.fb_psid))
+            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=recipient_id))
             row = cur.fetchone()
 
             #-- go ahead n' add 'em
             if row is None:
-                cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (customer.fb_psid, customer.referrer))
+                cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (recipient_id, deeplink))
                 conn.commit()
                 cur.execute('SELECT `id`, `added` FROM `products` WHERE `id` = @@IDENTITY LIMIT 1;')
                 row = cur.fetchone()
 
                 #-- now update sqlite w/ the new guy
-                users_query = Customer.query.filter(Customer.fb_psid == customer.fb_psid)
-                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == customer.fb_psid).all()))
-                if users_query.count() == 0:
-<<<<<<< HEAD
-                    customer.id = cur.lastrowid
-                    db.session.add(customer)
-=======
+                customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                if customer is None:
                     db.session.add(Customer(id=row['id'], fb_psid=recipient_id, referrer=deeplink))
->>>>>>> bringing back this week's changes
 
                 else:
-                    customer = users_query.first()
                     customer.id = row['id']
 
             else:
                 #-- now update sqlite w/ existing guy
-                users_query = Customer.query.filter(Customer.fb_psid == recipient_id)
-                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == recipient_id).all()))
-                if users_query.count() == 0:
+                customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                if customer is None:
                     db.session.add(Customer(id=row['id'], fb_psid=recipient_id, referrer=deeplink))
 
                 else:
-                    customer = users_query.first()
                     customer.id = row['id']
 
             db.session.commit()
@@ -530,7 +558,7 @@ def add_new_user(customer):
 
 
 def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
-    logger.info("add_subscription(recipient_id={recipient_id}, storefront_id={storefront_id}, product_id={product_id}, deeplink={deeplink})".format(recipient_id=recipient_id, storefront_id=storefront_id, product_id=product_id, deeplink=deeplink))
+    logger.info("add_subscription(recipient_id=%s, storefront_id=%s, product_id=%s, deeplink=%s)" % (recipient_id, storefront_id, product_id, deeplink))
 
     has_subscribed = False
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
@@ -541,35 +569,28 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `subscriptions` WHERE `user_id` = {user_id} AND `storefront_id` = {storefront_id} AND `product_id` = {product_id} LIMIT 1;'.format(user_id=customer.id, storefront_id=storefront.id, product_id=product.id))
+            cur.execute('SELECT `id` FROM `subscriptions` WHERE `user_id` = {user_id} AND `storefront_id` = {storefront_id} AND `product_id` = {product_id} LIMIT 1'.format(user_id=customer.id, storefront_id=storefront.id, product_id=product.id))
             row = cur.fetchone()
             has_subscribed = (row is None)
 
             if row is None:
                 send_tracker("user-subscribe", recipient_id, storefront.display_name)
 
-                cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, storefront.id, product.id, deeplink))
+                cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, storefront.id, product.id, ("/%s" % (deeplink))))
                 conn.commit()
-
-                logger.info("[:|:] NEW SUBSCRIPTION w/ ID : {mysql_id}".format(mysql_id=cur.lastrowid))
 
                 subscription = Subscription(storefront.id, product.id, customer.id)
                 subscription.id = cur.lastrowid
                 db.session.add(subscription)
 
             else:
-                logger.info("[:|:] FOUND PREV ((MYSQL)) SUBSCRIPTION w/ ID : {mysql_id}".format(mysql_id=row['id']))
-                subscription = Subscription.query.filter(Subscription.id == row['id']).first()
+                subscription = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.customer_id == customer.id).first()
                 if subscription is None:
-                    logger.info("[:|:] NOT IN SQLITE")
-
                     subscription = Subscription(storefront.id, product.id, customer.id)
                     db.session.add(subscription)
 
                 subscription.id = row['id']
             db.session.commit()
-            logger.info("[:|:] SQLITE SUBSCRIPTION UPD --> : {mysql_id}".format(mysql_id=subscription.id))
-
 
     except mysql.Error, e:
         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -591,36 +612,21 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
     return has_subscribed
 
 
-def add_payment(recipient_id):
-    logger.info("add_payment(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+def add_cc_payment(recipient_id):
+    logger.info("add_cc_payment(recipient_id=%s)" % (recipient_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
-    payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
+    payment = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.source == "card").first()
     if payment is None:
-        payment = Payment(fb_psid=recipient_id)
+        payment = Payment(fb_psid=recipient_id, source="card")
         if customer.email is not None:
             payment.creation_state = 1
 
         db.session.add(payment)
         db.session.commit()
 
-    logger.info("::::: PAYMENT:\n%s" % (payment))
+    logger.info("[:::|:::] CC PAYMENT:\n%s" % (payment))
     if payment.creation_state == 0:
-<<<<<<< HEAD
-        send_text(recipient_id, "Enter your email address", quick_replies=cancel_payment_quick_reply())
-
-    if payment.creation_state == 1:
-        send_text(recipient_id, "Enter the card holder's name", quick_replies=cancel_payment_quick_reply())
-
-    elif payment.creation_state == 2:
-        send_text(recipient_id, "Enter the card's account number", quick_replies=cancel_payment_quick_reply())
-
-    elif payment.creation_state == 3:
-        send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", quick_replies=cancel_payment_quick_reply())
-
-    elif payment.creation_state == 4:
-        send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", quick_replies=cancel_payment_quick_reply())
-=======
         send_text(recipient_id, "Enter your email address", cancel_payment_quick_reply())
 
     if payment.creation_state == 1:
@@ -634,22 +640,22 @@ def add_payment(recipient_id):
 
     elif payment.creation_state == 4:
         send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_payment_quick_reply())
->>>>>>> bringing back this week's changes
 
     elif payment.creation_state == 5:
         send_text(
             recipient_id = recipient_id,
-            message_text= "Are these details correct?\n\nEmail: {email}\n\nName: {full_name}\n\nCard #: {acct_number}\n\nExpiration: {expiration:%m/%Y}\n\nCVC / CVV2: {cvc}".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+            message_text= "Are these details correct?\n\nEmail: {email}\n\nName: {full_name}\n\nCard #: {acct_number}\n\nExpiration: {expiration:%m/%Y}\n\nCVC / CVV2: {cvc}".format(email=payment.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
             quick_replies = [
                 build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
-                build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO)
-            ] + cancel_payment_quick_reply())
+                build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Cancel", Const.PB_PAYLOAD_PAYMENT_CANCEL)
+            ])
 
     elif payment.creation_state == 6:
         try:
             stripe_customer = stripe.Customer.create(
                 description = "Customer for {fb_psid}".format(fb_psid=recipient_id),
-                email = customer.email,
+                email = payment.email,
                 source = {
                     'object'    : "card",
                     'name'      : payment.full_name,
@@ -693,12 +699,12 @@ def add_payment(recipient_id):
 
 
 def purchase_product(recipient_id):
-    logger.info("purchase_product(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    logger.info("purchase_product(recipient_id=%s)" % (recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
-        storefront = Storefront.query.filter(Storefront.id == customer.storefront_id).first()
         product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
         stripe_charge = stripe.Charge.create(
             amount = int(product.price * 100),
             currency = "usd",
@@ -710,7 +716,9 @@ def purchase_product(recipient_id):
         #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
 
         if stripe_charge['status'] == "succeeded":
-            purchase = Purchase(customer.id, customer.storefront_id, customer.product_id, stripe_charge.id)
+            send_tracker("purchase-complete", recipient_id, "")
+
+            purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
             db.session.add(purchase)
             db.session.commit()
 
@@ -718,11 +726,14 @@ def purchase_product(recipient_id):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.product_id, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
+                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, 1, customer.product_id, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
                     conn.commit()
+                    cur.execute('SELECT `id`, `added` FROM `products` WHERE `id` = @@IDENTITY LIMIT 1;')
+                    row = cur.fetchone()
 
-                    purchase.id = cur.lastrowid
+                    purchase.id = row['id']
                     customer.purchase_id = purchase.id
+                    purchase.added = row['added']
                     db.session.commit()
 
             except mysql.Error, e:
@@ -734,42 +745,46 @@ def purchase_product(recipient_id):
 
             send_text(
                 recipient_id = storefront.owner_id,
-                message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
+                message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
                 quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_MAIN_MENU)
                 ]
             )
 
+            payload = {
+                'channel' : "#pre",
+                'username' : "fbprebot",
+                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                'text' : "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name, storefront_name=storefront.display_name),
+                'attachments' : [{
+                    'image_url' : product.image_url
+                }]
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+
             return True
 
         else:
-            send_text(recipient_id, "Error making payment:\n{reason}".format(reason=stripe_charge['outcome']['reason']), main_menu_quick_replies())
+            send_text(recipient_id, "Error making payment:\n{reason}".format(reason=stripe_charge['outcome']['reason']))
 
     return False
 
 
 def clear_entry_sequences(recipient_id):
-    logger.info("clear_entry_sequences(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    logger.info("clear_entry_sequences(recipient_id=%s)" % (recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     #-- pending payment
     Payment.query.filter(Payment.fb_psid == recipient_id).delete()
 
-    #-- pending paypal payout
-    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.paypal_addr == "_{PENDING}_").first()
-    if storefront is not None:
-        storefront.paypal_addr = None
+    #-- pending payouts
+    if customer.paypal_email == "_{PENDING}_":
+        customer.paypal_email = None
 
-    #-- pending bitcoin payout
-    storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).filter(Storefront.bitcoin_addr == "_{PENDING}_").first()
-    if storefront is not None:
-        storefront.bitcoin_addr = None
-
-    #-- pending bitcoin payment
-    if customer.bitcoin_addr == "{PENDING}":
-        customer.bitcoin_addr = None
+    if customer.bitcoin_addr == "_{PENDING}_":
+        customer.paypal_email = None
 
     #-- pending product
     storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
@@ -784,7 +799,7 @@ def clear_entry_sequences(recipient_id):
 
 
 def write_message_log(recipient_id, message_id, message_txt):
-    logger.info("write_message_log(recipient_id={recipient_id}, message_id={message_id}, message_txt={message_txt})".format(recipient_id=recipient_id, message_id=message_id, message_txt=message_txt))
+    logger.info("write_message_log(recipient_id=%s, message_id=%s, message_txt=%s)" % (recipient_id, message_id, json.dumps(message_txt)))
 
     try:
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -803,7 +818,7 @@ def write_message_log(recipient_id, message_id, message_txt):
 
 
 def build_button(btn_type, caption="", url="", payload=""):
-    logger.info("build_button(btn_type={btn_type}, caption={caption}, url={url}, payload={payload})".format(btn_type=btn_type, caption=caption, url=url, payload=payload))
+    logger.info("build_button(btn_type=%s, caption=%s, url=%s, payload=%s)" % (btn_type, caption, url, payload))
 
     button = None
     if btn_type == Const.CARD_BTN_POSTBACK:
@@ -863,7 +878,7 @@ def build_button(btn_type, caption="", url="", payload=""):
 
 
 def build_quick_reply(btn_type, caption, payload, image_url=""):
-    logger.info("build_quick_reply(btn_type={btn_type}, caption={caption}, payload={payload})".format(btn_type=btn_type, caption=caption, payload=payload))
+    logger.info("build_quick_reply(btn_type=%s, caption=%s, payload=%s)" % (btn_type, caption, payload))
 
     if btn_type == Const.KWIK_BTN_TEXT:
         button = {
@@ -899,7 +914,7 @@ def build_quick_reply(btn_type, caption, payload, image_url=""):
 
 
 def build_card_element(title, subtitle=None, image_url=None, item_url=None, buttons=None):
-    logger.info("build_card_element(title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons})".format(title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons))
+    logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)" % (title, subtitle, image_url, item_url, buttons))
 
     element = {
         'title'     : title,
@@ -914,7 +929,7 @@ def build_card_element(title, subtitle=None, image_url=None, item_url=None, butt
     return element
 
 def build_list_elements(body_elements, header_element=None):
-    logger.info("build_list_elements(body_elements={body_elements}, header_element={header_element})".format(body_elements=body_elements, header_element=header_element))
+    logger.info("build_list_elements(body_elements=%s, header_element=%s)" % (body_elements, header_element))
 
     elements = []
     if header_element is not None:
@@ -927,7 +942,7 @@ def build_list_elements(body_elements, header_element=None):
 
 
 def build_receipt_card(recipient_id, purchase_id):
-    logger.info("build_receipt_card(recipient_id={recipient_id}, purchase_id={purchase_id})".format(recipient_id=recipient_id, purchase_id=purchase_id))
+    logger.info("build_receipt_card(recipient_id=%s, purchase_id=%s)" % (recipient_id, purchase_id))
 
     data = None
     purchase_query = Purchase.query.filter(Purchase.id == purchase_id)
@@ -977,7 +992,7 @@ def build_receipt_card(recipient_id, purchase_id):
 
 
 def build_list_card(recipient_id, body_elements, header_element=None, buttons=None, quick_replies=None):
-    logger.info("build_list_card(recipient_id={recipient_id}, body_elements={body_elements}, header_element={header_element}, buttons={buttons}, quick_replies={quick_replies})".format(recipient_id=recipient_id, body_elements=body_elements, header_element=header_element, buttons=buttons, quick_replies=quick_replies))
+    logger.info("build_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)" % (recipient_id, body_elements, header_element, buttons, quick_replies))
 
     data = {
         'recipient' : {
@@ -1004,8 +1019,8 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
     return data
 
 
-def build_content_card(recipient_id, title, subtitle, image_url, item_url=None, buttons=None, quick_replies=None):
-    logger.info("build_content_card(recipient_id={recipient_id}, title={title}, subtitle={subtitle}, image_url={image_url}, item_url={item_url}, buttons={buttons}, quick_replies={quick_replies})".format(recipient_id=recipient_id, title=title, subtitle=subtitle, image_url=image_url, item_url=item_url, buttons=buttons, quick_replies=quick_replies))
+def build_content_card(recipient_id, title, subtitle, image_url, item_url, buttons=None, quick_replies=None):
+    logger.info("build_content_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, subtitle, image_url, item_url, buttons, quick_replies))
 
     data = {
         'recipient' : {
@@ -1040,7 +1055,7 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url=None, 
 
 
 def build_carousel(recipient_id, cards, quick_replies=None):
-    logger.info("build_carousel(recipient_id={recipient_id}, cards={cards}, quick_replies={quick_replies})".format(recipient_id=recipient_id, cards=cards, quick_replies=quick_replies))
+    logger.info("build_carousel(recipient_id=%s, cards=%s, quick_replies=%s)" % (recipient_id, cards, quick_replies))
 
     data = {
         'recipient' : {
@@ -1063,35 +1078,17 @@ def build_carousel(recipient_id, cards, quick_replies=None):
     return data
 
 
-<<<<<<< HEAD
-def main_menu_quick_replies(product=None):
-    logger.info("main_menu_quick_replies(product={product})".format(product=product))
-=======
 def main_menu_quick_replies(fb_psid):
-    logger.info("main_menu_quick_replies(fb_psid={fb_psid})".format(fb_psid=fb_psid))
+    logger.info("main_menu_quick_replies(fb_psid=%s)" % (fb_psid))
 
     storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == fb_psid).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
     product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).first()
->>>>>>> bringing back this week's changes
 
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
     ]
 
     if product is not None:
-<<<<<<< HEAD
-        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url), payload=Const.PB_PAYLOAD_PREBOT_URL))
-
-    return quick_replies
-
-def cancel_payment_quick_reply():
-    logger.info("cancel_entry_quick_reply()")
-
-    return [
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel Purchase", payload=Const.PB_PAYLOAD_PAYMENT_CANCEL)
-    ]
-
-=======
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=product.messenger_url, payload=Const.PB_PAYLOAD_PREBOT_URL))
 
     return quick_replies
@@ -1109,10 +1106,9 @@ def cancel_payment_quick_reply():
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel Purchase", payload=Const.PB_PAYLOAD_PAYMENT_CANCEL)
     ]
->>>>>>> bringing back this week's changes
 
 def dm_quick_replies(recipient_id, purchase):
-    logger.info("dm_quick_replies(recipient_id={recipient_id}, purchase={purchase})".format(recipient_id=recipient_id, purchase=purchase))
+    logger.info("dm_quick_replies(recipient_id=%s, purchase=%s)" % (recipient_id, purchase))
 
     if recipient_id == purchase.customer_id:
         payload = Const.PB_PAYLOAD_DM_STOREFRONT_OWNER
@@ -1129,20 +1125,9 @@ def dm_quick_replies(recipient_id, purchase):
 
     return quick_replies + cancel_entry_quick_reply()
 
-<<<<<<< HEAD
-
-def cancel_entry_quick_reply():
-    logger.info("cancel_entry_quick_reply()")
-
-    return [
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
-    ]
-
-=======
->>>>>>> bringing back this week's changes
 
 def welcome_message(recipient_id, entry_type, deeplink=""):
-    logger.info("welcome_message(recipient_id={recipient_id}, entry_type={entry_type}, deeplink={deeplink})".format(recipient_id=recipient_id, entry_type=entry_type, deeplink=deeplink))
+    logger.info("welcome_message(recipient_id=%s, entry_type=%s, deeplink=%s)" % (recipient_id, entry_type, deeplink))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     if entry_type == Const.MARKETPLACE_GREETING:
@@ -1157,7 +1142,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
         send_text(recipient_id, Const.ORTHODOX_GREETING)
         send_admin_carousel(recipient_id)
 
-    elif entry_type == Const.PRODUCT_REFERRAL:
+    elif entry_type == Const.CUSTOMER_REFERRAL:
         storefront = None
         product = None
 
@@ -1165,75 +1150,6 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
         if product is not None:
             product.views += 1
             customer.product_id = product.id
-<<<<<<< HEAD
-
-            if product.video_url is not None:
-                send_video(recipient_id, product.video_url)
-
-            else:
-                if product.image_url is not None:
-                    send_image(recipient_id, product.image_url)
-
-            try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;)'.format(product_id=product.id))
-                    conn.commit()
-
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
-            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).filter(Storefront.creation_state == 4).first()
-            if storefront is not None:
-                storefront.views += 1
-                customer.storefront_id = storefront.id
-
-                try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = {storefront_id} LIMIT 1;)'.format(storefront_id=storefront.id))
-                        conn.commit()
-
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                finally:
-                    if conn:
-                        conn.close()
-
-            db.session.commit()
-
-
-        if product is not None and storefront is not None:
-            if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-                send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-
-            else:
-                send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-
-            send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-
-            if customer.stripe_id is not None and customer.card_id is not None:
-                if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASED)
-
-                else:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-            else:
-                send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-
-        else:
-            send_text(recipient_id, Const.ORTHODOX_GREETING)
-            send_admin_carousel(recipient_id)
-
-=======
 
             if product.video_url is not None and product.video_url != "":
                 send_video(recipient_id, product.video_url)
@@ -1256,10 +1172,9 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                 if conn:
                     conn.close()
 
-            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).filter(Storefront.creation_state == 4).first()
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             if storefront is not None:
                 storefront.views += 1
-                customer.storefront_id = storefront.id
 
                 try:
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -1284,134 +1199,30 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
             else:
                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-                send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-            if customer.stripe_id is not None and customer.card_id is not None:
-                if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASED)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-                else:
-                    send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
->>>>>>> bringing back this week's changes
-
-            else:
-                send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            # if customer.stripe_id is not None and customer.card_id is not None:
+            #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
+            #         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASED)
+            #
+            #     else:
+            #         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            #
+            # else:
+            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
             send_admin_carousel(recipient_id)
 
-<<<<<<< HEAD
-
-    #
-    #     product_query = Product.query.filter(Product.name == deeplink.split("/")[-1])
-    #     if product_query.count() > 0:
-    #         product = product_query.order_by(Product.added.desc()).first()
-    #         storefront_query = Storefront.query.filter(Storefront.id == product.storefront_id)
-    #         if storefront_query.count() > 0:
-    #             storefront = storefront_query.first()
-    #
-    #             customer.storefront_id = storefront.id
-    #             customer.product_id = product.id
-    #             db.session.commit()
-    #
-    #         if product is None:
-    #             send_image(recipient_id, storefront.logo_url)
-    #
-    #         else:
-    #             if product.video_url is not None:
-    #                 send_video(recipient_id, product.video_url)
-    #
-    #             else:
-    #                 if product.image_url is not None:
-    #                     send_image(recipient_id, product.image_url)
-    #
-    #             if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-    #
-    #             else:
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-    #
-    #         if product is None:
-    #             send_image(recipient_id, storefront.logo_url)
-    #
-    #         else:
-    #             if product.video_url is not None:
-    #                 send_video(recipient_id, product.video_url)
-    #
-    #             else:
-    #                 if product.image_url is not None:
-    #                     send_image(recipient_id, product.image_url)
-    #
-    #
-    #         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #         # if customer.stripe_id is not None and customer.card_id is not None:
-    #         #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-    #         #         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #         #
-    #         #     else:
-    #         #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-    #         #
-    #         # else:
-    #         #     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #
-    #         return
-    #
-    #
-    #     storefront_query = Storefront.query.filter(Storefront.name == deeplink.split("/")[0])
-    #     if storefront_query.count() > 0:
-    #         storefront = storefront_query.first()
-    #         product_query = Product.query.filter(Product.storefront_id == storefront.id)
-    #         if product_query.count() > 0:
-    #             product = product_query.order_by(Product.added.desc()).first()
-    #
-    #             customer.storefront_id = storefront.id
-    #             customer.product_id = product.id
-    #             db.session.commit()
-    #
-    #             if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-    #
-    #             else:
-    #                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
-    #
-    #         if product is None:
-    #             send_image(recipient_id, storefront.logo_url)
-    #
-    #         else:
-    #             if product.video_url is not None:
-    #                 send_video(recipient_id, product.video_url)
-    #
-    #             else:
-    #                 if product.image_url is not None:
-    #                     send_image(recipient_id, product.image_url)
-    #
-    #         send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #         # if customer.stripe_id is not None and customer.card_id is not None:
-    #         #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-    #         #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #         #
-    #         #     else:
-    #         #         send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-    #         #
-    #         # else:
-    #         #     send_product_card(recipient_id, product.id, product.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
-    #         #
-    #         # return
-    #
-    #
-    # send_text(recipient_id, Const.ORTHODOX_GREETING)
-    # send_admin_carousel(recipient_id)
-=======
->>>>>>> bringing back this week's changes
 
 
 def send_admin_carousel(recipient_id):
-    logger.info("send_admin_carousel(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    logger.info("send_admin_carousel(recipient_id=%s)" % (recipient_id))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = None
-    product = None
 
     #-- look for created storefront
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id)
@@ -1464,7 +1275,7 @@ def send_admin_carousel(recipient_id):
             product = product_query.order_by(Product.added.desc()).first()
 
             if product.prebot_url is None:
-                product.prebot_url = "http://m.me/prebotme?ref=/{product_name}".format(product_name=product.name)
+                product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
 
             if product.display_name is None:
                 product.display_name = "[NAME NOT SET]"
@@ -1518,10 +1329,10 @@ def send_admin_carousel(recipient_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message Customers", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS),
+                            # build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
                             # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via Bitcoin", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL)
+                            # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL)
                         ]
                     )
                 )
@@ -1538,34 +1349,21 @@ def send_admin_carousel(recipient_id):
                 )
             )
 
-
-        if product is not None and product.creation_state == 5:
-            cards.append(
-                build_card_element(
-                    title = "Share on Messenger",
-                    subtitle = "",
-                    image_url = Const.IMAGE_URL_SHARE_MESSENGER,
-                    item_url = None,
-                    buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_STOREFRONT)
-                    ]
+            if product.creation_state == 5:
+                cards.append(
+                    build_card_element(
+                        title = "Share on Messenger",
+                        subtitle = "",
+                        image_url = Const.IMAGE_URL_SHARE_MESSENGER,
+                        item_url = None,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                        ]
+                    )
                 )
-            )
 
-            cards.append(
-                build_card_element(
-                    title = "Share Shop Bot",
-                    subtitle = "",
-                    image_url = Const.IMAGE_URL_SHARE_STOREFRONT,
-                    item_url = None,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL_COMPACT, caption="Share Shop Bot", url="http://prebot.me/share/{storefront_id}".format(storefront_id=storefront.id))
-                        #build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
-                    ]
-                )
-            )
 
-    # cards.append(
+# cards.append(
     #     build_card_element
     #         title = "View Shops",
     #         subtitle = "",
@@ -1604,12 +1402,6 @@ def send_admin_carousel(recipient_id):
             )
         )
 
-<<<<<<< HEAD
-    data = build_carousel(
-        recipient_id = recipient_id,
-        cards = cards,
-        quick_replies = main_menu_quick_replies(product)
-=======
     if storefront is None:
         quick_replies = main_menu_quick_replies(recipient_id)
 
@@ -1617,17 +1409,15 @@ def send_admin_carousel(recipient_id):
         recipient_id = recipient_id,
         cards = cards,
         quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
     )
 
     send_message(json.dumps(data))
 
 
 def send_customer_carousel(recipient_id, storefront_id):
-    logger.info("send_customer_carousel(recipient_id={recipient_id}, storefront_id={storefront_id})".format(recipient_id=recipient_id, storefront_id=storefront_id))
+    logger.info("send_customer_carousel(recipient_id=%s, storefront_id=%s)" % (recipient_id, storefront_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = None
-    product = None
 
     elements = []
 
@@ -1660,17 +1450,18 @@ def send_customer_carousel(recipient_id, storefront_id):
                     cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;'.format(product_id=product.id))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
                     conn.close()
 
-            if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
+            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+            if purchase is not None:
                 elements.append(
                     build_card_element(
-                        title = "You have pre-ordered {product_name}".format(product_name=product.display_name),
+                        title = "You purchased {product_name} on {purchase_date}".format(product_name=product.display_name, purchase_date=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%b %d @ %I:%M%P %Z').lstrip("0")),
                         subtitle = product.description,
                         image_url = product.image_url,
                         item_url = None,
@@ -1724,15 +1515,9 @@ def send_customer_carousel(recipient_id, storefront_id):
                     title = title,
                     subtitle = "View Shopbot",
                     image_url = product.image_url,
-<<<<<<< HEAD
-                    item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-=======
                     item_url = product.messenger_url,
                     buttons = [
                         build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
->>>>>>> bringing back this week's changes
                         build_button(Const.CARD_BTN_INVITE)
                     ]
                 )
@@ -1741,37 +1526,32 @@ def send_customer_carousel(recipient_id, storefront_id):
             data = build_carousel(
                 recipient_id = recipient_id,
                 cards = elements,
-<<<<<<< HEAD
-                quick_replies = main_menu_quick_replies(product)
-=======
                 quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
             )
 
             send_message(json.dumps(data))
 
 
 def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_STOREFRONT):
-    logger.info("send_storefront_card(recipient_id={recipient_id}, storefront_id={storefront_id}, card_type={card_type})".format(recipient_id=recipient_id, storefront_id=storefront_id, card_type=card_type))
+    logger.info("send_storefront_card(recipient_id=%s, storefront_id=%s, card_type=%s)" % (recipient_id, storefront_id, card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
-    storefront = Storefront.query.filter(Storefront.id == storefront_id)
+    query = Storefront.query.filter(Storefront.id == storefront_id)
     product = Product.query.filter(Product.storefront_id == storefront_id).order_by(Product.added.desc()).first()
+    storefront = None
 
-    if storefront is not None:
+    if query.count() > 0:
+        storefront = query.first()
+
         if card_type == Const.CARD_TYPE_STOREFRONT:
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-                item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
+                item_url = storefront.prebot_url,
                 buttons = [
-<<<<<<< HEAD
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-=======
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.messenger_url),
->>>>>>> bringing back this week's changes
                     build_button(Const.CARD_BTN_INVITE)
                 ]
             )
@@ -1782,7 +1562,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 title = storefront.display_name,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-                item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
+                item_url = None,
                 quick_replies = [
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Submit", Const.PB_PAYLOAD_SUBMIT_STOREFRONT),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Do", Const.PB_PAYLOAD_REDO_STOREFRONT),
@@ -1800,21 +1580,12 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 title = title,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-<<<<<<< HEAD
-                item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
-                buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-                    build_button(Const.CARD_BTN_INVITE)
-                ],
-                quick_replies = main_menu_quick_replies(product)
-=======
                 item_url = storefront.messenger_url,
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
             )
 
         else:
@@ -1827,15 +1598,9 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 title = title,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-<<<<<<< HEAD
-                item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
-                buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-=======
                 item_url = storefront.messenger_url,
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.messenger_url),
->>>>>>> bringing back this week's changes
                     build_button(Const.CARD_BTN_INVITE)
                 ]
             )
@@ -1843,14 +1608,15 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
         send_message(json.dumps(data))
 
 
-def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Const.CARD_TYPE_PRODUCT):
-    logger.info("send_product_card(recipient_id={recipient_id}, product_id={product_id}, card_type={card_type})".format(recipient_id=recipient_id, product_id=product_id, card_type=card_type))
+def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUCT):
+    logger.info("send_product_card(recipient_id=%s, product_id=%s, card_type=%s)" % (recipient_id, product_id, card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-    storefront = Storefront.query.filter(Storefront.id == storefront_id)
-    product = Product.query.filter(Product.id == product_id).order_by(Product.added.desc()).first()
+    storefront = None
 
     data = None
-    if product is not None:
+    query = Product.query.filter(Product.id == product_id)
+    if query.count() > 0:
+        product = query.order_by(Product.added.desc()).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
         if product.image_url is None:
@@ -1892,122 +1658,96 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 title = title,
                 subtitle = "View Shopbot",
                 image_url = product.image_url,
-<<<<<<< HEAD
-                item_url = re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url),
-                buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-                    build_button(Const.CARD_BTN_INVITE)
-                ],
-                quick_replies = main_menu_quick_replies(product)
-=======
                 item_url = product.messenger_url,
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
             )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_PURCHASE:
-            query = Storefront.query.filter(Storefront.id == storefront_id)
-            if query.count() > 0:
-                storefront = query.first()
+            # query = Storefront.query.filter(Storefront.id == storefront_id)
+            # if query.count() > 0:
+            #     storefront = query.first()
 
-                data = build_list_card(
-                    recipient_id = recipient_id,
-                    body_elements = [
-                        build_card_element(
-                            title = product.display_name,
-                            subtitle = "${price:.2f}".format(price=product.price),
-                            image_url = product.image_url,
-<<<<<<< HEAD
-                            item_url = None,
-=======
-                            item_url = product.messenger_url,
->>>>>>> bringing back this week's changes
-                            buttons = [
-                                build_button(Const.CARD_BTN_URL_TALL, caption="Buy via PayPal", url="http://prebot.me/checkout/paypal/{product_id}".format(product_id=product.id))
-                            ]
-                        ),
-                        build_card_element(
-                            title = product.display_name,
-                            subtitle = "${price:.2f}".format(price=product.price),
-                            image_url = product.image_url,
-<<<<<<< HEAD
-                            item_url = None,
-=======
-                            item_url = product.messenger_url,
->>>>>>> bringing back this week's changes
-                            buttons = [
-                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
-                            ]
-                        ),
-                        build_card_element(
-                            title = product.display_name,
-                            subtitle = "${price:.2f}".format(price=product.price),
-                            image_url = product.image_url,
-<<<<<<< HEAD
-                            item_url = None,
-=======
-                            item_url = product.messenger_url,
->>>>>>> bringing back this week's changes
-                            buttons = [
-                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy via Bitcoin", payload=Const.PB_PAYLOAD_PAYMENT_BITCOIN)
-                            ]
-                        )
-                    ],
-                    header_element = build_card_element(
-                        title = storefront.display_name,
-                        subtitle = storefront.description,
-                        image_url = storefront.logo_url,
-                        item_url = None
+            data = build_list_card(
+                recipient_id = recipient_id,
+                body_elements = [
+                    build_card_element(
+                        title = product.display_name,
+                        subtitle = "${price:.2f}".format(price=product.price),
+                        image_url = product.image_url,
+                        item_url = product.messenger_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
+
+                        ]
                     ),
-<<<<<<< HEAD
-                    quick_replies = main_menu_quick_replies(product)
-=======
-                    quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
+                    build_card_element(
+                        title = product.display_name,
+                        subtitle = "${price:.2f}".format(price=product.price),
+                        image_url = product.image_url,
+                        item_url = product.messenger_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+                        ]
+                    ),
+                    build_card_element(
+                        title = product.display_name,
+                        subtitle = "${price:.2f}".format(price=product.price),
+                        image_url = product.image_url,
+                        item_url = product.messenger_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CC_CARD)
+                        ]
+                    )
+                ],
+                header_element = build_card_element(
+                    title = storefront.display_name,
+                    subtitle = storefront.description,
+                    image_url = storefront.logo_url,
+                    item_url = None
+                ),
+                quick_replies = main_menu_quick_replies(recipient_id)
                 )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT:
-            storefront_query = Storefront.query.filter(Storefront.id == storefront_id)
-            if storefront_query.count() > 0:
-                storefront = storefront_query.first()
+            # storefront_query = Storefront.query.filter(Storefront.id == storefront_id)
+            # if storefront_query.count() > 0:
+            #     storefront = storefront_query.first()
 
-                customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-                stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
+            stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
 
-                data = build_list_card(
-                    recipient_id = recipient_id,
-                    body_elements = [
-                        build_card_element(
-                            title = "Reserve Price:",
-                            subtitle = "Total: ${price:.2f}".format(price=product.price)
-                        ),
-                        build_card_element(
-                            title = "Payment Method:",
-                            subtitle = "{cc_brand} · {cc_suffix}".format(cc_brand=stripe_card['brand'], cc_suffix=stripe_card['last4'])
-                        ),
-                        build_card_element(
-                            title = "By tapping pay, you agree to Facebook's & Lemonade's terms & conditions.",
-                            subtitle = "Terms & Conditions",
-                            item_url = "http://prebot.me/terms"
-                        )
-                    ],
-                    header_element = build_card_element(
-                        title = product.display_name,
-                        subtitle = "{product_description} - from {storefront_name}".format(product_description=product.description, storefront_name=storefront.display_name),
-                        image_url = product.image_url,
-                        item_url = None
+            data = build_list_card(
+                recipient_id = recipient_id,
+                body_elements = [
+                    build_card_element(
+                        title = "Reserve Price:",
+                        subtitle = "Total: ${price:.2f}".format(price=product.price)
                     ),
-                    buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Pay", payload=Const.PB_PAYLOAD_PURCHASE_PRODUCT)
-                    ]
-                )
+                    build_card_element(
+                        title = "Payment Method:",
+                        subtitle = "{cc_brand} · {cc_suffix}".format(cc_brand=stripe_card['brand'], cc_suffix=stripe_card['last4'])
+                    ),
+                    build_card_element(
+                        title = "By tapping pay, you agree to Facebook's & Lemonade's terms & conditions.",
+                        subtitle = "Terms & Conditions",
+                        item_url = "http://prebot.me/terms"
+                    )
+                ],
+                header_element = build_card_element(
+                    title = product.display_name,
+                    subtitle = "{product_description} - from {storefront_name}".format(product_description=product.description, storefront_name=storefront.display_name),
+                    image_url = product.image_url,
+                    item_url = None
+                ),
+                buttons = [
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Pay", payload=Const.PB_PAYLOAD_PURCHASE_PRODUCT)
+                ]
+            )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_RECEIPT:
-            customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
             data = build_receipt_card(recipient_id, customer.purchase_id)
 
         elif card_type == Const.CARD_TYPE_PRODUCT_PURCHASED:
@@ -2024,7 +1764,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                     build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload=Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
                 ],
-                quick_replies = main_menu_quick_replies(product)
+                quick_replies = main_menu_quick_replies(recipient_id)
             )
 
 
@@ -2046,6 +1786,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
                 quick_replies = rate_buttons + cancel_entry_quick_reply()
             )
 
+
         else:
             data = build_content_card(
                 recipient_id = recipient_id,
@@ -2062,7 +1803,7 @@ def send_product_card(recipient_id, product_id, storefront_id=None, card_type=Co
 
 
 def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASES):
-    logger.info("send_purchases_list_card(recipient_id={recipient_id}, card_type={card_type})".format(recipient_id=recipient_id, card_type=card_type))
+    logger.info("send_purchases_list_card(recipient_id=%s, card_type=%s)" % (recipient_id, card_type))
 
     product = None
     storefront = None
@@ -2097,11 +1838,7 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
         build_list_card(
             recipient_id = recipient_id,
             body_elements = elements,
-<<<<<<< HEAD
-            quick_replies = main_menu_quick_replies(product)
-=======
             quick_replies = main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
         )
     ))
 
@@ -2111,20 +1848,36 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
 
 
 def received_quick_reply(recipient_id, quick_reply):
-    logger.info("received_quick_reply(recipient_id={recipient_id}, quick_reply={quick_reply})".format(recipient_id=recipient_id, quick_reply=quick_reply))
+    logger.info("received_quick_reply(recipient_id=%s, quick_reply=%s)" % (recipient_id, quick_reply))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
-    if quick_reply == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
+    if quick_reply == Const.PB_PAYLOAD_MAIN_MENU:
+        send_tracker("button-menu", recipient_id, "")
+
+        customer.product_id = None
+        send_admin_carousel(recipient_id)
+
+        # storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
+        # if storefront is not None:
+        #     send_admin_carousel(recipient_id)
+        #
+        # else:
+        #     send_customer_carousel(recipient_id, storefront.id)
+
+
+    elif quick_reply == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
         send_tracker("button-cancel-entry-sequence", recipient_id, "")
 
         clear_entry_sequences(recipient_id)
 
-        if Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first() is not None or customer is None:
-            send_admin_carousel(recipient_id)
+        if customer.product_id is not None:
+            product = Product.query.filter(Product.id == customer.product_id).first()
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+            send_customer_carousel(recipient_id, storefront.id)
 
         else:
-            send_customer_carousel(recipient_id, customer.storefront_id)
+            send_admin_carousel(recipient_id)
 
 
     elif quick_reply == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
@@ -2142,15 +1895,10 @@ def received_quick_reply(recipient_id, quick_reply):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (users_query.first().id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (users_query.first().id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
-
-                    logger.info("::::::] UPDATING STOEFRONT ({sqlite_id}) W/ MYSQL ID --> {mysql_id}".format(sqlite_id=storefront.id, mysql_id=cur.lastrowid))
-
                     storefront.id = cur.lastrowid
                     db.session.commit()
-
-                    logger.info("::::::] WRITE RESULTS ::::: ({storefront_id})".format(storefront_id=storefront.id))
 
             except mysql.Error, e:
                 logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -2187,9 +1935,9 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront = Storefront(recipient_id)
         db.session.add(storefront)
         db.session.commit()
-        #next_storefront_id(storefront)
+        next_storefront_id(storefront)
 
-        send_text(recipient_id, "Give your Lemonade Shop Bot a name.", cancel_entry_quick_reply())
+        send_text(recipient_id, "Give your Lemonade Shop Bot a name.")
 
     elif quick_reply == Const.PB_PAYLOAD_CANCEL_STOREFRONT:
         send_tracker("button-cancel-store", recipient_id, "")
@@ -2203,7 +1951,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
         send_admin_carousel(recipient_id)
 
-    elif re.search(r'PRODUCT_RELEASE_(\d+)_DAYS', quick_reply) is not None:
+    elif re.search('PRODUCT_RELEASE_(\d+)_DAYS', quick_reply) is not None:
         match = re.match(r'PRODUCT_RELEASE_(?P<days>\d+)_DAYS', quick_reply)
         send_tracker("button-product-release-{days}-days-store".format(days=match.group('days')), recipient_id, "")
 
@@ -2216,9 +1964,13 @@ def received_quick_reply(recipient_id, quick_reply):
             product.creation_state = 4
             db.session.commit()
 
-            send_text(recipient_id, "This item will be available {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%A, %b %-d')))
+            if int(match.group('days')) < 30:
+                send_text(recipient_id, "This item will be available today")
+            else:
+                send_text(recipient_id, "This item will be available {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%A, %b %-d')))
+
             send_text(recipient_id, "Here's what your product will look like:")
-            send_product_card(recipient_id=recipient_id, product_id=product.id, card_type=Const.CARD_TYPE_PRODUCT_PREVIEW)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
     elif quick_reply == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
         send_tracker("button-submit-product", recipient_id, "")
@@ -2235,7 +1987,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date))
+                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP())', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date))
                     conn.commit()
                     product.id = cur.lastrowid
                     db.session.commit()
@@ -2252,13 +2004,8 @@ def received_quick_reply(recipient_id, quick_reply):
             send_admin_carousel(recipient_id)
             send_text(
                 recipient_id = recipient_id,
-<<<<<<< HEAD
-                message_text = "You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nFor setting up your first shopbot you can select a free CSGO item: taps.io/BlaVg".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url)),
-                quick_replies= main_menu_quick_replies(product)
-=======
                 message_text = "You have successfully added Jdjdkd to Misty.\n\nShare Jdjdkd's card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name, storefront_name=storefront.display_name, product_url=product.messenger_url),
                 quick_replies= main_menu_quick_replies(recipient_id)
->>>>>>> bringing back this week's changes
             )
 
             payload = {
@@ -2284,9 +2031,9 @@ def received_quick_reply(recipient_id, quick_reply):
         product = Product(storefront_query.first().id)
         db.session.add(product)
         db.session.commit()
-        #next_product_id(product)
+        next_product_id(product)
 
-        send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
+        send_text(recipient_id, "Upload a photo or video of what you are selling.")
 
     elif quick_reply == Const.PB_PAYLOAD_CANCEL_PRODUCT:
         send_tracker("button-undo-product", recipient_id, "")
@@ -2304,23 +2051,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
     elif quick_reply == Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY:
         send_tracker("button-givaway", recipient_id, "")
-        send_text(recipient_id, "Win CS:GO items by playing flip coin with Lemonade! Details coming soon.", main_menu_quick_replies())
-
-    elif quick_reply == Const.PB_PAYLOAD_MAIN_MENU:
-        send_tracker("button-menu", recipient_id, "")
-
-        storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
-<<<<<<< HEAD
-        if storefront is not None or customer is None:
-=======
-        if storefront is not None and customer.storefront_id is None:
->>>>>>> bringing back this week's changes
-            send_admin_carousel(recipient_id)
-
-        else:
-            send_customer_carousel(recipient_id, customer.storefront_id)
-
-<<<<<<< HEAD
+        send_text(recipient_id, "Win CS:GO items by playing flip coin with Lemonade! Details coming soon.", quick_replies=[build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
 
     elif quick_reply == Const.PB_PAYLOAD_PREBOT_URL:
         send_tracker("button-url", recipient_id, "")
@@ -2328,21 +2059,14 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
         product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).first()
 
-        send_text(recipient_id, re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', product.prebot_url), main_menu_quick_replies(product))
-        #-- use join : stmt = config.Session.query(Person).outerjoin(ChildTable).filter(ChildTable.person_id.is_(None))
-=======
-    elif quick_reply == Const.PB_PAYLOAD_PREBOT_URL:
-        send_tracker("button-url", recipient_id, "")
-
-        #storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == fb_psid).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
-        #product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).first()
-
         storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
-        if storefront is not None:
-            send_text(recipient_id, product.messenger_url, main_menu_quick_replies(recipient_id))
-            send_text(recipient_id, "Tap, hold, then share {storefront_name}'s shop link above.".format(storefront_name=storefront_name), main_menu_quick_replies(recipient_id))
+        if storefront is not None and product is not None:
+            send_text(recipient_id, "http://{messenger_url}".format(messenger_url=product.messenger_url), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Tap, hold, then share {storefront_name}'s shop link above.".format(storefront_name=storefront.display_name), main_menu_quick_replies(recipient_id))
 
->>>>>>> bringing back this week's changes
+        else:
+            send_text(recipient_id, "Couldn't locate your shop!", main_menu_quick_replies(recipient_id))
+
 
     elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_YES:
         send_tracker("button-giveaways-yes", recipient_id, "")
@@ -2355,7 +2079,7 @@ def received_quick_reply(recipient_id, quick_reply):
             conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = {storefront_id} LIMIT 1;'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
                 conn.commit()
 
         except mysql.Error, e:
@@ -2370,13 +2094,13 @@ def received_quick_reply(recipient_id, quick_reply):
             product = product_query.order_by(Product.added.desc()).first()
             subscriber_query = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.enabled == 1)
             if subscriber_query.count() < 20:
-                send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), main_menu_quick_replies())
+                send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
 
             else:
-                send_text(recipient_id, "Great! Item giveaways will now be unlocked for {storefront_name}.".format(storefront_name=storefront.display_name), main_menu_quick_replies())
+                send_text(recipient_id, "Great! Item giveaways will now be unlocked for {storefront_name}.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
 
         else:
-            send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), main_menu_quick_replies())
+            send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
 
 
     elif quick_reply == Const.PB_PAYLOAD_GIVEAWAYS_NO:
@@ -2385,37 +2109,51 @@ def received_quick_reply(recipient_id, quick_reply):
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_YES:
         send_tracker("button-payment-yes", recipient_id, "")
-        payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
+        payment = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.source == "card").first()
 
         if payment is not None and payment.creation_state == 5:
             payment.creation_state = 6
             db.session.commit()
 
-            if add_payment(recipient_id):
-                send_product_card(recipient_id=recipient_id, product_id=customer.product_id, storefront_id=customer.storefront_id, card_type=Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            if add_cc_payment(recipient_id):
+                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
             else:
-                send_product_card(recipient_id=recipient_id, product_id=customer.product_id, storefront_id=customer.storefront_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASE)
+                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_NO:
         send_tracker("button-payment-no", recipient_id, "")
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
-        add_payment(recipient_id)
+        add_cc_payment(recipient_id)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_CANCEL:
         send_tracker("button-payment-cancel", recipient_id, "")
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
-        send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+        send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+
+    elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
+        send_tracker("button-paypal-payout", recipient_id, "")
+
+        customer.paypal_email = "_{PENDING}_"
+        db.session.commit()
+        send_text(recipient_id, "Enter your PayPal email address")
+
+    elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
+        send_tracker("button-bitcoin-payout", recipient_id, "")
+
+        customer.bitcoin_addr = "_{PENDING}_"
+        db.session.commit()
+        send_text(recipient_id, "Enter your Bitcoin address")
 
     elif re.search(r'PRODUCT_RATE_\d+_STAR', quick_reply) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', quick_reply)
         send_tracker("button-product-rate-{stars}-star".format(stars=match.group('stars')), recipient_id, "")
 
-        storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).order_by(Storefront.added.desc()).subquery('storefront_query')
-        product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).order_by(Product.added.desc()).first()
+        purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
+        product = Product.query.filter(Product.id == purchase.product_id).first()
 
         if product is not None:
             rating = Rating(product.id, recipient_id, int(match.group('stars')))
@@ -2428,8 +2166,8 @@ def received_quick_reply(recipient_id, quick_reply):
                     cur.execute('INSERT INTO `product_ratings` (`id`, `product_id`, `user_id`, `stars`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (product.id, customer.id, rating.stars))
                     conn.commit()
 
-            except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            except mysql.Error as e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -2442,23 +2180,22 @@ def received_quick_reply(recipient_id, quick_reply):
             product.avg_rating = total_rating / float(max(1, Rating.query.filter(Rating.product_id == product.id).count()))
             db.session.commit()
 
-            send_text(recipient_id, "Thank you for your feedback!", main_menu_quick_replies())
+            send_text(recipient_id, "Thank you for your feedback!", main_menu_quick_replies(recipient_id))
 
 
 def received_payload_button(recipient_id, payload, referral=None):
-    logger.info("received_payload_button(recipient_id={recipient_id}, payload={payload}, referral={referral})".format(recipient_id=recipient_id, payload=payload, referral=referral))
+    logger.info("received_payload_button(recipient_id=%s, payload=%s, referral=%s)" % (recipient_id, payload, referral))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
 
     if payload == Const.PB_PAYLOAD_GREETING:
-        logger.info("----------=BOT GREETING @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+        logger.info("----------=BOT GREETING @({timestamp})=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
 
         if referral is None:
             send_image(recipient_id, Const.IMAGE_URL_GREETING)
             welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
             return "OK", 200
-
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -2474,9 +2211,9 @@ def received_payload_button(recipient_id, payload, referral=None):
         storefront = Storefront(recipient_id)
         db.session.add(storefront)
         db.session.commit()
-        #next_storefront_id(storefront)
+        next_storefront_id(storefront)
 
-        send_text(recipient_id, "Give your Shopbot a name.", cancel_entry_quick_reply())
+        send_text(recipient_id, "Give your Shopbot a name.")
 
     elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
         send_tracker("button-delete-shop", recipient_id, "")
@@ -2489,9 +2226,9 @@ def received_payload_button(recipient_id, payload, referral=None):
                 conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id} AND `enabled` = 1 LIMIT 1;'.format(storefront_id=storefront.id))
-                    cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
-                    cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
+                    cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
+                    cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                    cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
                     conn.commit()
 
             except mysql.Error, e:
@@ -2525,7 +2262,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                     product = Product(storefront_query.first().id)
                     db.session.add(product)
                 db.session.commit()
-                #next_product_id(product)
+                next_product_id(product)
 
         except mysql.Error, e:
             logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -2534,7 +2271,7 @@ def received_payload_button(recipient_id, payload, referral=None):
             if conn:
                 conn.close()
 
-        send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
+        send_text(recipient_id, "Upload a photo or video of what you are selling.")
 
 
     elif payload == Const.PB_PAYLOAD_DELETE_PRODUCT:
@@ -2544,15 +2281,15 @@ def received_payload_button(recipient_id, payload, referral=None):
         for product in Product.query.filter(Product.storefront_id == storefront.id):
             send_text(recipient_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name))
             Subscription.query.filter(Subscription.product_id == product.id)
-        Product.query.filter(Product.storefront_id == storefront.id).delete()
+            Product.query.filter(product.storefront_id == storefront.id).delete()
         db.session.commit()
 
         try:
             conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
-                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
+                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
                 conn.commit()
 
         except mysql.Error, e:
@@ -2565,8 +2302,8 @@ def received_payload_button(recipient_id, payload, referral=None):
         product = Product(storefront.id)
         db.session.add(product)
         db.session.commit()
-        #next_product_id(product)
-        send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
+        next_product_id(product)
+        send_text(recipient_id, "Upload a photo or video of what you are selling.")
 
     elif payload == Const.PB_PAYLOAD_SHARE_STOREFRONT:
         send_tracker("button-share", recipient_id, "")
@@ -2582,47 +2319,34 @@ def received_payload_button(recipient_id, payload, referral=None):
         product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).first()
 
         if product is not None:
-            send_product_card(recipient_id=recipient_id, product_id=product.id, card_type=Const.CARD_TYPE_PRODUCT_SHARE)
-<<<<<<< HEAD
-        # else:
-        #     send_storefront_card(recipient_id, storefront_query.first().id, Const.CARD_TYPE_STOREFRONT_SHARE)
-=======
->>>>>>> bringing back this week's changes
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
 
 
     elif payload == Const.PB_PAYLOAD_SUPPORT:
         send_tracker("button-support", recipient_id, "")
-        send_text(recipient_id, "Support for Lemonade:\nprebot.me/support", main_menu_quick_replies())
+        send_text(recipient_id, "Support for Lemonade:\nprebot.me/support")
 
 
     elif payload == Const.PB_PAYLOAD_RESERVE_PRODUCT:
         send_tracker("button-reserve", recipient_id, "")
 
-        storefront_query = Storefront.query.filter(Storefront.id == customer.storefront_id)
-        product_query = Product.query.filter(Product.id == customer.product_id)
-        if storefront_query.count() > 0 and product_query.count() > 0:
-            storefront = storefront_query.first()
-            product = product_query.first()
-            send_product_card(recipient_id=recipient_id, product_id=product.id, storefront_id=storefront.id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASE)
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        if product is not None:
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
-    elif payload == Const.PB_PAYLOAD_PAYMENT_BITCOIN:
+    elif payload == Const.PB_PAYLOAD_CHECKOUT_BITCOIN:
         send_tracker("button-payment-bitcoin", recipient_id, "")
 
-        customer.bitcoin_addr = "_{PENDING}_"
+        db.session.add(Payment(fb_psid=recipient_id, source="btc"))
         db.session.commit()
 
-        send_text(recipient_id, "Enter your Bitcoin address", quick_replies=cancel_entry_quick_reply())
+        send_text(recipient_id, "Enter your Bitcoin address")
 
-    elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
+    elif payload == Const.PB_PAYLOAD_CHECKOUT_CC_CARD:
         send_tracker("button-checkout", recipient_id, "")
 
-        storefront_query = Storefront.query.filter(Storefront.id == customer.storefront_id)
-        product_query = Product.query.filter(Product.id == customer.product_id)
-
-        if product_query.count() > 0:
-            storefront = storefront_query.first()
-            product = product_query.order_by(Product.added.desc()).first()
-
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        if product is not None:
             if customer.stripe_id is None or customer.card_id is None:
                 try:
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -2645,25 +2369,30 @@ def received_payload_button(recipient_id, payload, referral=None):
 
 
             if customer.stripe_id is not None and customer.card_id is not None:
-                send_product_card(recipient_id=recipient_id, product_id=product.id, storefront_id=storefront.id, card_type=Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
             else:
-                add_payment(recipient_id)
+                add_cc_payment(recipient_id)
+
+
+    elif payload == Const.PB_PAYLOAD_CHECKOUT_PAYPAL:
+        send_tracker("button-payment-bitcoin", recipient_id, "")
+        db.session.add(Payment(recipient_id, "paypal"))
+        db.session.commit()
+
+        send_text(recipient_id, "Enter your PayPal email address")
 
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_PRODUCT:
         send_tracker("button-purchase", recipient_id, "")
 
-        storefront_query = Storefront.query.filter(Storefront.id == customer.storefront_id)
-        product_query = Product.query.filter(Product.id == customer.product_id)
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
-        if product_query.count() > 0:
-            storefront = storefront_query.first()
-            product = product_query.order_by(Product.added.desc()).first()
-
+        if product is not None:
             send_text(recipient_id, "Completing your purchase…")
             if purchase_product(recipient_id):
-                send_product_card(recipient_id, product.id, storefront.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
             else:
                 pass
 
@@ -2679,13 +2408,12 @@ def received_payload_button(recipient_id, payload, referral=None):
                 send_text(recipient_id, "Do you want to offer your customers the ability to win Steam in-game items?", [
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="Yes", payload=Const.PB_PAYLOAD_GIVEAWAYS_YES),
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="No", payload=Const.PB_PAYLOAD_GIVEAWAYS_NO),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
                 ])
 
 
     elif payload == Const.PB_PAYLOAD_RATE_PRODUCT:
         send_tracker("button-rate-storefront", recipient_id, "")
-        send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_RATE)
+        send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_RATE)
 
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_VIDEO:
@@ -2708,13 +2436,13 @@ def received_payload_button(recipient_id, payload, referral=None):
                 product.broadcast_message = "_{PENDING}_"
                 db.session.commit()
 
-                send_text(recipient_id, "Send a message or video to your Lemonade subscribers.", cancel_entry_quick_reply())
+                send_text(recipient_id, "Send a message or video to your Lemonade subscribers.")
 
     elif payload == Const.PB_PAYLOAD_MESSAGE_CUSTOMERS:
         send_tracker("button-message-customers", recipient_id, "")
         send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCT_PURCHASES)
 
-    elif re.search(r'PURCHASE_MESSAGE\-(\d+)', payload) is not None:
+    elif re.search('PURCHASE_MESSAGE\-(\d+)', payload) is not None:
         send_tracker("button-message-customer", recipient_id, "")
         match = re.match(r'PURCHASE_MESSAGE\-(?P<purchase_id>\d+)', payload)
         purchase = Purchase.query.filter(Purchase.id == match.group('purchase_id')).first()
@@ -2724,32 +2452,30 @@ def received_payload_button(recipient_id, payload, referral=None):
             purchase.claim_state = 1
             db.session.commit()
 
-            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email), cancel_entry_quick_reply())
+            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email))
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         send_tracker("button-paypal-payout", recipient_id, "")
 
-        storefront = storefront_query.first()
-        storefront.paypal_addr = "_{PENDING}_"
+        customer.paypal_email = "_{PENDING}_"
         db.session.commit()
-
-        send_text(recipient_id, "Enter your PayPal email address", quick_replies=cancel_entry_quick_reply())
+        send_text(recipient_id, "Enter your PayPal email address")
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
         send_tracker("button-bitcoin-payout", recipient_id, "")
 
-        storefront = storefront_query.first()
-        storefront.bitcoin_addr = "_{PENDING}_"
+        customer.bitcoin_addr = "_{PENDING}_"
         db.session.commit()
-
-        send_text(recipient_id, "Enter your Bitcoin address", quick_replies=cancel_entry_quick_reply())
+        send_text(recipient_id, "Enter your Bitcoin address")
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER:
         send_tracker("button-message-owner", recipient_id, "")
 
-        storefront = Storefront.query.filter(Storefront.id == customer.storefront_id).first()
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
         send_text(recipient_id, "Notifying {storefront_name}…".format(storefront_name=storefront.display_name))
-        send_customer_carousel(recipient_id, customer.storefront_id)
+        send_customer_carousel(recipient_id, storefront.id)
 
     elif payload == Const.PB_PAYLOAD_FLIP_COIN_NEXT_ITEM:
         send_tracker("button-flip-next-item", recipient_id, "")
@@ -2777,13 +2503,20 @@ def received_payload_button(recipient_id, payload, referral=None):
 
     else:
         send_tracker("unknown-button", recipient_id, "")
-        send_text(recipient_id, "Button not recognized!", main_menu_quick_replies())
+        send_text(recipient_id, "Button not recognized!")
 
 
 def recieved_attachment(recipient_id, attachment_type, payload):
-    logger.info("recieved_attachment(recipient_id={recipient_id}, attachment_type={attachment_type}, payload={payload})".format(recipient_id=recipient_id, attachment_type=attachment_type, payload=payload))
+    logger.info("recieved_attachment(recipient_id=%s, attachment_type=%s, payload=%s)" % (recipient_id, attachment_type, payload))
 
     #return "OK", 200
+
+
+    #------- URL BUTTON
+    if attachment_type == "fallback" and 'quick_reply' in payload:
+        received_quick_reply(recipient_id, payload['quick_reply'])
+        return "OK", 200
+
 
     #------- IMAGE MESSAGE
     if attachment_type == "image":
@@ -2806,9 +2539,11 @@ def recieved_attachment(recipient_id, attachment_type, payload):
 
             storefront = query.first()
             storefront.creation_state = 3
-            storefront.video_url = ""
             storefront.logo_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
             db.session.commit()
+
+            send_text(recipient_id, "Here's what your Shopbot will look like:")
+            send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
 
             image_sizer_sq = ImageSizer(image_file)
             image_sizer_sq.start()
@@ -2816,11 +2551,11 @@ def recieved_attachment(recipient_id, attachment_type, payload):
             image_sizer_ls = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
             image_sizer_ls.start()
 
-            image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-            image_sizer_banner.start()
+            image_sizer_pt = ImageSizer(in_file=image_file, out_file=None, canvas_size=(480, 640))
+            image_sizer_pt.start()
 
-            send_text(recipient_id, "Here's what your Shopbot will look like:")
-            send_storefront_card(recipient_id, storefront.id, Const.CARD_TYPE_STOREFRONT_PREVIEW)
+            image_sizer_ws = ImageSizer(in_file=image_file, canvas_size=(1280, 720))
+            image_sizer_ws.start()
 
             return "OK", 200
 
@@ -2855,10 +2590,13 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 image_sizer_ls = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
                 image_sizer_ls.start()
 
-                image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-                image_sizer_banner.start()
+                image_sizer_pt = ImageSizer(in_file=image_file, out_file=None, canvas_size=(480, 640))
+                image_sizer_pt.start()
 
-                send_text(recipient_id, "Give your product a title.", cancel_entry_quick_reply())
+                image_sizer_ws = ImageSizer(in_file=image_file, canvas_size=(1280, 720))
+                image_sizer_ws.start()
+
+                send_text(recipient_id, "Give your product a title.")
 
                 return "OK", 200
 
@@ -2903,22 +2641,19 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 image_renderer.start()
                 image_renderer.join()
 
+                image_sizer_sq = ImageSizer(image_file)
+                image_sizer_sq.start()
+
+                image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
+                image_sizer_banner.start()
+
                 product = query.order_by(Product.added.desc()).first()
                 product.creation_state = 1
                 product.image_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
                 product.video_url = "http://prebot.me/videos/{timestamp}.mp4".format(timestamp=timestamp)
                 db.session.commit()
 
-                image_sizer_sq = ImageSizer(image_file)
-                image_sizer_sq.start()
-
-                image_sizer_ls = ImageSizer(in_file=image_file, canvas_size=(400, 300))
-                image_sizer_ls.start()
-
-                image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-                image_sizer_banner.start()
-
-                send_text(recipient_id, "Give your product a title.", cancel_entry_quick_reply())
+                send_text(recipient_id, "Give your product a title.")
 
             else:
                 handle_wrong_reply(recipient_id)
@@ -2959,7 +2694,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('UPDATE `products` SET `broadcast_message` = "{broadcast_message}" WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(broadcast_message=product.broadcast_message, storefront_id=storefront_query.first().id))
-                        cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id} AND `product_id` = {product_id} AND `broadcast` = 0 AND `enabled` = 1;'.format(storefront_id=storefront_query.first().id, product_id=product.id))
+                        cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id} AND `product_id` = {product_id};'.format(storefront_id=storefront_query.first().id, product_id=product.id))
                         conn.commit()
 
                 except mysql.Error, e:
@@ -2969,7 +2704,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                     if conn:
                         conn.close()
 
-                send_text(recipient_id, "Great! Your message will be sent to your customers shortly.", main_menu_quick_replies(product))
+                send_text(recipient_id, "Great! Your message will be sent to your customers shortly.")
                 send_admin_carousel(recipient_id)
 
     else:
@@ -2979,21 +2714,22 @@ def recieved_attachment(recipient_id, attachment_type, payload):
 
 
 def received_text_response(recipient_id, message_text):
-    logger.info("received_text_response(recipient_id={recipient_id}, message_text={message_text})".format(recipient_id=recipient_id, message_text=message_text))
+    logger.info("received_text_response(recipient_id=%s, message_text=%s)" % (recipient_id, message_text))
     storefront_query = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4)
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     #-- purge sqlite db
-    if message_text == ":/flush_sqlite:/":
+    if message_text == "/:flush_sqlite:/":
         drop_sqlite()
-        send_text(recipient_id, "Purged sqlite db", main_menu_quick_replies())
+        send_text(recipient_id, "Purged sqlite db")
         send_admin_carousel(recipient_id)
 
-    elif message_text == ":/drop_payment/:":
+    elif message_text == "/:drop_payment:/":
         customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
         customer.email = None
         customer.stripe_id = None
         customer.card_id = None
+        Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
         try:
@@ -3010,30 +2746,18 @@ def received_text_response(recipient_id, message_text):
             if conn:
                 conn.close()
 
-        send_text(recipient_id, "Removed payment details", main_menu_quick_replies())
+        send_text(recipient_id, "Removed payment details")
 
-    elif message_text.startswith(":/db_addcol"):
+    elif message_text.startswith("/:db_addcol"):
         comp = message_text.split(" ")
 
         if len(comp) == 4:
             add_column(comp[1], comp[2], comp[3])
 
 
-    #-- send dm
-    elif re.search(r'^\/dm\ \d+\ \".+\"$', message_text, re.IGNORECASE) is not None:
-        match = re.match(r'^\/dm\ (?P<fb_psid>\d+)\ \"(?P<message_txt>.+)\"$', message_text)
-
-        if match.group('fb_psid') is not None and match.group('message_txt') is not None:
-            send_text(match.group('fb_psid'), match.group('message_txt'), main_menu_quick_replies())
-            send_text(recipient_id, "Sending DM --> {fb_psid}:\n{message_text}".format(fb_psid=match.group('fb_psid'), message_text=match.group('message_txt')), main_menu_quick_replies())
-
-        else:
-            send_text(recipient_id, "Invalid format, needs to be\n:/{PSID} \"{MESSAGE}\"", cancel_entry_quick_reply())
-
-
     #-- force referral
-    elif re.search(r'^\/\S+$', message_text):
-        welcome_message(recipient_id, Const.PRODUCT_REFERRAL, message_text)
+    elif message_text.startswith("/"):
+        welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text[1:])
 
 
     #-- show admin carousel
@@ -3054,10 +2778,8 @@ def received_text_response(recipient_id, message_text):
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
-        product = Product.query.filter(Product.id == customer.product_id).first()
-        if product is not None:
-            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-            send_customer_carousel(recipient_id, storefront.id)
+        if customer.product_id is not None:
+            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
         else:
             send_admin_carousel(recipient_id)
@@ -3065,9 +2787,11 @@ def received_text_response(recipient_id, message_text):
 
     #-- show admin carousel if not deeplinked
     elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES:
-        if customer.storefront_id is not None and customer.product_id is not None:
-            # send_customer_carousel(recipient_id, customer.storefront_id)
-            send_product_card(recipient_id, customer.product_id, customer.storefront_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+        Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+        db.session.commit()
+
+        if customer.product_id is not None:
+            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
 
         else:
             send_admin_carousel(recipient_id)
@@ -3088,14 +2812,13 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, Const.GOODBYE_MESSAGE)
 
     else:
-        #-- entering payout info
-        if Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.paypal_addr == "_{PENDING}_").count() > 0:
+        #-- entering paypal payout info
+        if customer.paypal_email == "_{PENDING}_":
             if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
-                send_text(recipient_id, "Invalid email address, try again", quick_replies=cancel_entry_quick_reply())
+                send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
 
             else:
-                storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
-                storefront.paypal_addr = message_text
+                customer.paypal_email = message_text
                 db.session.commit()
 
                 try:
@@ -3105,7 +2828,7 @@ def received_text_response(recipient_id, message_text):
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
                         row = cur.fetchone()
                         if row is None:
-                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (customer.id, message_text))
+                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP())', (customer.id, message_text))
                         else:
                             cur.execute('UPDATE `payout` SET `paypal` = "{paypal}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} LIMIT 1;'.format(paypal=message_text, payout_id=row['id']))
                         conn.commit()
@@ -3117,22 +2840,19 @@ def received_text_response(recipient_id, message_text):
                     if conn:
                         conn.close()
 
-<<<<<<< HEAD
-                send_text(recipient_id, "PayPal email address set", main_menu_quick_replies(Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 5).first()))
-=======
                 send_text(recipient_id, "PayPal email address set", main_menu_quick_replies(recipient_id))
->>>>>>> bringing back this week's changes
             return "OK", 200
 
-        #-- bitcoin payout
-        elif Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.bitcoin_addr == "_{PENDING}_").count() > 0:
+
+        #-- entering bitcoin payout
+        if customer.bitcoin_addr == "_{PENDING}_":
             if re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', message_text) is None:
-                send_text(recipient_id, "Invalid bitcoin address, try again", quick_replies=cancel_entry_quick_reply())
+                send_text(recipient_id, "Invalid bitcoin address, it needs to start w/ 1 or 3, and be between 26 & 35 characters long.", quick_replies=cancel_entry_quick_reply())
                 return "OK", 200
 
             else:
-                storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
-                storefront.bitcoin_addr = message_text
+                customer.bitcoin_addr = message_text
+                db.session.commit()
 
                 try:
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -3141,9 +2861,9 @@ def received_text_response(recipient_id, message_text):
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
                         row = cur.fetchone()
                         if row is None:
-                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `bitcoin`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (customer.id, message_text))
+                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `bitcoin`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP())', (customer.id, message_text))
                         else:
-                            cur.execute('UPDATE `payout` SET `bitcoin` = "{bitcoin}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} AND `bitcoin` != "{bitcoin}" LIMIT 1;'.format(bitcoin=message_text, payout_id=row['id']))
+                            cur.execute('UPDATE `payout` SET `bitcoin` = "{bitcoin}", `updated` = UTC_TIMESTAMP() WHERE `id` = {payout_id} LIMIT 1;'.format(bitcoin=message_text, payout_id=row['id']))
                         conn.commit()
 
                 except mysql.Error, e:
@@ -3153,145 +2873,161 @@ def received_text_response(recipient_id, message_text):
                     if conn:
                         conn.close()
 
-<<<<<<< HEAD
-                send_text(recipient_id, "Bitcoin payout address set", main_menu_quick_replies(Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 5).first()))
-=======
                 send_text(recipient_id, "Bitcoin payout address set", main_menu_quick_replies(recipient_id))
->>>>>>> bringing back this week's changes
             return "OK", 200
 
-
-
-        #-- check for message to customer
-        purchase = None
-        for storefront in Storefront.query.filter(Storefront.owner_id == recipient_id):
-            purchase = Purchase.query.filter(Purchase.storefront_id == storefront.id).filter(Purchase.claim_state == 1).first()
-
-            if purchase is not None:
-                customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
-                purchase.claim_state = 2
-                db.session.commit()
-
-                try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('UPDATE `purchases` SET `claim_state` = 2 WHERE `id` = {purchase_id} LIMIT 1;'.format(purchase_id=purchase.id))
-                        conn.commit()
-
-                except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-                finally:
-                    if conn:
-                        conn.close()
-
-
-<<<<<<< HEAD
-                send_text(
-                    recipient_id = customer.fb_psid,
-                    message_text = "{storefront_name} says:\n{message}".format(storefront_name=storefront.display_name, message=message_text),
-                    quick_replies = dm_quick_replies(customer.id, purchase)
-                )
-                send_text(recipient_id, message_text, dm_quick_replies(recipient_id, purchase))
-=======
-                send_text(customer.fb_psid, "{storefront_name} says:\n{message}".format(storefront_name=storefront.display_name, message=message_text))
-                send_text(recipient_id, "Message sent to {customer_email}".format(customer_email=customer.email), quick_replies=(storefront.messenger_url))
->>>>>>> bringing back this week's changes
-                return "OK", 200
 
         #-- check for in-progress payment
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
         if payment is not None:
-            if payment.creation_state == 0:
-                if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
-<<<<<<< HEAD
-                    send_text(recipient_id, "Invalid email address, try again", cancel_payment_quick_reply())
-=======
-                    send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
->>>>>>> bringing back this week's changes
+            product = Product.query.filter(Product.id == customer.product_id).first()
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
+            if payment.source == "card":
+                if payment.creation_state == 0:
+                    if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
+                        send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
+
+                    else:
+                        customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                        customer.email = message_text
+                        payment.email = message_text
+                        payment.creation_state = 1
+                        send_text(recipient_id, "Enter the card holder's name", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 1:
+                    payment.full_name = message_text
+                    payment.creation_state = 2
+                    send_text(recipient_id, "Enter the card's account number", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 2:
+                    if message_text.isdigit():
+                        payment.acct_number = message_text
+                        payment.creation_state = 3
+                        send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", cancel_entry_quick_reply())
+
+                    else:
+                        send_text(recipient_id, "Card account numbers need to be only digits", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 3:
+                    if re.match(r'^(1[0-2]|0[1-9])\/([1-9]\d)$', message_text) is None:
+                        send_text(recipient_id, "Expiration date needs to be in the format MM/YY", cancel_entry_quick_reply())
+
+                    else:
+                        payment.expiration = datetime.strptime(message_text, '%m/%y').date()
+                        payment.creation_state = 4
+                        send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 4:
+                    if re.match(r'^(\d{3,})$', message_text) is None:
+                        send_text(recipient_id, "CVC / CVV2 codes need to be at least 3 digits", cancel_entry_quick_reply())
+
+                    else:
+                        payment.cvc = message_text
+                        payment.creation_state = 5
+
+                        customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                        send_text(
+                            recipient_id = recipient_id,
+                            message_text= "Are these details correct?\nEmail: {email}\nName: {full_name}\nCard #: {acct_number}\nExpiration: {expiration:%m/%Y}\nCVC / CVV2: {cvc}".format(email=payment.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+                            quick_replies = [
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
+                            ] + cancel_entry_quick_reply()
+                        )
+
+            elif payment.source == "btc":
+                if re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', message_text) is None:
+                    send_text(recipient_id, "Invalid bitcoin address, it needs to start w/ 1 or 3, and be between 26 & 35 characters long.", quick_replies=cancel_entry_quick_reply())
 
                 else:
-                    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-                    customer.email = message_text
-                    payment.creation_state = 1
-<<<<<<< HEAD
-                    send_text(recipient_id, "Enter the card holder's name", cancel_payment_quick_reply())
-=======
-                    send_text(recipient_id, "Enter the card holder's name", cancel_entry_quick_reply())
->>>>>>> bringing back this week's changes
+                    Payment.query.filter(Payment.fb_psid == recipient_id).delete()
 
-            elif payment.creation_state == 1:
-                payment.full_name = message_text
-                payment.creation_state = 2
-<<<<<<< HEAD
-                send_text(recipient_id, "Enter the card's account number", cancel_payment_quick_reply())
-=======
-                send_text(recipient_id, "Enter the card's account number", cancel_entry_quick_reply())
->>>>>>> bringing back this week's changes
+                    customer.bitcoin_addr = message_text
+                    purchase = Purchase(customer.id, storefront.id, product.id, 2)
 
-            elif payment.creation_state == 2:
-                if message_text.isdigit():
-                    payment.acct_number = message_text
-                    payment.creation_state = 3
-<<<<<<< HEAD
-                    send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", cancel_payment_quick_reply())
+                    try:
+                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('UPDATE `users` SET `bitcoin_addr` = "{bitcoin_addr}" WHERE `id` = {user_id} AND `bitcoin_addr` != "{bitcoin_addr}" LIMIT 1;'.format(bitcoin_addr=message_text, user_id=customer.id))
+                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, product.id, 2))
+                            conn.commit()
 
-                else:
-                    send_text(recipient_id, "Card account numbers need to be only digits", cancel_payment_quick_reply())
+                            cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
+                            row = cur.fetchone()
 
-            elif payment.creation_state == 3:
-                if re.match(r'^(1[0-2]|0[1-9])\/([1-9]\d)$', message_text) is None:
-                    send_text(recipient_id, "Expiration date needs to be in the format MM/YY", cancel_payment_quick_reply())
-=======
-                    send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", cancel_entry_quick_reply())
+                            purchase.id = row['id']
+                            customer.purchase_id = row['id']
 
-                else:
-                    send_text(recipient_id, "Card account numbers need to be only digits", cancel_entry_quick_reply())
+                    except mysql.Error as e:
+                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
-            elif payment.creation_state == 3:
-                if re.match(r'^(1[0-2]|0[1-9])\/([1-9]\d)$', message_text) is None:
-                    send_text(recipient_id, "Expiration date needs to be in the format MM/YY", cancel_entry_quick_reply())
->>>>>>> bringing back this week's changes
+                    finally:
+                        if conn:
+                            conn.close()
 
-                else:
-                    payment.expiration = datetime.strptime(message_text, '%m/%y').date()
-                    payment.creation_state = 4
-<<<<<<< HEAD
-                    send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_payment_quick_reply())
-
-            elif payment.creation_state == 4:
-                if re.match(r'^(\d{3,})$', message_text) is None:
-                    send_text(recipient_id, "CVC / CVV2 codes need to be at least 3 digits", cancel_payment_quick_reply())
-=======
-                    send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_entry_quick_reply())
-
-            elif payment.creation_state == 4:
-                if re.match(r'^(\d{3,})$', message_text) is None:
-                    send_text(recipient_id, "CVC / CVV2 codes need to be at least 3 digits", cancel_entry_quick_reply())
->>>>>>> bringing back this week's changes
-
-                else:
-                    payment.cvc = message_text
-                    payment.creation_state = 5
-
-                    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                    db.session.add(purchase)
+                    db.session.commit()
+                    send_text(recipient_id, "Bitcoin address set, notifying the shop owner for your invoicce", main_menu_quick_replies(recipient_id))
                     send_text(
-                        recipient_id = recipient_id,
-                        message_text= "Are these details correct?\nEmail: {email}\nName: {full_name}\nCard #: {acct_number}\nExpiration: {expiration:%m/%Y}\nCVC / CVV2: {cvc}".format(email=customer.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+                        recipient_id = storefront.owner_id,
+                        message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ bitcoin address {bitcoin_addr}.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=message_text),
                         quick_replies = [
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
-<<<<<<< HEAD
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO)
-                        ] + cancel_payment_quick_reply()
-=======
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
-                        ] + cancel_entry_quick_reply()
->>>>>>> bringing back this week's changes
+                            # build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter Bitcoin Address", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
+                        ]
+                    )
+
+            elif payment.source == "paypal":
+                if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
+                    send_text(recipient_id, "Invalid email address, try again")
+
+                else:
+                    Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+
+                    customer.paypal_email = message_text
+                    purchase = Purchase(customer.id, storefront.id, product.id, 3)
+
+                    try:
+                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('UPDATE `users` SET `paypal_email` = "{paypal_email}" WHERE `id` = {user_id} AND `paypal_email` != "{paypal_email}" LIMIT 1;'.format(paypal_email=message_text, user_id=customer.id))
+                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, product.id, 3))
+                            conn.commit()
+
+                            cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
+                            row = cur.fetchone()
+
+                            purchase.id = row['id']
+                            customer.purchase_id = row['id']
+
+                    except mysql.Error as e:
+                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+
+                    db.session.add(purchase)
+                    db.session.commit()
+
+                    send_text(recipient_id, "Paypal address set, notifying the shop owner for your invoice", main_menu_quick_replies(recipient_id))
+                    send_text(
+                        recipient_id = storefront.owner_id,
+                        message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a PayPal invoice now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=message_text),
+                        quick_replies = [
+                            # build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter PayPal Address", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
+                        ]
                     )
 
             db.session.commit()
             return "OK", 200
+
 
         #-- has active storefront
         if storefront_query.count() > 0:
@@ -3306,7 +3042,7 @@ def received_text_response(recipient_id, message_text):
                         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
-                            cur.execute('SELECT `id` FROM `products` WHERE `display_name` = "{product_name}" LIMIT 1;'.format(product_name=message_text))
+                            cur.execute('SELECT `id` FROM `products` WHERE `display_name` = "{product_name}" ;'.format(product_name=message_text))
                             row = cur.fetchone()
 
                             if row is None:
@@ -3316,10 +3052,10 @@ def received_text_response(recipient_id, message_text):
                                 product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
                                 db.session.commit()
 
-                                send_text(recipient_id, "Enter the price of {product_name} in USD. (example 78.00)".format(product_name=product.display_name), cancel_entry_quick_reply())
+                                send_text(recipient_id, "Enter the price of {product_name} in USD. (example 78.00)".format(product_name=product.display_name))
 
                             else:
-                                send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
+                                send_text(recipient_id, "That name is already taken, please choose another")
 
                     except mysql.Error, e:
                         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -3340,8 +3076,8 @@ def received_text_response(recipient_id, message_text):
                             build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
                             build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
                             build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS),
-                        ] + cancel_entry_quick_reply())
+                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
+                        ])
 
                     else:
                         send_text(recipient_id = recipient_id, message_text = "Enter a valid price in USD (example 78.00)")
@@ -3363,8 +3099,8 @@ def received_text_response(recipient_id, message_text):
                         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
-                            cur.execute('UPDATE `products` SET `broadcast_message` = "{broadcast_message}" WHERE `storefront_id` = {storefront_id} LIMIT 1;'.format(broadcast_message=product.broadcast_message, storefront_id=storefront_query.first().id))
-                            cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id} AND `broadcast` = 0;'.format(storefront_id=storefront_query.first().id))
+                            cur.execute('UPDATE `products` SET `broadcast_message` = "{broadcast_message}" WHERE `storefront_id` = {storefront_id};'.format(broadcast_message=product.broadcast_message, storefront_id=storefront_query.first().id))
+                            cur.execute('UPDATE `subscriptions` SET `broadcast` = 1 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront_query.first().id))
                             conn.commit()
 
                     except mysql.Error, e:
@@ -3378,7 +3114,7 @@ def received_text_response(recipient_id, message_text):
                     send_admin_carousel(recipient_id)
 
                 else:
-                    welcome_message(recipient_id, Const.PRODUCT_REFERRAL, message_text)
+                    welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text)
 
         else:
             #-- look for in-progress storefront creation
@@ -3392,7 +3128,7 @@ def received_text_response(recipient_id, message_text):
                         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
-                            cur.execute('SELECT `id` FROM `storefronts` WHERE `display_name` = "{storefront_name}" LIMIT 1;'.format(storefront_name=message_text))
+                            cur.execute('SELECT `id` FROM `storefronts` WHERE `display_name` = "{storefront_name}" ;'.format(storefront_name=message_text))
                             row = cur.fetchone()
 
                             if row is None:
@@ -3401,10 +3137,10 @@ def received_text_response(recipient_id, message_text):
                                 storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", message_text)
                                 storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
                                 db.session.commit()
-                                send_text(recipient_id, "Explain what you are making or selling.", cancel_entry_quick_reply())
+                                send_text(recipient_id, "Explain what you are making or selling.")
 
                             else:
-                                send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
+                                send_text(recipient_id, "That name is already taken, please choose another")
 
                     except mysql.Error, e:
                         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -3429,11 +3165,11 @@ def received_text_response(recipient_id, message_text):
                 return "OK", 200
 
             else:
-                welcome_message(recipient_id, Const.PRODUCT_REFERRAL, message_text)
+                welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text)
 
 
 def handle_wrong_reply(recipient_id):
-    logger.info("handle_wrong_reply(recipient_id={recipient_id})".format(recipient_id=recipient_id))
+    logger.info("handle_wrong_reply(recipient_id=%s)" % (recipient_id))
 
     #-- customer message
     purchase = None
@@ -3442,13 +3178,21 @@ def handle_wrong_reply(recipient_id):
 
         if purchase is not None:
             customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
-            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email), quick_replies=cancel_entry_quick_reply())
+            send_text(recipient_id, "Enter your message to {customer_email}".format(customer_email=customer.email))
             return "OK", 200
 
     #-- payment creation in-progress
-    query = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.creation_state < 6)
-    if query.count() > 0:
-        add_payment(recipient_id)
+    payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
+    if payment is not None:
+        if payment.source == "card" and payment.creation_state < 6:
+            add_cc_payment(recipient_id)
+
+        elif payment.source == "btc":
+            send_text(recipient_id, "Invalid bitcoin address, it needs to start w/ 1 or 3, and be between 25 & 34 characters long.", quick_replies=cancel_entry_quick_reply())
+
+        elif payment.source == "paypal":
+            send_text(recipient_id, "Invalid email address, try again")
+
         return "OK", 200
 
     #-- storefront creation in-progress
@@ -3456,15 +3200,15 @@ def handle_wrong_reply(recipient_id):
     if query.count() > 0:
         storefront = query.first()
 
-        send_text(recipient_id, "Incorrect response!", quick_replies=cancel_entry_quick_reply())
+        send_text(recipient_id, "Incorrect response!")
         if storefront.creation_state == 0:
-            send_text(recipient_id, "Give your Shopbot a name.", quick_replies=cancel_entry_quick_reply())
+            send_text(recipient_id, "Give your Shopbot a name.")
 
         elif storefront.creation_state == 1:
-            send_text(recipient_id, "Explain what you are making or selling.", quick_replies=cancel_entry_quick_reply())
+            send_text(recipient_id, "Explain what you are making or selling.")
 
         elif storefront.creation_state == 2:
-            send_text(recipient_id, "Upload a Shopbot profile image.", quick_replies=cancel_entry_quick_reply())
+            send_text(recipient_id, "Upload a Shopbot profile image.")
 
         elif storefront.creation_state == 3:
             send_text(recipient_id, "Here's what your Shopbot will look like:")
@@ -3481,12 +3225,12 @@ def handle_wrong_reply(recipient_id):
         query = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 5)
         if query.count() > 0:
             product = query.order_by(Product.added.desc()).first()
-            send_text(recipient_id, "Incorrect response!", quick_replies=cancel_entry_quick_reply())
+            send_text(recipient_id, "Incorrect response!")
             if product.creation_state == 0:
-                send_text(recipient_id, "Upload a photo or video of what you are selling.", quick_replies=cancel_entry_quick_reply())
+                send_text(recipient_id, "Upload a photo or video of what you are selling.")
 
             elif product.creation_state == 1:
-                send_text(recipient_id, "Give your product a title.", quick_replies=cancel_entry_quick_reply())
+                send_text(recipient_id, "Give your product a title.")
 
             elif product.creation_state == 2:
                 send_text(recipient_id, "Enter the price of {product_name} in USD. (example 78.00)".format(product_name=product.display_name))
@@ -3497,13 +3241,12 @@ def handle_wrong_reply(recipient_id):
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
                     build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
                     build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Cancel", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
+                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
                 ])
 
             elif product.creation_state == 4:
                 send_text(recipient_id, "Here's what your product will look like:")
-                send_product_card(recipient_id=recipient_id, product_id=product.id, card_type=Const.CARD_TYPE_PRODUCT_PREVIEW)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
     return "OK", 200
 
@@ -3513,9 +3256,7 @@ def handle_wrong_reply(recipient_id):
 
 
 @app.route('/', methods=['POST'])
-def webook():
-
-    return "OK", 200
+def  webook():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
     #    return "OK", 200
@@ -3528,7 +3269,9 @@ def webook():
     logger.info(data)
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
-    if 'object' in data and data['object'] == "page":
+    #return "OK", 200
+
+    if data['object'] == "page":
         for entry in data['entry']:
             for messaging_event in entry['messaging']:
                 sender_id = messaging_event['sender']['id']
@@ -3540,21 +3283,25 @@ def webook():
                 quick_reply = None
                 referral = None
 
-                # if sender_id == "177712676037903":
-                #     logger.info("-=- MESSAGE-ECHO -=-")
-                #     return "OK", 200
+                if sender_id == "1214675165306847":
+                    logger.info("-=- BYPASS-USER -=-")
+                    return "OK", 200
+
+                if 'echo' in messaging_event:
+                    logger.info("-=- MESSAGE-ECHO -=-")
+                    return "OK", 200
 
                 if 'delivery' in messaging_event:  # delivery confirmatio
-                    logger.info("-=- DELIVERY-CONFIRM -=-")
+                    # logger.info("-=- DELIVERY-CONFIRM -=-")
                     return "OK", 200
 
                 if 'read' in messaging_event:  # read confirmation
-                    logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
+                    # logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
                     send_tracker("read-receipt", sender_id, "")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
-                    logger.info("-=- OPT-IN -=-")
+                    # logger.info("-=- OPT-IN -=-")
                     return "OK", 200
 
 
@@ -3563,27 +3310,29 @@ def webook():
                     referral = messaging_event['referral']['ref'].encode('ascii', 'ignore')
 
                 #-- check mysql for user
-                customer = Customer(fb_psid=recipient_id, referrer=referral)
-
                 try:
                     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=customer.fb_psid))
+                        cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=sender_id))
                         row = cur.fetchone()
 
                         if row is None:
                             send_tracker("sign-up", sender_id, "")
-                            add_new_user(customer)
+                            add_new_user(sender_id, referral)
 
                         else:
-                            customer.id = row['id']
+                            customer = Customer.query.filter(Customer.fb_psid == sender_id).first()
+                            if customer is None:
+                                db.session.add(Customer(row['id'], sender_id, referral))
+                                db.session.commit()
+
                             if referral is not None:
-                                cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" AND `referrer` != "{referrer}"LIMIT 1;'.format(referrer=customer.referrer, fb_psid=customer.fb_psid))
+                                cur.execute('UPDATE `users` SET `referrer` = "{referrer}" WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(referrer=referral, fb_psid=sender_id))
                                 conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -3593,9 +3342,12 @@ def webook():
 
                 #-- entered via url referral
                 if referral is not None:
-                    welcome_message(sender_id, Const.PRODUCT_REFERRAL, referral)
+                    welcome_message(sender_id, Const.CUSTOMER_REFERRAL, referral[1:])
                     return "OK", 200
 
+
+
+                logger.info("USERS -->%s" % (Customer.query.filter(Customer.fb_psid == sender_id).first()))
 
                 #-- look for created storefront
                 storefront_query = Storefront.query.filter(Storefront.owner_id == sender_id).filter(Storefront.creation_state == 4)
@@ -3604,11 +3356,24 @@ def webook():
                 if storefront_query.count() > 0:
                     logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront_query.first().id).all()))
                     logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront_query.first().id).all()))
+                    logger.info("PURCHASES -->%s" % (Purchase.query.filter(Purchase.storefront_id == storefront_query.first().id).all()))
+                    logger.info("PURCHASED -->%s" % (Purchase.query.filter(Purchase.customer_id == storefront_query.first().id).all()))
+
+
+                #-- postback response w/ payload
+                if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                    payload = messaging_event['postback']['payload']
+                    logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
+                    if 'id' in messaging_event:
+                        write_message_log(sender_id, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
+
+                    received_payload_button(sender_id, payload, referral)
+                    return "OK", 200
 
 
                 #-- actual message
                 if 'message' in messaging_event:
-                    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->{message}".format(message=messaging_event['sender']))
+                    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->%s" % (messaging_event['sender']))
 
                     message = messaging_event['message']
                     message_id = message['mid']
@@ -3617,34 +3382,26 @@ def webook():
                     #-- insert to log
                     write_message_log(sender_id, message_id, message)
 
+                    if 'quick_reply' in message:
+                        quick_reply = message['quick_reply']['payload']
+                        logger.info("QR --> %s" % (quick_reply))
+                        received_quick_reply(sender_id, quick_reply)
+                        return "OK", 200
+
+
                     if 'attachments' in message:
                         for attachment in message['attachments']:
                             recieved_attachment(sender_id, attachment['type'], attachment['payload'])
                         return "OK", 200
 
-                    if 'quick_reply' in message:
-                        quick_reply = message['quick_reply']['payload']
-                        logger.info("QR --> {quick_replies}".format(quick_replies=quick_reply))
-                        received_quick_reply(sender_id, quick_reply)
-                        return "OK", 200
+
 
                     if 'text' in message:
                         received_text_response(sender_id, message['text'].encode('ascii', 'ignore'))
                         return "OK", 200
 
-
-                #-- postback response w/ payload
-                if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
-                    payload = messaging_event['postback']['payload']
-                    logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
-                    received_payload_button(sender_id, payload, referral)
-                    if 'id' in messaging_event:
-                        write_message_log(sender_id, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
-
-                    return "OK", 200
-
-
-                send_text(sender_id, Const.UNKNOWN_MESSAGE)
+                else:
+                    send_text(sender_id, Const.UNKNOWN_MESSAGE)
 
     return "OK", 200
 
@@ -3652,23 +3409,10 @@ def webook():
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
-@app.route('/paypal-ipn/', methods=['POST'])
-def paypal_ipn():
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\»  '/paypal-ipn'")
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-
-    data = request.get_json()
-    logger.info("request={request}".format(request=request))
-    logger.info("data={data}".format(data=data))
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-
-    return "OK", 200
-
 @app.route('/', methods=['GET'])
 def verify():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= GET --   ({hub_mode})->{request}".format(hub_mode=request.args.get('hub.mode'), request=request.args))
+    logger.info("=-=-=-=-=-= GET --   (%s)->%s" % (request.args.get('hub.mode'), request.args))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
@@ -3778,14 +3522,14 @@ def send_video(recipient_id, url, attachment_id=None, quick_replies=None):
 
 
 def send_message(payload):
-    logger.info("send_message(payload={payload})".format(payload=payload))
+    logger.info("send_message(payload=%s)" % (payload))
 
     response = requests.post(
         url = "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
         headers = { 'Content-Type' : "application/json" },
         data = payload
     )
-    logger.info("SEND MESSAGE response: {response}".format(response=response.json()))
+    logger.info("SEND MESSAGE response: %s" % (response.json()))
 
     return True
 
@@ -3798,5 +3542,5 @@ if __name__ == '__main__':
     from gevent import monkey
     monkey.patch_all()
 
-    logger.info("Firin up FbBot using verify token [{verify_token}].".format(verify_token=Const.VERIFY_TOKEN))
+    logger.info("Firin up FbBot using verify token [%s]." % (Const.VERIFY_TOKEN))
     app.run(debug=True)

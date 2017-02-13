@@ -1125,7 +1125,7 @@ def main_menu_quick_replies(recipient_id=None):
     return quick_replies
 
 def cancel_payment_quick_reply():
-    # logger.info("cancel_entry_quick_reply()")
+    # logger.info("cancel_payment_quick_reply()")
 
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel Purchase", payload=Const.PB_PAYLOAD_PAYMENT_CANCEL)
