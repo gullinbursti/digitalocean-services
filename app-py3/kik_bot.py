@@ -714,7 +714,7 @@ def flip_result(message):
             TextMessage(
               to = message.from_user,
               chat_id = message.chat_id,
-              body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to kik.me/game.bots\n\nTap here to claim: {claim_url}\n\nFollow all instructions to get items.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url=item_flips[message.chat_id]['trade_url']),
+              body = "WINNER! You won {item_name} from {game_name}.\n\nInstructions:\nInvite 3 friends to kik.me/game.bots\n\nTap here to claim: {claim_url}\n\nFollow all instructions to get items.\n\nIf you have issues with your trade please direct message twitter.com/gamebotsc on twitter.".format(item_name=item_flips[message.chat_id]['name'], game_name=item_flips[message.chat_id]['game_name'], claim_url=item_flips[message.chat_id]['trade_url']),
               type_time = 250,
               keyboards = flip_coin_keyboard()
             )
