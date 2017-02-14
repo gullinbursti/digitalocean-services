@@ -129,7 +129,7 @@ $stripe_url = preg_replace('/_\{PRODUCT_ID\}_/', $product_obj->id, $config_arr['
 
 
 // get list of recipients
-$query = (count($argv) == 2) ? 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `chat_id` = "'. $argv[1] .'" LIMIT 1;' : 'SELECT DISTINCT `chat_id` FROM `fbbot_logs`;';
+$query = (count($argv) == 2) ? 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `chat_id` = "'. $argv[1] .'" LIMIT 1;' : 'SELECT DISTINCT `chat_id` FROM `fbbot_logs` WHERE `enabled` = 1;';
 $result = mysqli_query($db_conn, $query);
 
 // summary
