@@ -264,16 +264,6 @@ class Subscription(db.Model):
         return "<Subscription storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d>" % (self.storefront_id, self.product_id, self.customer_id, self.enabled)
 
 
-class ImageCopier(threading.Thread):
-    def __init__(self, src_url, out_file=None):
-        threading.Thread.__init__(self)
-        self.src_url = src_url
-        self.out_file = out_file
-
-    def run(self):
-        os.chdir(os.path.dirname(self.out_file))
-
-
 class ImageSizer(threading.Thread):
     def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
         if out_file is None:
@@ -736,7 +726,7 @@ def purchase_product(recipient_id, source):
                     recipient_id = storefront.owner_id,
                     message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
                     quick_replies = [
-                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
                         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
                     ]
                 )
@@ -865,10 +855,14 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT, me
     purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
     if purchase is not None:
         purchase.claim_state = 2
-        db.session.commit()
 
         customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
         storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+
+        if recipient_id == customer.fb_psid:
+            customer.purchase_id = purchase.id
+        db.session.commit()
+
 
         if dm_action == Const.PB_PAYLOAD_DM_PROMPT:
             if recipient_id == customer.fb_psid:
@@ -1254,7 +1248,7 @@ def dm_quick_replies(purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT):
 
     else:
         quick_replies = [
-            build_quick_reply(Const.KWIK_BTN_TEXT, "Reply", "%s-%s".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
+            build_quick_reply(Const.KWIK_BTN_TEXT, "Reply", "%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
             build_quick_reply(Const.KWIK_BTN_TEXT, caption="Close DM", payload=Const.PB_PAYLOAD_DM_CLOSE)
         ]
 
@@ -1303,7 +1297,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
             customer.product_id = product.id
 
             if product.video_url is not None and product.video_url != "":
-                send_video(recipient_id, product.video_url)
+                send_video(recipient_id, product.video_url, product.attachment_id)
 
             else:
                 if product.image_url is not None:
@@ -2170,6 +2164,16 @@ def received_quick_reply(recipient_id, quick_reply):
         send_tracker("button-giveaways-no", recipient_id, "")
         send_admin_carousel(recipient_id)
 
+    elif re.search('PURCHASE_MESSAGE\-(\d+)', quick_reply) is not None:
+        send_tracker("button-purchase-dm", recipient_id, "")
+        purchase_id = re.match(r'PURCHASE_MESSAGE\-(?P<purchase_id>\d+)', quick_reply).group('purchase_id')
+        purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
+        purchase.claim_state = 1
+        db.session.commit()
+
+        route_dm(recipient_id, purchase_id, Const.PB_PAYLOAD_DM_PROMPT)
+
+
     elif quick_reply == Const.PB_PAYLOAD_DM_CLOSE:
         send_tracker("button-close-dm", recipient_id, "")
 
@@ -2179,14 +2183,11 @@ def received_quick_reply(recipient_id, quick_reply):
             purchase.claim_state = 3
             db.session.commit()
 
+            storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+            customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
 
-
-        # storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).subquery('storefront_query')
-        # for purchase in db.session.query(Purchase).filter((Purchase.id == customer.purchase_id) | (Purchase.storefront_id.in_(storefront_query))).filter(Purchase.claim_state == 2):
-        #     purchase.claim_state = 3
-        #     db.session.commit()
-
-        send_text(recipient_id, "Closing out active DMs...", main_menu_quick_replies(recipient_id))
+            send_text(storefront.owner_id, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
+            send_text(customer.fb_psid, "Closing out DM with seller...", main_menu_quick_replies(recipient_id))
 
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_YES:
@@ -2501,7 +2502,7 @@ def received_payload_button(recipient_id, payload, referral=None):
         product_query = Product.query.filter(Product.id == customer.product_id)
         if product_query.count() > 0:
             product = product_query.order_by(Product.added.desc()).first()
-            send_video(recipient_id, product.video_url)
+            send_video(recipient_id, product.video_url, product.attachment_id)
 
 
     elif payload == Const.PB_PAYLOAD_NOTIFY_SUBSCRIBERS:
@@ -2665,7 +2666,11 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 customer.bitcoin_addr = qr.data.split(":")[-1]
                 db.session.commit()
 
+                send_text(recipient_id, "Bitcoin address set to {bitcoin_addr}".format(bitcoin_addr=customer.bitcoin_addr))
                 purchase_product(recipient_id, Const.PAYMENT_SOURCE_BITCOIN)
+
+            else:
+                send_text(recipient_id, "Invalid bitcoin address, please resubmit QR code.", quick_replies=cancel_entry_quick_reply())
 
             return "OK", 200
 
@@ -2787,11 +2792,17 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 image_renderer.start()
                 image_renderer.join()
 
-                image_sizer_sq = ImageSizer(image_file)
+                image_sizer_sq = ImageSizer(in_file=image_file, out_file=None)
                 image_sizer_sq.start()
 
-                image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-                image_sizer_banner.start()
+                image_sizer_ls = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
+                image_sizer_ls.start()
+
+                image_sizer_pt = ImageSizer(in_file=image_file, out_file=None, canvas_size=(480, 640))
+                image_sizer_pt.start()
+
+                image_sizer_ws = ImageSizer(in_file=image_file, canvas_size=(1280, 720))
+                image_sizer_ws.start()
 
                 product = query.order_by(Product.added.desc()).first()
                 product.creation_state = 1
@@ -3419,7 +3430,7 @@ def handle_wrong_reply(recipient_id):
 def  webook():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
-    #    return "OK", 200
+        # return "OK", 200
 
     data = request.get_json()
 
@@ -3429,7 +3440,7 @@ def  webook():
     logger.info(data)
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
-    #return "OK", 200
+    # return "OK", 200
 
     if data['object'] == "page":
         for entry in data['entry']:
@@ -3665,13 +3676,7 @@ def send_video(recipient_id, url, attachment_id=None, quick_replies=None):
         }
     }
 
-    if attachment_id is None:
-        data['message']['attachment']['payload'] = {
-            'url' : url,
-            'is_reusable' : True
-        }
-
-    else:
+    if attachment_id is not None:
         data['message']['attachment']['payload'] = { 'attachment_id' : attachment_id }
 
     if quick_replies is not None:
