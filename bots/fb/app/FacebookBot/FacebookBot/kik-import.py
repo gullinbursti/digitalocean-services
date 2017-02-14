@@ -22,9 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 from constants import Const
 
-#engine = create_engine("sqlite:///{file_path}/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=True)
-
-Session = sessionmaker(bind=create_engine("sqlite:///{file_path}/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=True))
+Session = sessionmaker(bind=create_engine("sqlite:///data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=False))
 session = Session()
 Base = declarative_base()
 
@@ -37,23 +35,25 @@ class Customer(Base):
     fb_psid = Column(String(255))
     fb_name = Column(String(255))
     email = Column(String(255))
-    bitcoin_addr = Column(String(255))
     referrer = Column(String(255))
+    paypal_email = Column(String(255))
+    bitcoin_addr = Column(String(255))
     stripe_id = Column(String(255))
     card_id = Column(String(255))
+    bitcoin_id = Column(String(255))
     storefront_id = Column(Integer)
     product_id = Column(Integer)
     purchase_id = Column(Integer)
     added = Column(Integer)
 
-    def __init__(self, id=None, fb_psid=None, referrer="/"):
+    def __init__(self, id, fb_psid, referrer="/"):
         self.id = id
         self.fb_psid = fb_psid
         self.referrer = referrer
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%d, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, storefront_id=%d, product_id=%d, purchase_id=%d, added=%d>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.storefront_id, self.product_id, self.purchase_id, self.added)
+        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
 
 
 class Product(Base):
@@ -71,9 +71,9 @@ class Product(Base):
     attachment_id = Column(String(255))
     price = Column(Float)
     prebot_url = Column(String(255))
-    release_date = Column(Integer)
-    views = Column(Integer)
+    views = Column(String(255))
     avg_rating = Column(Float)
+    release_date = Column(Integer)
     added = Column(Integer)
 
     def __init__(self, storefront_id):
@@ -85,7 +85,7 @@ class Product(Base):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Product id=%d, storefront_id=%d, creation_state=%d, display_name=%s, prebot_url=%s, release_date=%s, views=%d, avg_rating=%.2f, added=%d>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%d, storefront_id=%d, creation_state=%d, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%d, avg_rating=%.2f, added=%d>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
 
 
 class Storefront(Base):
@@ -102,8 +102,6 @@ class Storefront(Base):
     video_url = Column(String(255))
     prebot_url = Column(String(255))
     giveaway = Column(Integer)
-    bitcoin_addr = Column(String(255))
-    paypal_addr = Column(String(255))
     views = Column(Integer)
     added = Column(Integer)
 
@@ -116,7 +114,7 @@ class Storefront(Base):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Storefront id=%s, owner_id=%s, creation_state=%d, display_name=%s, prebot_url=%s, giveaway=%d, bitcoin_addr=%s, paypal_addr=%s, added=%d>" % (self.id, self.owner_id, self.creation_state, self.display_name, self.prebot_url, self.giveaway, self.bitcoin_addr, self.paypal_addr, self.added)
+        return "<Storefront id=%s, owner_id=%s, creation_state=%s, display_name=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.display_name, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
 
@@ -133,12 +131,10 @@ class ImageSizer(threading.Thread):
     def run(self):
         os.chdir(os.path.dirname(self.in_file))
         with Image.open(self.in_file.split("/")[-1]) as src_image:
-            ratio = src_image.size[0] / float(src_image.size[1])
-            scale_factor = self.canvas_size[0] / float(src_image.size[0])
-
+            scale_factor = max((src_image.size[0] / float(self.canvas_size[0]), src_image.size[1] / float(self.canvas_size[1])))
             scale_size = ((
-                int(src_image.size[0] * float(scale_factor)),
-                int((src_image.size[0] * scale_factor) / float(ratio))
+                int(round(src_image.size[0] / float(scale_factor))),
+                int(round(src_image.size[1] / float(scale_factor)))
             ))
 
             padding = (
@@ -153,7 +149,7 @@ class ImageSizer(threading.Thread):
                 self.canvas_size[1] - padding[1]
             )
 
-            print("::::::::::] CROP ->scale_factor=%f, scale_size=%s, padding=%s, area=%s" % (scale_factor, scale_size, padding, area))
+            # print("[::|::|::|::] CROP ->org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s" % (src_image.size, scale_factor, scale_size, padding, area))
 
             out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
             os.chdir(os.path.dirname(self.out_file))
@@ -169,25 +165,8 @@ def copy_remote_asset(src_url, local_file):
             for block in response.iter_content(1024):
                 handle.write(block)
         else:
-            print("DOWNLOAD FAILED!!! %s" % (response.text))
+            logger.info("DOWNLOAD FAILED!!! %s" % (response.text))
         del response
-
-
-
-
-def generate_fb_psid():
-    psid = "9"
-    for i in range(1, 16):
-        psid = "{psid}{rand}".format(psid=psid, rand=random.randint(0, 9))
-
-    return psid
-
-
-def dict_combine(dic_1, dic_2):
-    combined = dic_1.copy()
-    combined.update(dic_2)
-
-    return combined
 
 
 
@@ -209,15 +188,27 @@ def add_user(fb_psid):
             if row is None:
                 cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (fb_psid, "/"))
                 conn.commit()
+                cur.execute('SELECT `id`, `added` FROM `users` WHERE `id` = @@IDENTITY LIMIT 1;')
+                row = cur.fetchone()
 
                 #-- now add on sqlite w/ the new guy
                 customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
                 if customer is None:
-                    session.add(Customer(id=cur.lastrowid, fb_psid=fb_psid, referrer="/"))
+                    customer = Customer(id=row['id'], fb_psid=fb_psid, referrer="/")
+                    session.add(customer)
 
                 else:
                     customer.id = row['id']
-                session.commit()
+
+            else:
+                customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
+                if customer is None:
+                    customer = Customer(id=row['id'], fb_psid=fb_psid, referrer="/")
+                    session.add(customer)
+
+                else:
+                    customer.id = row['id']
+            session.commit()
 
     except mysql.Error, e:
         print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -225,6 +216,8 @@ def add_user(fb_psid):
     finally:
         if conn:
             conn.close()
+
+    return customer.id
 
 
 
@@ -248,11 +241,14 @@ def add_storefront(fb_psid, name, description, logo_url):
     image_sizer_sq = ImageSizer(image_file)
     image_sizer_sq.start()
 
-    image_sizer_ls = ImageSizer(in_file=image_file, canvas_size=(400, 300))
+    image_sizer_ls = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
     image_sizer_ls.start()
 
-    image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-    image_sizer_banner.start()
+    image_sizer_pt = ImageSizer(in_file=image_file, out_file=None, canvas_size=(480, 640))
+    image_sizer_pt.start()
+
+    image_sizer_ws = ImageSizer(in_file=image_file, canvas_size=(1280, 720))
+    image_sizer_ws.start()
 
     customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
 
@@ -266,7 +262,7 @@ def add_storefront(fb_psid, name, description, logo_url):
 
     storefront = session.query(Storefront).filter(Storefront.owner_id == fb_psid).filter(Storefront.display_name == storefront_tmp.display_name).first()
     if storefront is None:
-        storefront = storefront_tmp.__copy__()
+        storefront = storefront_tmp
         session.add(storefront)
 
     try:
@@ -282,12 +278,13 @@ def add_storefront(fb_psid, name, description, logo_url):
             if row is None:
                 cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
                 conn.commit()
-                storefront.id = cur.lastrowid
+                cur.execute('SELECT `id`, `added` FROM `storefronts` WHERE `id` = @@IDENTITY LIMIT 1;')
+                row = cur.fetchone()
+                storefront.id = row['id']
 
             #-- update w/ existing id
             else:
                 storefront.id = row['id']
-
             session.commit()
 
     except mysql.Error, e:
@@ -296,6 +293,8 @@ def add_storefront(fb_psid, name, description, logo_url):
     finally:
         if conn:
             conn.close()
+
+    return storefront.id
 
 
 def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
@@ -315,14 +314,17 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
     copy_thread.start()
     copy_thread.join()
 
-    image_sizer = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
-    image_sizer.start()
-
-    image_sizer_sq = ImageSizer(image_file)
+    image_sizer_sq = ImageSizer(in_file=image_file, out_file=None)
     image_sizer_sq.start()
 
-    image_sizer_banner = ImageSizer(in_file=image_file, canvas_size=(800, 240))
-    image_sizer_banner.start()
+    image_sizer_ls = ImageSizer(in_file=image_file, out_file=None, canvas_size=(400, 300))
+    image_sizer_ls.start()
+
+    image_sizer_pt = ImageSizer(in_file=image_file, out_file=None, canvas_size=(480, 640))
+    image_sizer_pt.start()
+
+    image_sizer_ws = ImageSizer(in_file=image_file, canvas_size=(1280, 720))
+    image_sizer_ws.start()
 
     customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
     storefront = session.query(Storefront).filter(Storefront.id == storefront_id).first()
@@ -332,14 +334,14 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
     product_tmp.display_name = name
     product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\[\]\{\}\\]', "", name)
     product_tmp.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_tmp.name)
-    product_tmp.description = "Pre-release ends {release_date}".format(release_date=datetime.utcfromtimestamp(int(product_tmp.release_date)).strftime('%a, %b %-d'))
+    product_tmp.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=random.randint(2, 4))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+    product_tmp.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(int(product_tmp.release_date)).strftime('%a, %b %-d'))
     product_tmp.image_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
     product_tmp.price = price
-    product_tmp.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=random.randint(2, 4))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
 
     product = session.query(Product).filter(Product.storefront_id == product_tmp.storefront_id).filter(Product.display_name == product_tmp.display_name).first()
     if product is None:
-        product = product_tmp.__copy__()
+        product = product_tmp
         session.add(product)
 
     try:
@@ -355,12 +357,13 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
             if row is None:
                 cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP())', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.price, product.prebot_url, product.release_date))
                 conn.commit()
-                product.id = cur.lastrowid
+                cur.execute('SELECT `id`, `added` FROM `products` WHERE `id` = @@IDENTITY LIMIT 1;')
+                row = cur.fetchone()
+                product.id = row['id']
 
             #-- update w/ existing id
             else:
                 product.id = row['id']
-
             session.commit()
 
     except mysql.Error, e:
@@ -370,6 +373,41 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
         if conn:
             conn.close()
 
+    return product.id
+
+
+
+
+def generate_fb_psid():
+    psid = "90"
+    for i in range(1, 14):
+        psid = "{psid}{rand}".format(psid=psid, rand=random.randint(0, 9))
+
+    return "{psid}0".format(psid=psid)
+
+
+
+# fb_psid = generate_fb_psid()
+# add_user(fb_psid)
+# storefront_id = add_storefront(fb_psid, "iPhone Shop", "Get iPhone related stuff here", "https://i.imgur.com/BsheUrK.jpg")
+# add_product(fb_psid, storefront_id, "iPhone SE", "https://i.imgur.com/BsheUrK.jpg", 199)
+#
+# fb_psid = generate_fb_psid()
+# add_user(fb_psid)
+# storefront_id = add_storefront(fb_psid, "CS:GO Skins Cheap", "Discounted CS:GO items", "https://i.imgur.com/lIP7k1z.jpg")
+# add_product(fb_psid, storefront_id, "MistyAK CSGO", "https://i.imgur.com/lIP7k1z.jpg", 4.99)
+#
+# fb_psid = generate_fb_psid()
+# add_user(fb_psid)
+# storefront_id = add_storefront(fb_psid, "Steam Keys", "Game keys from Steam", "https://i.imgur.com/Z1o0icQ.jpg")
+# add_product(fb_psid, storefront_id, "RocketLeague 00", "https://i.imgur.com/Z1o0icQ.jpg", 5.99)
+#
+# fb_psid = generate_fb_psid()
+# add_user(fb_psid)
+# storefront_id = add_storefront(fb_psid, "Knick Knacks", "Little things", "https://i.imgur.com/lnGGJfI.jpg")
+# add_product(fb_psid, storefront_id, "Tiny Sword Stand", "https://i.imgur.com/lnGGJfI.jpg", 199)
+#
+# quit()
 
 
 
@@ -395,8 +433,11 @@ for kik_name in kik_names:
 
     csgo_item = random.choice(csgo_items)
     entry = {
+        'user_id'      : 0,
         'fb_psid'      : generate_fb_psid(),
         'kik_name'     : kik_name,
+        'storefronts'  : [],
+        'products'     : [],
         'item_name'    : csgo_item['name'],
         'item_img_url' : csgo_item['img_url'],
         'timestamp'    : datetime.now().strftime('%Y-%m-%d %H:%M:%s')
@@ -405,28 +446,32 @@ for kik_name in kik_names:
 
     print("Importing ({cnt} / {tot}) --> \"{kik_name}\" as [{fb_psid}]".format(cnt=len(results), tot=len(kik_names), kik_name=entry['kik_name'], fb_psid=entry['fb_psid']))
 
-    add_user(entry['fb_psid'])
-    add_storefront(entry['fb_psid'], "{kik_name} Shop".format(kik_name=entry['kik_name']), "Buy {kik_name} snapchat pics here!".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/snapchat.png")
-    add_product(entry['fb_psid'], "{kik_name} Snaps".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/{card}.jpg".format(card=random.randint(1, 100)), round(random.uniform(0.50, 4.99), 2))
+    entry['user_id'] = add_user(entry['fb_psid'])
 
-    add_storefront(entry['fb_psid'], "{kik_name} e-Shop".format(kik_name=entry['kik_name']), "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png")
-    add_product(entry['fb_psid'], "{kik_name} Snaps".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png", round(random.uniform(0.50, 4.99), 2))
+    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} Shop".format(kik_name=entry['kik_name']), "Buy {kik_name} snapchat pics here!".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/snapchat.png")
+    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Snaps".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/{card}.jpg".format(card=random.randint(1, 100)), round(random.uniform(0.50, 4.99), 2))
+    entry['storefronts'].append(storefront_id)
+    entry['products'].append(product_id)
 
-    add_storefront(entry['fb_psid'], "{kik_name} CS:GO".format(kik_name=entry['kik_name']), "Buy CS:GO skins from {kik_name}".format(kik_name=entry['kik_name']), entry['item_img_url'])
-    add_product(entry['fb_psid'], "{item_name}".format(item_name=entry['item_name']), entry['item_img_url'], round(random.uniform(0.50, 4.99), 2))
+    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} e-Shop".format(kik_name=entry['kik_name']), "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png")
+    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Snaps".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png", round(random.uniform(0.50, 4.99), 2))
+    entry['storefronts'].append(storefront_id)
+    entry['products'].append(product_id)
+
+    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} CS:GO".format(kik_name=entry['kik_name']), "Buy CS:GO skins from {kik_name}".format(kik_name=entry['kik_name']), entry['item_img_url'])
+    product_id = add_product(entry['fb_psid'], storefront_id, "{item_name}".format(item_name=entry['item_name']), entry['item_img_url'], round(random.uniform(0.50, 4.99), 2))
+    entry['storefronts'].append(storefront_id)
+    entry['products'].append(product_id)
 
 
-    with open("{basepath}/log/{file_name}.csv".format(basepath=os.path.dirname(os.path.realpath(__file__)), file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
-        writer = csv.writer(f)
-
+    with open("/var/www/FacebookBot/FacebookBot/log/{file_name}.csv".format(file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
         row = []
-        writer.writerow([value for key, value in entry.items() if key != 'csgo_item' for v in value])
+        for key in entry:
+            row.append(entry[key])
+        csv.writer(f).writerow(row)
 
-        # for element in entry:
-        #     row.append(element)
-        #
+        # writer.writerow([value for key, value in entry.items() if key != 'csgo_item' for v in value])
         # csv.writer(f).writerow(['{0},{1}'.format(key, value) for key, value in entry.items()])
-
 
     time.sleep(random.uniform(1, 2))
 
