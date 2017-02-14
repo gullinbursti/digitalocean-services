@@ -52,6 +52,23 @@ User API:
 curl -X GET "https://graph.facebook.com/v2.6/1251020481631082?fields=first_name,last_name,profile_pic,locale,timezone,gender&access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
 
+Attachment ID:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "recipient":{
+    "id":"1117769054987142"
+  },
+  "message":{
+    "attachment":{
+      "type":"video",
+      "payload":{
+        "url":"http://prebot.me/videos/1487056936_415.mp4",
+        "is_reusable":true
+      }
+    }
+  }
+}' "https://graph.facebook.com/me/messages?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+
+
 Sender Action:
 curl -X POST -H "Content-Type: application/json" -d '{
   "recipient":{
