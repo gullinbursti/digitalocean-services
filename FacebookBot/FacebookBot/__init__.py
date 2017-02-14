@@ -75,13 +75,13 @@ def send_tracker(category, action, label):
 
 
 def write_message_log(sender_id, message_id, message_txt):
-    logger.info("write_message_log(sender_id={sender_id}, message_id={message_id}, message_txt={message_txt})".format(sender_id=sender_id, message_id=message_id, message_txt=message_txt))
+    logger.info("write_message_log(sender_id={sender_id}, message_id={message_id}, message_txt={message_txt})".format(sender_id=sender_id, message_id=message_id, message_txt=json.dumps(message_txt)))
 
     try:
         conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME)
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('INSERT IGNORE INTO `fbbot_logs` (`id`, `message_id`, `chat_id`, `body`) VALUES (NULL, "{message_id}", "{sender_id}", "{message_txt}")'.format(message_id=message_id, sender_id=sender_id, message_txt=message_txt))
+            cur.execute('INSERT INTO `fbbot_logs` (`id`, `message_id`, `chat_id`, `body`) VALUES (NULL, %s, %s, %s)', (message_id, sender_id, json.dumps(message_txt)))
 
     except mdb.Error, e:
         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
@@ -121,6 +121,20 @@ def coin_flip_quick_replies():
             'content_type' : "text",
             'title'        : "No Thanks",
             'payload'      : "NO_THANKS"
+        }
+    ]
+
+def opt_out_quick_replies():
+    logger.info("opt_out_quick_replies()")
+    return [
+        {
+            'content_type' : "text",
+            'title'        : "Opt-In",
+            'payload'      : "OPT_IN"
+        }, {
+            'content_type' : "text",
+            'title'        : "Cancel",
+            'payload'      : "CANCEL"
         }
     ]
 
@@ -176,14 +190,12 @@ def coin_flip_element(sender_id, standalone=False):
                         'title'   : "No Thanks"
                     })
 
-                if conn:
-                    conn.close()
-
-            else:
-                return element
-
     except mdb.Error, e:
         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
 
     return element
 
@@ -231,15 +243,17 @@ def coin_flip_results(sender_id, item_id=None):
                 }
 
             else:
+                conn.close()
                 send_text(sender_id, "Looks like that item isn't available anymore, try another one")
                 send_carousel(recipient_id=sender_id, elements=[coin_flip_element(sender_id, True)])
                 return "OK", 0
 
-            if conn:
-                conn.close()
-
     except mdb.Error, e:
         logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
 
 
     if random.uniform(0, flip_item['win_boost']) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
@@ -264,11 +278,12 @@ def coin_flip_results(sender_id, item_id=None):
                 conn.commit()
                 flip_item['claim_id'] = cur.lastrowid
 
-                if conn:
-                    cur.close()
-
         except mdb.Error, e:
             logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                cur.close()
 
         send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
         send_card(
@@ -320,7 +335,7 @@ def coin_flip_results(sender_id, item_id=None):
 
         send_text(
             recipient_id=sender_id,
-            message_text="WINNER! You won {item_name} - {pin_code} from {game_name}.\n\nInvite 3 friends to m.me/gamebotsc & kik.me/game.bots\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=flip_item['name'], pin_code=flip_item['pin_code'], game_name=flip_item['game_name'],claim_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
+            message_text="WINNER! You won {item_name} - {pin_code} from {game_name}.\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=flip_item['name'], pin_code=flip_item['pin_code'], game_name=flip_item['game_name'],claim_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
             quick_replies=coin_flip_quick_replies()
         )
 
@@ -331,6 +346,43 @@ def coin_flip_results(sender_id, item_id=None):
             message_text="TRY AGAIN! You lost {item_name} from {game_name}.\n\nIncrease your chances by getting Gamebots on Kik.\nkik.me/game.bots".format(item_name=flip_item['name'], game_name=flip_item['game_name']),
             quick_replies=coin_flip_quick_replies()
         )
+
+
+def opt_out(sender_id):
+    logger.info("opt_out(sender_id={sender_id})".format(sender_id=sender_id))
+
+    try:
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}" ORDER BY added DESC LIMIT 1;'.format(fb_psid=sender_id))
+        row = cur.fetchone()
+
+        if row is None:
+            cur.execute('INSERT INTO blacklisted_users (id, fb_psid, added) VALUES (NULL, ?, ?);', (sender_id, int(time.time())))
+            conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute("UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = {fb_psid};".format(fb_psid=sender_id))
+            conn.commit()
+
+    except mdb.Error, e:
+        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    send_text(sender_id, "You will no longer recieve messages from Gamebots. If you need help visit facebook.com/gamebotsc", opt_out_quick_replies())
 
 
 def get_session_state(sender_id):
@@ -346,11 +398,14 @@ def get_session_state(sender_id):
         if row is not None:
             state = row[0]
 
-        conn.close()
         logger.info("state={state}".format(state=state))
 
     except sqlite3.Error as er:
         logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=er.message))
+
+    finally:
+        if conn:
+            conn.close()
 
     return state
 
@@ -370,10 +425,13 @@ def set_session_state(sender_id, state):
             cur.execute('UPDATE sessions SET state = {state} WHERE fb_psid = "{fb_psid}";'.format(state=state, fb_psid=sender_id))
 
         conn.commit()
-        conn.close()
 
     except sqlite3.Error as er:
         logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_session_item(sender_id):
@@ -389,11 +447,14 @@ def get_session_item(sender_id):
         if row is not None:
             item_id = row[0]
 
-        conn.close()
         logger.info("item_id={item_id}".format(item_id=item_id))
 
     except sqlite3.Error as er:
         logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=er.message))
+
+    finally:
+        if conn:
+            conn.close()
 
     return item_id
 
@@ -405,10 +466,13 @@ def set_session_item(sender_id, item_id):
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET flip_id = {flip_id} WHERE fb_psid = "{fb_psid}";'.format(flip_id=item_id, fb_psid=sender_id))
         conn.commit()
-        conn.close()
 
     except sqlite3.Error as er:
         logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
+    finally:
+        if conn:
+            conn.close()
 
 
 
@@ -457,13 +521,38 @@ def webook():
                     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
                     cur = conn.cursor()
                     cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}";'.format(fb_psid=sender_id))
-                    if sender_id in list(cur.fetchall()):
-                        return "OK", 200
+                    row = cur.fetchone()
+                    if row is not None:
+                        if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and messaging_event['message']['quick_reply']['payload'] == "OPT_IN":
+                            cur.execute('DELETE FROM blacklisted_users WHERE fb_psid = "{fb_psid}";'.format(fb_psid=sender_id))
+                            conn.commit()
+                            conn.close()
 
-                    conn.close()
+                            conn2 = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                            try:
+                                with conn2:
+                                    cur2 = conn.cursor(mdb.cursors.DictCursor)
+                                    cur2.execute("UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = {fb_psid};".format(fb_psid=sender_id))
+                                    conn2.commit()
+
+                            except mdb.Error, e:
+                                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                            finally:
+                                if conn2:
+                                    cur2.close()
+
+                        else:
+                            conn.close()
+                            send_text(sender_id, "You have opted out of Gamebots.", opt_out_quick_replies())
+                            return "OK", 200
 
                 except sqlite3.Error as er:
                     logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
+                finally:
+                    if conn:
+                        cur.close()
 
 
                 #-- new entry
@@ -472,7 +561,7 @@ def webook():
                     send_tracker("signup-fb", sender_id, "")
 
                     set_session_state(sender_id, 1)
-                    send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
+                    send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
 
@@ -584,9 +673,9 @@ def webook():
                             message_text = message['text']
 
                             # -- typed '!end' / 'cancel' / 'quit'
-                            if message_text.lower() == "!end" or message_text.lower() == "cancel" or message_text.lower() == "quit":
+                            if message_text.lower() in Const.OPT_OUT_REPLIES:
                                 logger.info("-=- ENDING HELP -=- ({timestamp})".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
-                                send_text(sender_id, "If you need help message kik.me/support.gamebots.1")
+                                opt_out(sender_id)
 
                             else:
                                 send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
@@ -731,18 +820,6 @@ def send_message(payload):
     logger.info("GRAPH RESPONSE ({code}): {result}".format(code=response.status_code, result=response.text))
 
     return True
-    # buffer = StringIO()
-    # 
-    # c = pycurl.Curl()
-    # c.setopt(pycurl.URL, "https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN), params={ Const.VERIFY_TOKEN })
-    # c.setopt(pycurl.HTTPHEADER, ['Accept: application/json'])
-    # c.setopt(pycurl.POST, 1)
-    # c.setopt(c.WRITEDATA, buffer)
-    # c.setopt(pycurl.POSTFIELDS, payload)
-    # c.perform()
-    # c.close()
-    # logger.info("SEND RESULT --> %s" % (buffer.getvalue()))
-    
 
 
 if __name__ == '__main__':
