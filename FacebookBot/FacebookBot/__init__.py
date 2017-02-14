@@ -343,7 +343,7 @@ def coin_flip_results(sender_id, item_id=None):
         send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
             recipient_id=sender_id,
-            message_text="TRY AGAIN! You lost {item_name} from {game_name}.\n\nIncrease your chances by getting Gamebots on Kik.\nkik.me/game.bots".format(item_name=flip_item['name'], game_name=flip_item['game_name']),
+            message_text="TRY AGAIN! You lost {item_name} from {game_name}.".format(item_name=flip_item['name'], game_name=flip_item['game_name']),
             quick_replies=coin_flip_quick_replies()
         )
 
@@ -637,7 +637,7 @@ def webook():
                                 )
 
                             elif quick_reply == "SUPPORT":
-                                send_text(sender_id, "If you need help message kik.me/support.gamebots.1")
+                                send_text(sender_id, "If you need help visit facebook.com/gamebotsc")
                                 default_carousel(sender_id)
 
                                 payload = {
