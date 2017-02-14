@@ -100,7 +100,7 @@ class Payment(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Payment id=%d, fb_psid=%s, source=%s, email=%s, full_name=%s, acct_number=%s, expiration=%s, cvc=%s, creation_state=%d, added=%d" % (self.id, self.fb_psid, self.source, self.email, self.full_name, self.acct_number, self.expiration, self.cvc, self.creation_state, self.added)
+        return "<Payment id=%s, fb_psid=%s, source=%s, email=%s, full_name=%s, acct_number=%s, expiration=%s, cvc=%s, creation_state=%s, added=%s" % (self.id, self.fb_psid, self.source, self.email, self.full_name, self.acct_number, self.expiration, self.cvc, self.creation_state, self.added)
 
 
 class Product(db.Model):
@@ -150,7 +150,7 @@ class Product(db.Model):
         return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
 
     def __repr__(self):
-        return "<Product id=%d, storefront_id=%d, creation_state=%d, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%d, avg_rating=%.2f, added=%d>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, storefront_id=%s, creation_state=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
 
 
 class Purchase(db.Model):
@@ -177,7 +177,7 @@ class Purchase(db.Model):
         return re.sub(r'^.*\/(.*)$', r'm.me/prebotme?ref=/\1', self.prebot_url)
 
     def __repr__(self):
-        return "<Purchase id=%d, customer_id=%d, storefront_id=%d, product_id=%d, type=%s, charge_id=%s, claim_state=%d, added=%d>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.type, self.charge_id, self.claim_state, self.added)
+        return "<Purchase id=%s, customer_id=%s, storefront_id=%s, product_id=%s, type=%s, charge_id=%s, claim_state=%s, added=%s>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.type, self.charge_id, self.claim_state, self.added)
 
 
 class Rating(db.Model):
@@ -194,7 +194,7 @@ class Rating(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Rating id=%d, product_id=%d, fb_psid=%s, stars=%d, added=%d>" % (self.id, self.product_id, self.fb_psid, self.stars, self.added)
+        return "<Rating id=%s, product_id=%s, fb_psid=%s, stars=%s, added=%s>" % (self.id, self.product_id, self.fb_psid, self.stars, self.added)
 
 
 class Storefront(db.Model):
@@ -261,7 +261,7 @@ class Subscription(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Subscription storefront_id=%d, product_id=%d, customer_id=%d, enabled=%d>" % (self.storefront_id, self.product_id, self.customer_id, self.enabled)
+        return "<Subscription id=%s, storefront_id=%s, product_id=%s, customer_id=%s, enabled=%s, added=%s>" % (self.id, self.storefront_id, self.product_id, self.customer_id, self.enabled, self.added)
 
 
 class ImageSizer(threading.Thread):
@@ -698,6 +698,9 @@ def purchase_product(recipient_id, source):
                 send_tracker("purchase-complete", recipient_id, "")
 
                 purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
+                # if storefront.id >= 505 and storefront.id <= 508:
+                #     purchase.storefront_id = 9428
+
                 db.session.add(purchase)
                 db.session.commit()
 
@@ -722,14 +725,45 @@ def purchase_product(recipient_id, source):
                     if conn:
                         conn.close()
 
-                send_text(
-                    recipient_id = storefront.owner_id,
-                    message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
-                    quick_replies = [
-                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
-                    ]
-                )
+
+                if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                    text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
+                    payload = {
+                        'channel' : "#lemonade-shops",
+                        'username' : storefront.display_name,
+                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                        'text' : text,
+                        'attachments' : [{
+                            'image_url'       : product.image_url,
+                            'text'            : text,
+                            'fallback'        : text,
+                            'callback_id'     : "{purchase_id}_{recipient_id}".format(purchase_id=purchase.id, recipient_id=recipient_id),
+                            'color'           : "#3AA3E3",
+                            'attachment_type' : "default",
+                            'actions'         : [{
+                                'name'  : "Yes",
+                                'text'  : "Yes",
+                                'type'  : "button",
+                                'value' : "yes"
+                            }, {
+                                'name'  : "No",
+                                'text'  : "No",
+                                'type'  : "button",
+                                'value' : "no"
+                            }]
+                        }]
+                    }
+                    response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+                else:
+                    send_text(
+                        recipient_id = storefront.owner_id,
+                        message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
+                        quick_replies = [
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="%s-%s" % (Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase.id)),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
+                        ]
+                    )
 
                 payload = {
                     'channel' : "#lemonade-purchases",
@@ -740,7 +774,7 @@ def purchase_product(recipient_id, source):
                         'image_url' : product.image_url
                     }]
                 }
-                response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+                response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
 
                 return True
 
@@ -750,6 +784,9 @@ def purchase_product(recipient_id, source):
 
         elif source == Const.PAYMENT_SOURCE_BITCOIN:
             purchase = Purchase(customer.id, storefront.id, product.id, 2)
+
+            # if storefront.id >= 505 and storefront.id <= 508:
+            #     purchase.storefront_id = 9428
             purchase.claim_state = 1
 
             try:
@@ -775,15 +812,47 @@ def purchase_product(recipient_id, source):
 
             db.session.add(purchase)
             db.session.commit()
-            send_text(recipient_id, "Bitcoin address set, notifying the shop owner for your invoice.", main_menu_quick_replies(recipient_id))
-            send_text(
-                recipient_id = storefront.owner_id,
-                message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr),
-                quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter Bitcoin Address", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
-                ]
-            )
+            send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+
+
+            if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
+                payload = {
+                    'channel' : "#lemonade-shops",
+                    'username' : storefront.display_name,
+                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                    'text' : text,
+                    'attachments' : [{
+                        'image_url'       : product.image_url,
+                        'text'            : text,
+                        'fallback'        : text,
+                        'callback_id'     : "{purchase_id}_{recipient_id}".format(purchase_id=purchase.id, recipient_id=recipient_id),
+                        'color'           : "#3AA3E3",
+                        'attachment_type' : "default",
+                        'actions'         : [{
+                            'name'  : "Yes",
+                            'text'  : "Yes",
+                            'type'  : "button",
+                            'value' : "yes"
+                        }, {
+                            'name'  : "No",
+                            'text'  : "No",
+                            'type'  : "button",
+                            'value' : "no"
+                        }]
+                    }]
+                }
+                response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+            else:
+                send_text(
+                    recipient_id = storefront.owner_id,
+                    message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr),
+                    quick_replies = [
+                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter Bitcoin Address", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
+                    ]
+                )
 
             payload = {
                 'channel' : "#lemonade-purchases",
@@ -794,11 +863,13 @@ def purchase_product(recipient_id, source):
                     'image_url' : product.image_url
                 }]
             }
-            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+            response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
             return True
 
         elif source == Const.PAYMENT_SOURCE_PAYPAL:
             purchase = Purchase(customer.id, storefront.id, product.id, 3)
+            # if storefront.id >= 505 and storefront.id <= 508:
+            #     purchase.storefront_id = 9428
             purchase.claim_state = 1
 
             try:
@@ -825,15 +896,46 @@ def purchase_product(recipient_id, source):
             db.session.add(purchase)
             db.session.commit()
 
-            send_text(recipient_id, "Paypal address set, notifying the shop owner for your invoice.", main_menu_quick_replies(recipient_id))
-            send_text(
-                recipient_id = storefront.owner_id,
-                message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a PayPal invoice now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email),
-                quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter PayPal Address", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
-                ]
-            )
+            send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+
+            if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
+                payload = {
+                    'channel' : "#lemonade-shops",
+                    'username' : storefront.display_name,
+                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                    'text' : text,
+                    'attachments' : [{
+                        'image_url'       : product.image_url,
+                        'text'            : text,
+                        'fallback'        : text,
+                        'callback_id'     : "{purchase_id}_{recipient_id}".format(purchase_id=purchase.id, recipient_id=recipient_id),
+                        'color'           : "#3AA3E3",
+                        'attachment_type' : "default",
+                        'actions'         : [{
+                            'name'  : "Yes",
+                            'text'  : "Yes",
+                            'type'  : "button",
+                            'value' : "yes"
+                        }, {
+                            'name'  : "No",
+                            'text'  : "No",
+                            'type'  : "button",
+                            'value' : "no"
+                        }]
+                    }]
+                }
+                response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+            else:
+                send_text(
+                    recipient_id = storefront.owner_id,
+                    message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a PayPal invoice now.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email),
+                    quick_replies = [
+                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter PayPal Address", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
+                    ]
+                )
 
             payload = {
                 'channel' : "#lemonade-purchases",
@@ -844,12 +946,12 @@ def purchase_product(recipient_id, source):
                     'image_url' : product.image_url
                 }]
             }
-            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+            response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
             return True
 
     return False
 
-def route_dm(recipient_id, purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT, message_text=None):
+def route_dm(recipient_id, purchase_id, dm_action=Const.DM_ACTION_PROMPT, message_text=None):
     logger.info("route_dm(recipient_id=%s, purchase_id=%s, dm_action=%s, message_text=%s)" % (recipient_id, purchase_id, dm_action, message_text))
 
     purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
@@ -864,7 +966,7 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT, me
         db.session.commit()
 
 
-        if dm_action == Const.PB_PAYLOAD_DM_PROMPT:
+        if dm_action == Const.DM_ACTION_PROMPT:
             if recipient_id == customer.fb_psid:
                 send_text(
                     recipient_id = customer.fb_psid,
@@ -879,13 +981,23 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT, me
                     quick_replies = dm_quick_replies(purchase_id, dm_action)
                 )
 
-        elif dm_action == Const.PB_PAYLOAD_DM_SEND:
+        elif dm_action == Const.DM_ACTION_SEND:
             if recipient_id == customer.fb_psid:
-                send_text(
-                    recipient_id = storefront.owner_id,
-                    message_text = "Customer says:\n%s" % (message_text),
-                    quick_replies = dm_quick_replies(purchase_id, dm_action)
-                )
+                if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                    payload = {
+                        'channel'     : "#lemonade-shops",
+                        'username'    : storefront.display_name,
+                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                        'text'        : "Customer for purchase *#%s* says:\n_%s_" % (purchase.id, message_text)
+                    }
+                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+                else:
+                    send_text(
+                        recipient_id = storefront.owner_id,
+                        message_text = "Customer says:\n%s" % (message_text),
+                        quick_replies = dm_quick_replies(purchase_id, dm_action)
+                    )
 
             else:
                 send_text(
@@ -894,6 +1006,38 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT, me
                     quick_replies = dm_quick_replies(purchase_id, dm_action)
 
                 )
+
+        elif dm_action == Const.DM_ACTION_CLOSE:
+            purchase.claim_state = 3
+            db.session.commit()
+
+            if recipient_id == customer.fb_psid:
+                if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                    payload = {
+                        'channel'     : "#lemonade-shops",
+                        'username'    : storefront.display_name,
+                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                        'text'        : "Customer for purchase *#%s* closed DM" % (purchase.id)
+                    }
+                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+                else:
+                    send_text(storefront.owner_id, "Customer closed the DM...", main_menu_quick_replies(recipient_id))
+                send_text(customer.fb_psid, "Closing out DM with seller...", main_menu_quick_replies(recipient_id))
+
+            else:
+                if (storefront.id >= 505 and storefront.id <= 508) or re.search(r'^90\d{13}0$', storefront.owner_id) is not None:
+                    payload = {
+                        'channel'     : "#lemonade-shops",
+                        'username'    : storefront.display_name,
+                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                        'text'        : "Closing out DM for purchase *#%s*" % (purchase.id)
+                    }
+                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+                else:
+                    send_text(storefront.owner_id, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
+                send_text(customer.fb_psid, "Seller closed the DM...", main_menu_quick_replies(recipient_id))
 
 
 def clear_entry_sequences(recipient_id):
@@ -906,7 +1050,6 @@ def clear_entry_sequences(recipient_id):
     Payment.query.filter(Payment.fb_psid == recipient_id).delete()
 
     #-- pending dms
-
     storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).subquery('storefront_query')
     for purchase in db.session.query(Purchase).filter((Purchase.id == customer.purchase_id) | (Purchase.storefront_id.in_(storefront_query))).filter(Purchase.claim_state == 2):
         purchase.claim_state = 0
@@ -1238,12 +1381,12 @@ def main_menu_quick_replies(fb_psid):
 
     return quick_replies
 
-def dm_quick_replies(purchase_id, dm_action=Const.PB_PAYLOAD_DM_PROMPT):
+def dm_quick_replies(purchase_id, dm_action=Const.DM_ACTION_PROMPT):
     logger.info("dm_quick_replies(purchase_id=%s, dm_action=%s)" % (purchase_id, dm_action))
 
     purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
 
-    if dm_action == Const.PB_PAYLOAD_DM_PROMPT:
+    if dm_action == Const.DM_ACTION_PROMPT:
         quick_replies = [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Close DM", payload=Const.PB_PAYLOAD_DM_CLOSE)]
 
     else:
@@ -1346,7 +1489,7 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                 send_text(recipient_id, "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name))
 
 
-            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
             purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
             if purchase is not None:
@@ -1356,10 +1499,10 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
 
             else:
                 if customer.stripe_id is not None and customer.card_id is not None:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CC_CHECKOUT)
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
 
                 else:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1373,9 +1516,9 @@ def send_admin_carousel(recipient_id):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
 
-    customer.storefront_id = None
-    customer.product_id = None
-    customer.purchase_id = None
+    # customer.storefront_id = None
+    # customer.product_id = None
+    # customer.purchase_id = None
     db.session.commit()
 
     cards = []
@@ -1547,24 +1690,24 @@ def send_customer_carousel(recipient_id, product_id):
             )
 
 
-        purchases = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.storefront_id == storefront.id).all()
-        if len(purchases) > 0:
-            if len(purchases) == 1:
-                subtitle = "1 item"
-
-            else:
-                subtitle = "{total} items".format(total=len(purchases))
-
-            elements.append(
-                build_card_element(
-                    title = "Purchases",
-                    subtitle = subtitle,
-                    image_url = Const.IMAGE_URL_PURCHASES,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
-                    ]
-                )
-            )
+        # purchases = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.storefront_id == storefront.id).all()
+        # if len(purchases) > 0:
+        #     if len(purchases) == 1:
+        #         subtitle = "1 item"
+        #
+        #     else:
+        #         subtitle = "{total} items".format(total=len(purchases))
+        #
+        #     elements.append(
+        #         build_card_element(
+        #             title = "Purchases",
+        #             subtitle = subtitle,
+        #             image_url = Const.IMAGE_URL_PURCHASES,
+        #             buttons = [
+        #                 build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
+        #             ]
+        #         )
+        #     )
 
         elements.append(
             build_card_element(
@@ -1698,7 +1841,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
 
-        elif card_type == Const.CARD_TYPE_PRODUCT_PURCHASE:
+        elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT:
             data = build_list_card(
                 recipient_id = recipient_id,
                 body_elements = [
@@ -1740,11 +1883,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
 
-        elif card_type == Const.CARD_TYPE_PRODUCT_CC_CHECKOUT:
-            # storefront_query = Storefront.query.filter(Storefront.id == storefront_id)
-            # if storefront_query.count() > 0:
-            #     storefront = storefront_query.first()
-
+        elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT_CC:
             stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
 
             data = build_list_card(
@@ -1773,7 +1912,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Pay", payload=Const.PB_PAYLOAD_PURCHASE_PRODUCT)
                 ],
-                quick_replies = cancel_entry_quick_reply()
+                quick_replies = [build_quick_reply(Const.KWIK_BTN_TEXT, "PayPal / Bitcoin", Const.PB_PAYLOAD_CHECKOUT_PRODUCT)] + cancel_entry_quick_reply()
             )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_RECEIPT:
@@ -1843,15 +1982,25 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
 
     if card_type == Const.CARD_TYPE_PRODUCT_PURCHASES:
         storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
+
         for purchase in Purchase.query.filter(Purchase.storefront_id == storefront.id).order_by(Purchase.added.desc()):
             if len(elements) < 4:
                 product = Product.query.filter(Product.id == purchase.product_id).first()
                 customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
 
+                if purchase.type == 1:
+                    subtitle = customer.email
+
+                elif purchase.type == 2:
+                    subtitle = customer.bitcoin_addr
+
+                elif purchase.type == 3:
+                    subtitle = customer.paypal_email
+
                 elements.append(
                     build_card_element(
                         title = "{product_name} - ${price:.2f}".format(product_name=product.display_name, price=product.price),
-                        subtitle = customer.email,
+                        subtitle = subtitle,
                         image_url = product.image_url,
                         item_url = None,
                         buttons = [
@@ -1887,9 +2036,9 @@ def received_quick_reply(recipient_id, quick_reply):
     if quick_reply == Const.PB_PAYLOAD_MAIN_MENU:
         send_tracker("button-menu", recipient_id, "")
 
-        customer.storefront_id = None
-        customer.product_id = None
-        customer.purchase_id = None
+        # customer.storefront_id = None
+        # customer.product_id = None
+        # customer.purchase_id = None
         send_admin_carousel(recipient_id)
 
 
@@ -1909,20 +2058,20 @@ def received_quick_reply(recipient_id, quick_reply):
 
             else:
                 if customer.stripe_id is not None and customer.card_id is not None:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CC_CHECKOUT)
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
 
                 else:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
             # if customer.stripe_id is not None and customer.card_id is not None:
             #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
             #         send_customer_carousel(recipient_id, product.id)
             #
             #     else:
-            #         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CC_CHECKOUT)
+            #         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
             #
             # else:
-            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
         else:
             send_admin_carousel(recipient_id)
@@ -2171,8 +2320,14 @@ def received_quick_reply(recipient_id, quick_reply):
         purchase.claim_state = 1
         db.session.commit()
 
-        route_dm(recipient_id, purchase_id, Const.PB_PAYLOAD_DM_PROMPT)
+        route_dm(recipient_id, purchase_id, Const.DM_ACTION_PROMPT)
 
+    elif quick_reply == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
+        send_tracker("button-reserve", recipient_id, "")
+
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        if product is not None:
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif quick_reply == Const.PB_PAYLOAD_DM_CLOSE:
         send_tracker("button-close-dm", recipient_id, "")
@@ -2180,14 +2335,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).subquery('storefront_query')
         purchase = db.session.query(Purchase).filter((Purchase.id == customer.purchase_id) | (Purchase.storefront_id.in_(storefront_query))).filter(Purchase.claim_state == 2).first()
         if purchase is not None:
-            purchase.claim_state = 3
-            db.session.commit()
-
-            storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
-            customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
-
-            send_text(storefront.owner_id, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
-            send_text(customer.fb_psid, "Closing out DM with seller...", main_menu_quick_replies(recipient_id))
+            route_dm(recipient_id, purchase.id, Const.DM_ACTION_CLOSE)
 
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_YES:
@@ -2199,10 +2347,10 @@ def received_quick_reply(recipient_id, quick_reply):
             db.session.commit()
 
             if add_cc_payment(recipient_id):
-                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CC_CHECKOUT)
+                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
 
             else:
-                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+                send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_NO:
         send_tracker("button-payment-no", recipient_id, "")
@@ -2215,7 +2363,7 @@ def received_quick_reply(recipient_id, quick_reply):
         Payment.query.filter(Payment.fb_psid == recipient_id).delete()
         db.session.commit()
 
-        send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+        send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif quick_reply == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         send_tracker("button-paypal-payout", recipient_id, "")
@@ -2407,7 +2555,8 @@ def received_payload_button(recipient_id, payload, referral=None):
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_BITCOIN:
         send_tracker("button-payment-bitcoin", recipient_id, "")
@@ -2446,7 +2595,7 @@ def received_payload_button(recipient_id, payload, referral=None):
 
 
             if customer.stripe_id is not None and customer.card_id is not None:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CC_CHECKOUT)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
 
             else:
                 add_cc_payment(recipient_id)
@@ -2529,7 +2678,7 @@ def received_payload_button(recipient_id, payload, referral=None):
         purchase.claim_state = 1
         db.session.commit()
 
-        route_dm(recipient_id, purchase_id, Const.PB_PAYLOAD_DM_PROMPT)
+        route_dm(recipient_id, purchase_id, Const.DM_ACTION_PROMPT)
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         send_tracker("button-paypal-payout", recipient_id, "")
@@ -2550,7 +2699,7 @@ def received_payload_button(recipient_id, payload, referral=None):
         purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
         purchase.claim_state = 1
 
-        route_dm(recipient_id, purchase.id, Const.PB_PAYLOAD_DM_PROMPT)
+        route_dm(recipient_id, purchase.id, Const.DM_ACTION_PROMPT)
 
     elif payload == Const.PB_PAYLOAD_FLIP_COIN_NEXT_ITEM:
         send_tracker("button-flip-next-item", recipient_id, "")
@@ -2611,8 +2760,9 @@ def recieved_attachment(recipient_id, attachment_type, payload):
             qr = qrtools.QR()
             qr.decode(image_file)
 
-            if 'bitcoin' in qr.data:
-                customer.bitcoin_addr = qr.data.split(":")[-1]
+            if 'bitcoin' in qr.data and re.search(r'^(.*)?[13][a-km-zA-HJ-NP-Z1-9]{25,34}(.*)?$', qr.data) is not None:
+                bitcoin_addr = re.match(r'^(.*)?(?P<bitcoin_addr>[13][a-km-zA-HJ-NP-Z1-9]{25,34})(.*)?$', qr.data).group('bitcoin_addr')
+                customer.bitcoin_addr = bitcoin_addr
                 db.session.commit()
 
                 try:
@@ -2662,8 +2812,10 @@ def recieved_attachment(recipient_id, attachment_type, payload):
             qr = qrtools.QR()
             qr.decode(image_file)
 
-            if 'bitcoin' in qr.data:
-                customer.bitcoin_addr = qr.data.split(":")[-1]
+            if 'bitcoin' in qr.data and re.search(r'^(.*)?[13][a-km-zA-HJ-NP-Z1-9]{25,34}(.*)?$', qr.data) is not None:
+                bitcoin_addr = re.match(r'^(.*)?(?P<bitcoin_addr>[13][a-km-zA-HJ-NP-Z1-9]{25,34})(.*)?$', qr.data).group('bitcoin_addr')
+
+                customer.bitcoin_addr = bitcoin_addr
                 db.session.commit()
 
                 send_text(recipient_id, "Bitcoin address set to {bitcoin_addr}".format(bitcoin_addr=customer.bitcoin_addr))
@@ -2935,7 +3087,7 @@ def received_text_response(recipient_id, message_text):
         db.session.commit()
 
         if customer.product_id is not None:
-            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
         else:
             send_admin_carousel(recipient_id)
@@ -2947,7 +3099,7 @@ def received_text_response(recipient_id, message_text):
         db.session.commit()
 
         if customer.product_id is not None:
-            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_PURCHASE)
+            send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
         else:
             send_admin_carousel(recipient_id)
@@ -2974,7 +3126,7 @@ def received_text_response(recipient_id, message_text):
         # storefront = Storefront.query.filter(Storefront.owner_id == recipient_id).filter(Storefront.creation_state == 4).first()
         # purchase = db.session.query(Purchase).filter((Purchase.id == customer.purchase_id) | (Purchase.storefront_id == storefront.id)).filter(Purchase.claim_state == 2).first()
         if purchase is not None:
-            route_dm(recipient_id, purchase.id, Const.PB_PAYLOAD_DM_SEND, message_text)
+            route_dm(recipient_id, purchase.id, Const.DM_ACTION_SEND, message_text)
             return "OK", 200
 
         #-- entering paypal payout info
@@ -3010,7 +3162,7 @@ def received_text_response(recipient_id, message_text):
                 storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).subquery('storefront_query')
                 purchase = Purchase.query.filter(Purchase.storefront_id.in_(storefront_query)).filter(Purchase.claim_state == 1).first()
                 if purchase is not None:
-                    route_dm(recipient_id, purchase.id, Const.PB_PAYLOAD_DM_SEND, "Send payment to Paypal {paypal_addr}".format(paypal_addr=customer.paypal_email))
+                    route_dm(recipient_id, purchase.id, Const.DM_ACTION_SEND, "Send payment to Paypal {paypal_addr}".format(paypal_addr=customer.paypal_email))
 
 
             return "OK", 200
@@ -3050,7 +3202,7 @@ def received_text_response(recipient_id, message_text):
                 storefront_query = db.session.query(Storefront.id).filter(Storefront.owner_id == recipient_id).subquery('storefront_query')
                 purchase = Purchase.query.filter(Purchase.storefront_id.in_(storefront_query)).filter(Purchase.claim_state == 1).first()
                 if purchase is not None:
-                    route_dm(recipient_id, purchase.id, Const.PB_PAYLOAD_DM_SEND, "Send payment to bitcoin address {bitcoin_addr}".format(paypal_addr=message_text))
+                    route_dm(recipient_id, purchase.id, Const.DM_ACTION_SEND, "Send payment to bitcoin address {bitcoin_addr}".format(paypal_addr=message_text))
 
             return "OK", 200
 
@@ -3129,54 +3281,6 @@ def received_text_response(recipient_id, message_text):
                         pass
 
                     send_customer_carousel(recipient_id, product.id)
-
-                    # purchase = Purchase(customer.id, storefront.id, product.id, 2)
-                    # purchase.claim_state = 1
-                    #
-                    # try:
-                    #     conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
-                    #     with conn:
-                    #         cur = conn.cursor(mysql.cursors.DictCursor)
-                    #         cur.execute('UPDATE `users` SET `bitcoin_addr` = "{bitcoin_addr}" WHERE `id` = {user_id} AND `bitcoin_addr` != "{bitcoin_addr}" LIMIT 1;'.format(bitcoin_addr=message_text, user_id=customer.id))
-                    #         cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, product.id, 2))
-                    #         conn.commit()
-                    #
-                    #         cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
-                    #         row = cur.fetchone()
-                    #
-                    #         purchase.id = row['id']
-                    #         customer.purchase_id = row['id']
-                    #
-                    # except mysql.Error as e:
-                    #     logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-                    #
-                    # finally:
-                    #     if conn:
-                    #         conn.close()
-                    #
-                    # db.session.add(purchase)
-                    # db.session.commit()
-                    # send_text(recipient_id, "Bitcoin address set, notifying the shop owner for your invoice", main_menu_quick_replies(recipient_id))
-                    # send_text(
-                    #     recipient_id = storefront.owner_id,
-                    #     message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(product_name=product.display_name, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=message_text),
-                    #     quick_replies = [
-                    #         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter Bitcoin Address", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
-                    #         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
-                    #     ]
-                    # )
-                    #
-                    # payload = {
-                    #     'channel' : "#lemonade-purchases",
-                    #     'username' : "fbprebot",
-                    #     'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                    #     'text' : "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name, storefront_name=storefront.display_name),
-                    #     'attachments' : [{
-                    #         'image_url' : product.image_url
-                    #     }]
-                    # }
-                    # response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
-
 
             elif payment.source == Const.PAYMENT_SOURCE_PAYPAL:
                 if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
@@ -3427,7 +3531,7 @@ def handle_wrong_reply(recipient_id):
 
 
 @app.route('/', methods=['POST'])
-def  webook():
+def fbbot():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
         # return "OK", 200
@@ -3573,6 +3677,85 @@ def  webook():
 
                 else:
                     send_text(sender_id, Const.UNKNOWN_MESSAGE)
+
+    return "OK", 200
+
+
+#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
+
+
+@app.route('/slack/', methods=['POST'])
+def slack():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\»  '/slack/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form={form}".format(form=", ".join(request.form)))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.SLACK_TOKEN:
+        channel_id = request.form['channel_id']
+        message_text = request.form['text'].replace(request.form['trigger_word'], "")
+
+        if re.search(r'^\ \d+\ .*', message_text) is not None:
+            match = re.match(r'^\ (?P<purchase_id>\d+)\ (?P<message_txt>.*)$', message_text)
+            purchase_id = match.group('purchase_id')
+            message_txt = match.group('message_txt')
+
+            logger.info("purchase_id=%s\tmessage_txt=%s" % (purchase_id, message_txt))
+
+            purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
+            if purchase is not None:
+                if message_txt.lower() == "close":
+                    route_dm(channel_id, purchase.id, Const.DM_ACTION_CLOSE)
+
+                else:
+                    route_dm(channel_id, purchase.id, Const.DM_ACTION_SEND, message_txt)
+
+            else:
+                logger.info("PURCHASE NOT FOUND!!")
+                payload = {
+                    'channel' : "#lemonade-shops",
+                    'username' : "shopbot",
+                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                    'text' : "Couldn't locate that purchase!"
+                }
+                response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+        else:
+            logger.info("PURCHASE NOT FOUND!!")
+            payload = {
+                'channel' : "#lemonade-shops",
+                'username' : "shopbot",
+                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+                'text' : "Couldn't locate that purchase!"
+            }
+            response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+    else:
+        logger.info("INAVLID TOKEN!!")
+        payload = {
+            'channel' : "#lemonade-shops",
+            'username' : "shopbot",
+            'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+            'text' : "Invalid token!"
+        }
+        response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+
+    return "OK", 200
+
+
+
+@app.route('/paypal-ipn/', methods=['POST'])
+def paypal_ipn():
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    # logger.info("=-=-=-=-=-= POST --\»  '/paypal-ipn/'")
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    data = request.get_json()
+    # logger.info("request={request}".format(request=request))
+    # logger.info("data={data}".format(data=data))
+    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     return "OK", 200
 
