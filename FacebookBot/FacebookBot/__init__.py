@@ -77,8 +77,8 @@ def send_tracker(category, action, label):
 def write_message_log(sender_id, message_id, message_txt):
     logger.info("write_message_log(sender_id={sender_id}, message_id={message_id}, message_txt={message_txt})".format(sender_id=sender_id, message_id=message_id, message_txt=json.dumps(message_txt)))
 
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME)
     try:
-        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME)
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute('INSERT INTO `fbbot_logs` (`id`, `message_id`, `chat_id`, `body`) VALUES (NULL, %s, %s, %s)', (message_id, sender_id, json.dumps(message_txt)))
@@ -143,8 +143,11 @@ def default_carousel(sender_id):
     logger.info("default_carousel(sender_id={sender_id})".format(sender_id=sender_id))
 
     elements = [
-        coin_flip_element(sender_id),
+        coin_flip_element(sender_id)
     ]
+
+    if sender_id == "1298454546880273":
+        elements.append(daily_item_element(sender_id))
 
     if None in elements:
         send_text(sender_id, "No items are available right now, try again later")
@@ -156,16 +159,73 @@ def default_carousel(sender_id):
         quick_replies=main_menu_quick_replies()
     )
 
+
+def daily_item_element(sender_id, standalone=False):
+    logger.info("daily_item_element(sender_id={sender_id}, standalone={standalone})".format(sender_id=sender_id, standalone=standalone))
+
+    element = None
+
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `price` FROM `flip_inventory` WHERE `type` = 2 ORDER BY RAND() LIMIT 1;')
+            row = cur.fetchone()
+
+            if row is not None:
+                set_session_item(sender_id, row['id'])
+
+                element = {
+                    'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
+                    'subtitle'  : "",
+                    'image_url' : row['image_url'],
+                    'item_url'  : None,
+                    'buttons'   : [{
+                        'type'            : "payment",
+                        'title'           : "Buy",
+                        'payload'         : "%s-%d" % ("PURCHASE_ITEM", row['id']),
+                        'payment_summary' : {
+                            'currency'            : "USD",
+                            'payment_type'        : "FIXED_AMOUNT",
+                            'is_test_payment'     : True,
+                            'merchant_name'       : "Gamebots",
+                            'requested_user_info' : [
+                                "contact_email"
+                            ],
+                            'price_list' : [{
+                                'label'  : "Subtotal",
+                                'amount' : row['price']
+                            }]
+                        }
+                    }]
+                }
+
+                if standalone is True:
+                    element['buttons'].append({
+                        'type'    : "postback",
+                        'payload' : "NO_THANKS",
+                        'title'   : "No Thanks"
+                    })
+
+    except mdb.Error, e:
+        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return element
+
 def coin_flip_element(sender_id, standalone=False):
     logger.info("coin_flip_element(sender_id={sender_id}, standalone={standalone})".format(sender_id=sender_id, standalone=standalone))
 
     element = None
 
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
     try:
-        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 ORDER BY RAND() LIMIT 1;')
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
             row = cur.fetchone()
 
             if row is not None:
@@ -213,8 +273,8 @@ def coin_flip_results(sender_id, item_id=None):
     flip_item = None
     win_boost = 1
 
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
     try:
-        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute('SELECT `kik_name` FROM `item_winners` WHERE `fb_id` = {sender_id} LIMIT 1;'.format(sender_id=sender_id))
@@ -243,7 +303,6 @@ def coin_flip_results(sender_id, item_id=None):
                 }
 
             else:
-                conn.close()
                 send_text(sender_id, "Looks like that item isn't available anymore, try another one")
                 send_carousel(recipient_id=sender_id, elements=[coin_flip_element(sender_id, True)])
                 return "OK", 0
@@ -259,12 +318,12 @@ def coin_flip_results(sender_id, item_id=None):
     if random.uniform(0, flip_item['win_boost']) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
         total_wins += 1
         payload = {
-            'channel': "#bot-alerts",
-            'username': "gamebotsc",
-            'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text': "Flip Win by *{sender_id}*:\n_{item_name}_\n{pin_code}".format(sender_id=sender_id, item_name=flip_item['item_id'], pin_code=flip_item['pin_code']),
-            'attachments': [{
-                'image_url': flip_item['image_url']
+            'channel'     : "#bot-alerts",
+            'username'    : "gamebotsc",
+            'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+            'text'        : "Flip Win by *{sender_id}*:\n_{item_name}_\n{pin_code}".format(sender_id=sender_id, item_name=flip_item['item_id'], pin_code=flip_item['pin_code']),
+            'attachments' : [{
+                'image_url' : flip_item['image_url']
             }]
         }
         response = requests.post("https://hooks.slack.com/services/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",data={'payload': json.dumps(payload)})
@@ -273,8 +332,8 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute("UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;".format(item_id=flip_item['item_id']))
-                cur.execute("INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW())", (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
+                cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;'.format(item_id=flip_item['item_id']))
+                cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
                 flip_item['claim_id'] = cur.lastrowid
 
@@ -292,33 +351,6 @@ def coin_flip_results(sender_id, item_id=None):
             image_url=flip_item['image_url'],
             card_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
             buttons=[
-                # {
-                #     'type'            : "payment",
-                #     'title'           : "buy",
-                #     'payload'         : "DEVELOPER_DEFINED_PAYLOAD",
-                #     'payment_summary' : {
-                #         'currency'            : "USD",
-                #         'payment_type'        : "FIXED_AMOUNT",
-                #         'is_test_payment'     : True,
-                #         'merchant_name'       : "Peter's Apparel",
-                #         'requested_user_info' : [
-                #             "shipping_address",
-                #             "contact_name",
-                #             "contact_phone",
-                #             "contact_email"
-                #         ],
-                #         'price_list' : [
-                #             {
-                #                 'label'  : "Subtotal",
-                #                 'amount' : "0.01"
-                #             },
-                #             {
-                #                 'label'  : "Taxes",
-                #                 'amount' :"0.01"
-                #             }
-                #         ]
-                #     }
-                # },
                 {
                     'type'  : "element_share"
                 }, {
@@ -351,8 +383,8 @@ def coin_flip_results(sender_id, item_id=None):
 def opt_out(sender_id):
     logger.info("opt_out(sender_id={sender_id})".format(sender_id=sender_id))
 
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         cur = conn.cursor()
         cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}" ORDER BY added DESC LIMIT 1;'.format(fb_psid=sender_id))
         row = cur.fetchone()
@@ -372,7 +404,7 @@ def opt_out(sender_id):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute("UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = {fb_psid};".format(fb_psid=sender_id))
+            cur.execute('UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = {fb_psid};'.format(fb_psid=sender_id))
             conn.commit()
 
     except mdb.Error, e:
@@ -389,8 +421,8 @@ def get_session_state(sender_id):
     logger.info("get_session_state(sender_id={sender_id})".format(sender_id=sender_id))
     state = 0
 
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         cur = conn.cursor()
         cur.execute('SELECT state FROM sessions WHERE fb_psid = "{fb_psid}" ORDER BY added DESC LIMIT 1;'.format(fb_psid=sender_id))
         row = cur.fetchone()
@@ -414,10 +446,9 @@ def set_session_state(sender_id, state):
 
     current_state = get_session_state(sender_id)
 
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         cur = conn.cursor()
-
         if current_state == 0:
             cur.execute('INSERT INTO sessions (id, fb_psid, state, added) VALUES (NULL, ?, ?, ?);', (sender_id, state, int(time.time())))
 
@@ -438,8 +469,8 @@ def get_session_item(sender_id):
     logger.info("get_session_item(sender_id={sender_id})".format(sender_id=sender_id))
     item_id = None
 
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         cur = conn.cursor()
         cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = "{fb_psid}" ORDER BY added DESC;'.format(fb_psid=sender_id))
         row = cur.fetchone()
@@ -461,8 +492,8 @@ def get_session_item(sender_id):
 def set_session_item(sender_id, item_id):
     logger.info("set_session_item(sender_id={sender_id}, item_id={item_id})".format(sender_id=sender_id, item_id=item_id))
 
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET flip_id = {flip_id} WHERE fb_psid = "{fb_psid}";'.format(flip_id=item_id, fb_psid=sender_id))
         conn.commit()
@@ -515,7 +546,77 @@ def webook():
                     logger.info("-=- OPT-IN -=-")
                     return "OK", 200
 
+
                 sender_id = messaging_event['sender']['id']
+
+
+                if 'payment' in messaging_event: # payment result
+                    logger.info("-=- PAYMENT -=-")
+
+                    purchase_id = 0
+                    payment = messaging_event['payment']
+                    item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
+                    item_name = None
+                    customer_email = payment['requested_user_info']['contact_email']
+                    amount = payment['amount']['amount']
+                    fb_payment_id = payment['payment_credential']['fb_payment_id']
+                    provider = payment['payment_credential']['provider_type']
+                    charge_id = payment['payment_credential']['charge_id']
+
+                    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                    try:
+                        with conn:
+                            cur = conn.cursor(mdb.cursors.DictCursor)
+                            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` = {item_id} LIMIT 1;'.format(item_id=item_id))
+                            row = cur.fetchone()
+
+                            if row is not None:
+                                item_name = row['name']
+
+                    except mdb.Error, e:
+                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+
+
+                    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                    try:
+                        with conn:
+                            cur = conn.cursor(mdb.cursors.DictCursor)
+                            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+                            conn.commit()
+                            cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
+                            row = cur.fetchone()
+                            purchase_id = row['id']
+
+                    except mdb.Error, e:
+                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+
+                    if purchase_id != 0:
+                        try:
+                            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+                            cur = conn.cursor()
+                            cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+                            conn.commit()
+
+                        except sqlite3.Error as er:
+                            logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+
+                        finally:
+                            if conn:
+                                conn.close()
+
+
+                    send_text(sender_id, "You have successfully purchased {item_name}!".format(item_name=item_name))
+                    return "OK", 200
+
+
 
                 try:
                     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -532,7 +633,7 @@ def webook():
                             try:
                                 with conn2:
                                     cur2 = conn.cursor(mdb.cursors.DictCursor)
-                                    cur2.execute("UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = {fb_psid};".format(fb_psid=sender_id))
+                                    cur2.execute('UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = {fb_psid};'.format(fb_psid=sender_id))
                                     conn2.commit()
 
                             except mdb.Error, e:
@@ -630,9 +731,9 @@ def webook():
                                     card_url="http://m.me/gamebotsc",
                                     buttons=[{'type': "element_share"}],
                                     quick_replies=[{
-                                        'content_type': "text",
-                                        'title': "Main Menu",
-                                        'payload': "MAIN_MENU"
+                                        'content_type' : "text",
+                                        'title'        : "Main Menu",
+                                        'payload'      : "MAIN_MENU"
                                     }]
                                 )
 
@@ -641,10 +742,10 @@ def webook():
                                 default_carousel(sender_id)
 
                                 payload = {
-                                    'channel': "#pre",
-                                    'username': "gamebotsc",
-                                    'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                                    'text': "*{sender_id}* needs help…".format(sender_id=sender_id),
+                                    'channel'  : "#pre",
+                                    'username' : "gamebotsc",
+                                    'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                                    'text'     : "*{sender_id}* needs help…".format(sender_id=sender_id),
                                 }
                                 response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
@@ -688,11 +789,11 @@ def send_text(recipient_id, message_text, quick_replies=None):
     logger.info("send_text(recipient_id={recipient}, message_text={text}, quick_replies={quick_replies})".format(recipient=recipient_id, text=message_text, quick_replies=quick_replies))
 
     data = {
-        'recipient': {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'message': {
-            'text': message_text
+        'message'   : {
+            'text' : message_text
         }
     }
 
@@ -706,23 +807,21 @@ def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=Non
     logger.info("send_card(recipient_id={recipient}, title={title}, image_url={image_url}, card_url={card_url}, subtitle={subtitle}, buttons={buttons}, quick_replies={quick_replies})".format(recipient=recipient_id, title=title, image_url=image_url, card_url=card_url, subtitle=subtitle, buttons=buttons, quick_replies=quick_replies))
 
     data = {
-        'recipient': {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'message': {
-            'attachment': {
-                'type': "template",
-                'payload': {
-                    'template_type': "generic",
-                    'elements': [
-                        {
-                            'title': title,
-                            'item_url': card_url,
-                            'image_url': image_url,
-                            'subtitle': subtitle,
-                            'buttons': buttons
-                        }
-                    ]
+        'message'   : {
+            'attachment' : {
+                'type'    : "template",
+                'payload' : {
+                    'template_type' : "generic",
+                    'elements'      : [{
+                        'title'     : title,
+                        'item_url'  : card_url,
+                        'image_url' : image_url,
+                        'subtitle'  : subtitle,
+                        'buttons'   : buttons
+                    }]
                 }
             }
         }
@@ -741,15 +840,15 @@ def send_carousel(recipient_id, elements, quick_replies=None):
     logger.info("send_carousel(recipient_id={recipient}, elements={elements}, quick_replies={quick_replies})".format(recipient=recipient_id, elements=elements, quick_replies=quick_replies))
 
     data = {
-        'recipient': {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'message': {
-            'attachment': {
-                'type': "template",
-                'payload': {
-                    'template_type': "generic",
-                    'elements': elements
+        'message'   : {
+            'attachment'  : {
+                'type'    : "template",
+                'payload' : {
+                    'template_type' : "generic",
+                    'elements'      : elements
                 }
             }
         }
@@ -765,14 +864,14 @@ def send_image(recipient_id, url, quick_replies=None):
     logger.info("send_image(recipient_id={recipient}, url={url}, quick_replies={quick_replies})".format(recipient=recipient_id, url=url, quick_replies=quick_replies))
 
     data = {
-        'recipient': {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'message': {
-            'attachment': {
-                'type': "image",
-                'payload': {
-                    'url': url
+        'message'   : {
+            'attachment' : {
+                'type'    : "image",
+                'payload' : {
+                    'url' : url
                 }
             }
         }
@@ -788,14 +887,14 @@ def send_video(recipient_id, url, quick_replies=None):
     logger.info("send_image(recipient_id={recipient}, url={url}, quick_replies={quick_replies})".format(recipient=recipient_id, url=url, quick_replies=quick_replies))
 
     data = {
-        'recipient': {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'message': {
-            'attachment': {
-                'type': "video",
-                'payload': {
-                    'url': url
+        'message'   : {
+            'attachment' : {
+                'type'    : "video",
+                'payload' : {
+                    'url' : url
                 }
             }
         }
