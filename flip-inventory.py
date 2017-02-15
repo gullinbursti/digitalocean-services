@@ -1,7 +1,6 @@
 # -*- coding: UTF-8 -*-
 
 import json
-from urllib import quote
 
 import MySQLdb as mdb
 import requests
@@ -22,18 +21,23 @@ def fetch(profile_id=76561198277603515):
     inventory = {}
     for asset in response.json()['descriptions']:
         #if asset['tradable'] == "1":
-            key = "%s_%s" % (asset['classid'].encode('utf-8'), asset['instanceid'].encode('utf-8'))
+            key = "%s_%s" % (asset['classid'], asset['instanceid'])
             inventory[key] = {
-                'key'         : key,
+                'app_id'      : asset['appid'],
+                'class_id'    : asset['classid'],
+                'instance_id' : asset['instanceid'],
                 'name'        : asset['market_name'].encode('utf-8'),
-                'description' : asset['descriptions'][2]['value'],
-                'image_url'   : "http://steamcommunity-a.akamaihd.net/economy/image/%s" % (asset['icon_url_large']).encode('utf-8'),
+                'description' : asset['descriptions'][2]['value'].encode('utf-8'),
+                'icon_url'    : "http://steamcommunity-a.akamaihd.net/economy/image/%s" % (asset['icon_url']),
+                'image_url'   : "http://steamcommunity-a.akamaihd.net/economy/image/%s" % (asset['icon_url_large']),
                 'quantity'    : 0
             }
 
     for asset in response.json()['assets']:
-        key = "%s_%s" % (asset['classid'].encode('utf-8'), asset['instanceid'].encode('utf-8'))
+        key = "%s_%s" % (asset['classid'], asset['instanceid'])
         if key in inventory:
+            if 'asset_id' not in inventory[key]:
+              inventory[key]['asset_id'] = asset['assetid']
             inventory[key]['quantity'] += 1
 
     return inventory
@@ -45,29 +49,28 @@ def update_db(inventory):
     for key, value in inventory.iteritems():
         print("%s (%d)" % (value['name'], value['quantity']))
 
-
     try:
         conn = mdb.connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         with conn:
-            cur = conn.cursor()
+            cur = conn.cursor(mdb.cursors.DictCursor)
 
             for key, value in inventory.iteritems():
                 # print("Name: %s" % (val[name].encode('utf-8')))
 
                 cur.execute('SET NAMES utf8;')
                 cur.execute('SET CHARACTER SET utf8;');
-                cur.execute('SELECT `id` FROM `flip_inventory` WHERE `steam_id` = "{steam_id}" LIMIT 1;'.format(steam_id=key))
+                cur.execute('SELECT `asset_id` FROM `flip_inventory` WHERE `asset_id` = "{asset_id}" LIMIT 1;'.format(asset_id=value['asset_id']))
                 row = cur.fetchone()
 
                 if row is None:
                     if value['quantity'] > 0:
-                        cur.execute('INSERT IGNORE INTO `flip_inventory` (`id`, `name`, `description`, `image_url`, `steam_id`, `quantity`, `added`) VALUES (NULL, "{name}", "{description}", "{image_url}", "{steam_id}", {quantity}, NOW());'.format(name=value['name'], description=value['description'], image_url=value['image_url'], steam_id=key, quantity=value['quantity']))
-                        
-                    if "frontside" in value['name'].lower():
-                      cur.execute('UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `id` = {asset_id} LIMIT 1;'.format(quantity=value['quantity'], asset_id=cur.cur.lastrowid))
+                        cur.execute('INSERT IGNORE INTO `flip_inventory` (`id`, `name`, `description`, `asset_id`, `app_id`, `class_id`, `instance_id`, `icon_url`, `image_url`, `quantity`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW());', (value['name'], value['description'], value['asset_id'], value['app_id'], value['class_id'], value['instance_id'], value['icon_url'], value['image_url'], value['quantity']))
+                        conn.commit()
 
                 else:
-                    cur.execute('UPDATE `flip_inventory` SET `enabled` = 0 WHERE `id` = {asset_id} LIMIT 1;'.format(asset_id=row[0]))
+                    cur.execute('UPDATE `flip_inventory` SET `quantity` = {quantity} WHERE `asset_id` = {asset_id} LIMIT 1;'.format(quantity=value['quantity'], asset_id=value['asset_id']))
+                cur.execute('UPDATE `flip_inventory` SET `type` = 2 WHERE `name` LIKE "AK%Frontside%";')
+
             conn.commit()
 
     except mdb.Error, e:
