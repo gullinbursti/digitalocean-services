@@ -60,6 +60,7 @@ class Product(Base):
     __tablename__ = "product"
 
     id = Column(Integer, primary_key=True)
+    fb_psid = Column(String(255))
     storefront_id = Column(Integer)
     creation_state = Column(Integer)
     name = Column(String(255))
@@ -76,7 +77,8 @@ class Product(Base):
     release_date = Column(Integer)
     added = Column(Integer)
 
-    def __init__(self, storefront_id):
+    def __init__(self, fb_psid, storefront_id):
+        self.fb_psid = fb_psid
         self.storefront_id = storefront_id
         self.creation_state = 0
         self.price = 1.99
@@ -85,7 +87,7 @@ class Product(Base):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Product id=%d, storefront_id=%d, creation_state=%d, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%d, avg_rating=%.2f, added=%d>" % (self.id, self.storefront_id, self.creation_state, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
 
 
 class Storefront(Base):
@@ -329,7 +331,7 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
     customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
     storefront = session.query(Storefront).filter(Storefront.id == storefront_id).first()
 
-    product_tmp = Product(storefront.id)
+    product_tmp = Product(fb_psid, storefront.id)
     product_tmp.creation_state = 5
     product_tmp.display_name = name
     product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\[\]\{\}\\]', "", name)
@@ -379,18 +381,44 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
 
 
 def generate_fb_psid():
-    psid = "90"
-    for i in range(1, 14):
+    psid = "99"
+    for i in range(1, 15):
         psid = "{psid}{rand}".format(psid=psid, rand=random.randint(0, 9))
 
-    return "{psid}0".format(psid=psid)
+    return "{psid}".format(psid=psid)
 
+
+
+
+for product in session.query(Product).filter(Product.id > 9866):
+    storefront = session.query(Storefront).filter(Storefront.id == product.storefront_id).first()
+    if storefront is not None:
+        product.fb_psid = storefront.owner_id
+        session.commit()
+
+    print(product)
+
+
+quit()
+
+# storefront_query = session.query(Storefront.id).filter(Storefront.display_name.like('% e-Shop')).subquery('storefront_query')
+# for product in session.query(Product).filter(Product.storefront_id.in_(storefront_query)):
+#
+#     owner_name = product.display_name.replace(" Snaps", "")
+#     product.display_name = "%s Money Guide" % (owner_name)
+#     product.name = "%sMoneyGuide" % (owner_name)
+#     product.prebot_url = product.prebot_url.replace("Snaps", "MoneyGuide")
+#     session.commit()
+#
+#     print(product)
+#
+# quit()
 
 
 # fb_psid = generate_fb_psid()
 # add_user(fb_psid)
-# storefront_id = add_storefront(fb_psid, "iPhone Shop", "Get iPhone related stuff here", "https://i.imgur.com/BsheUrK.jpg")
-# add_product(fb_psid, storefront_id, "iPhone SE", "https://i.imgur.com/BsheUrK.jpg", 199)
+# storefront_id = add_storefront(fb_psid, "Bracelets by Anne", "Custom made jewelry just for you", "https://i.imgur.com/prD7TK3.jpg")
+# add_product(fb_psid, storefront_id, "BraceletAnne", "https://i.imgur.com/prD7TK3.jpg", 399)
 #
 # fb_psid = generate_fb_psid()
 # add_user(fb_psid)
@@ -407,7 +435,7 @@ def generate_fb_psid():
 # storefront_id = add_storefront(fb_psid, "Knick Knacks", "Little things", "https://i.imgur.com/lnGGJfI.jpg")
 # add_product(fb_psid, storefront_id, "Tiny Sword Stand", "https://i.imgur.com/lnGGJfI.jpg", 199)
 #
-# quit()
+quit()
 
 
 
@@ -454,7 +482,7 @@ for kik_name in kik_names:
     entry['products'].append(product_id)
 
     storefront_id = add_storefront(entry['fb_psid'], "{kik_name} e-Shop".format(kik_name=entry['kik_name']), "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png")
-    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Snaps".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png", round(random.uniform(0.50, 4.99), 2))
+    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Money Guide".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png", round(random.uniform(0.50, 4.99), 2))
     entry['storefronts'].append(storefront_id)
     entry['products'].append(product_id)
 
