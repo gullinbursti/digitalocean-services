@@ -56,8 +56,7 @@ Const.OPT_OUT_REPLIES = "optout|quit|end|stop|cancel|exit"
 
 
 def send_tracker(category, action, label):
-    logger.info("send_tracker(category={category}, action={action}, label={label})".format(category=category, action=action, label=label))
-
+    logger.info("send_tracker(category=%s, action=%s, label=%s)" % (category, action, label))
 
     c = pycurl.Curl()
     c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={category}&label={label}&value=&cid={cid}".format(category=category, action=category, label=action, cid=hashlib.md5(action.encode()).hexdigest()))
@@ -75,7 +74,7 @@ def send_tracker(category, action, label):
 
 
 def write_message_log(sender_id, message_id, message_txt):
-    logger.info("write_message_log(sender_id={sender_id}, message_id={message_id}, message_txt={message_txt})".format(sender_id=sender_id, message_id=message_id, message_txt=json.dumps(message_txt)))
+    logger.info("write_message_log(sender_id=%s, message_id=%s, message_txt=%s)" % (sender_id, message_id, json.dumps(message_txt)))
 
     conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME)
     try:
@@ -84,7 +83,7 @@ def write_message_log(sender_id, message_id, message_txt):
             cur.execute('INSERT INTO `fbbot_logs` (`id`, `message_id`, `chat_id`, `body`) VALUES (NULL, %s, %s, %s)', (message_id, sender_id, json.dumps(message_txt)))
 
     except mdb.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -140,7 +139,7 @@ def opt_out_quick_replies():
 
 
 def default_carousel(sender_id):
-    logger.info("default_carousel(sender_id={sender_id})".format(sender_id=sender_id))
+    logger.info("default_carousel(sender_id=%s)" % (sender_id))
 
     elements = [
         coin_flip_element(sender_id)
@@ -161,7 +160,7 @@ def default_carousel(sender_id):
 
 
 def daily_item_element(sender_id, standalone=False):
-    logger.info("daily_item_element(sender_id={sender_id}, standalone={standalone})".format(sender_id=sender_id, standalone=standalone))
+    logger.info("daily_item_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
     element = None
 
@@ -169,7 +168,7 @@ def daily_item_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `price` FROM `flip_inventory` WHERE `type` = 2 ORDER BY RAND() LIMIT 1;')
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `max_buy`, `min_sell` FROM `flip_inventory` WHERE `type` = 2 ORDER BY RAND() LIMIT 1;')
             row = cur.fetchone()
 
             if row is not None:
@@ -194,7 +193,7 @@ def daily_item_element(sender_id, standalone=False):
                             ],
                             'price_list' : [{
                                 'label'  : "Subtotal",
-                                'amount' : row['price']
+                                'amount' : row['min_sell']
                             }]
                         }
                     }]
@@ -208,7 +207,7 @@ def daily_item_element(sender_id, standalone=False):
                     })
 
     except mdb.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -217,7 +216,7 @@ def daily_item_element(sender_id, standalone=False):
     return element
 
 def coin_flip_element(sender_id, standalone=False):
-    logger.info("coin_flip_element(sender_id={sender_id}, standalone={standalone})".format(sender_id=sender_id, standalone=standalone))
+    logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
     element = None
 
@@ -251,7 +250,7 @@ def coin_flip_element(sender_id, standalone=False):
                     })
 
     except mdb.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -261,7 +260,7 @@ def coin_flip_element(sender_id, standalone=False):
 
 
 def coin_flip_results(sender_id, item_id=None):
-    logger.info("coin_flip_results(sender_id={sender_id}, item_id={item_id})".format(sender_id=sender_id, item_id=item_id))
+    logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
     send_image(sender_id, Const.FLIP_COIN_START_GIF_URL)
 
@@ -277,16 +276,16 @@ def coin_flip_results(sender_id, item_id=None):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `kik_name` FROM `item_winners` WHERE `fb_id` = {sender_id} LIMIT 1;'.format(sender_id=sender_id))
+            cur.execute('SELECT `kik_name` FROM `item_winners` WHERE `fb_id` = %s LIMIT 1;', (sender_id,))
             if cur.fetchone() is not None:
                 win_boost = 0.5
 
-            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = {sender_id} AND `added` > DATE_SUB(NOW(), INTERVAL 2 HOUR);'.format(sender_id=sender_id))
+            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 6 HOUR);', (sender_id,))
             row = cur.fetchone()
             if row is not None:
                 total_wins = row['tot']
 
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = {item_id} LIMIT 1;'.format(item_id=item_id))
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
 
             if row is not None:
@@ -308,7 +307,7 @@ def coin_flip_results(sender_id, item_id=None):
                 return "OK", 0
 
     except mdb.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -332,13 +331,13 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = {item_id} LIMIT 1;'.format(item_id=flip_item['item_id']))
+                cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s LIMIT 1;', (flip_item['item_id'],))
                 cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
                 flip_item['claim_id'] = cur.lastrowid
 
         except mdb.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -381,12 +380,12 @@ def coin_flip_results(sender_id, item_id=None):
 
 
 def opt_out(sender_id):
-    logger.info("opt_out(sender_id={sender_id})".format(sender_id=sender_id))
+    logger.info("opt_out(sender_id=%s)" % (sender_id))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         cur = conn.cursor()
-        cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}" ORDER BY added DESC LIMIT 1;'.format(fb_psid=sender_id))
+        cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
         row = cur.fetchone()
 
         if row is None:
@@ -394,7 +393,7 @@ def opt_out(sender_id):
             conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+        logger.info("::::::opt_out[cur.execute] sqlite3.Error - %s" % (er.message))
 
     finally:
         if conn:
@@ -404,11 +403,11 @@ def opt_out(sender_id):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = {fb_psid};'.format(fb_psid=sender_id))
+            cur.execute('UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = %s;', (sender_id,))
             conn.commit()
 
     except mdb.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -418,22 +417,23 @@ def opt_out(sender_id):
 
 
 def get_session_state(sender_id):
-    logger.info("get_session_state(sender_id={sender_id})".format(sender_id=sender_id))
+    logger.info("get_session_state(sender_id=%s)" % (sender_id))
     state = 0
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('SELECT state FROM sessions WHERE fb_psid = "{fb_psid}" ORDER BY added DESC LIMIT 1;'.format(fb_psid=sender_id))
+        cur.execute('SELECT state FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
         row = cur.fetchone()
 
         if row is not None:
-            state = row[0]
+            state = row['state']
 
-        logger.info("state={state}".format(state=state))
+        logger.info("state=%s" % (state))
 
     except sqlite3.Error as er:
-        logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=er.message))
+        logger.info("::::::get_session_state[sqlite3.connect] sqlite3.Error - %s" % (er.message))
 
     finally:
         if conn:
@@ -442,7 +442,7 @@ def get_session_state(sender_id):
     return state
 
 def set_session_state(sender_id, state):
-    logger.info("set_session_state(sender_id={sender_id}, state={state})".format(sender_id=sender_id, state=state))
+    logger.info("set_session_state(sender_id=%s, state=%s)" % (sender_id, state))
 
     current_state = get_session_state(sender_id)
 
@@ -453,12 +453,12 @@ def set_session_state(sender_id, state):
             cur.execute('INSERT INTO sessions (id, fb_psid, state, added) VALUES (NULL, ?, ?, ?);', (sender_id, state, int(time.time())))
 
         else:
-            cur.execute('UPDATE sessions SET state = {state} WHERE fb_psid = "{fb_psid}";'.format(state=state, fb_psid=sender_id))
+            cur.execute('UPDATE sessions SET state = ? WHERE fb_psid = ?;', (state, sender_id))
 
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+        logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message))
 
     finally:
         if conn:
@@ -466,22 +466,23 @@ def set_session_state(sender_id, state):
 
 
 def get_session_item(sender_id):
-    logger.info("get_session_item(sender_id={sender_id})".format(sender_id=sender_id))
+    logger.info("get_session_item(sender_id=%s)" % (sender_id))
     item_id = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = "{fb_psid}" ORDER BY added DESC;'.format(fb_psid=sender_id))
+        cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC;', (sender_id,))
         row = cur.fetchone()
 
         if row is not None:
-            item_id = row[0]
+            item_id = row['flip_id']
 
-        logger.info("item_id={item_id}".format(item_id=item_id))
+        logger.info("item_id=%s" % (item_id))
 
     except sqlite3.Error as er:
-        logger.info("::::::[sqlite3.connect] sqlite3.Error - {message}".format(message=er.message))
+        logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
 
     finally:
         if conn:
@@ -490,16 +491,16 @@ def get_session_item(sender_id):
     return item_id
 
 def set_session_item(sender_id, item_id):
-    logger.info("set_session_item(sender_id={sender_id}, item_id={item_id})".format(sender_id=sender_id, item_id=item_id))
+    logger.info("set_session_item(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         cur = conn.cursor()
-        cur.execute('UPDATE sessions SET flip_id = {flip_id} WHERE fb_psid = "{fb_psid}";'.format(flip_id=item_id, fb_psid=sender_id))
+        cur.execute('UPDATE sessions SET flip_id = ? WHERE fb_psid = ?;', (item_id, sender_id))
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message))
 
     finally:
         if conn:
@@ -511,7 +512,7 @@ def set_session_item(sender_id, item_id):
 def verify():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info(
-        "=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY ({hub_mode})->{request}\n".format(hub_mode=request.args.get('hub.mode'), request=request))
+        "=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
@@ -567,14 +568,14 @@ def webook():
                     try:
                         with conn:
                             cur = conn.cursor(mdb.cursors.DictCursor)
-                            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` = {item_id} LIMIT 1;'.format(item_id=item_id))
+                            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` = ? LIMIT 1;', (item_id,))
                             row = cur.fetchone()
 
                             if row is not None:
                                 item_name = row['name']
 
                     except mdb.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
                     finally:
                         if conn:
@@ -592,7 +593,7 @@ def webook():
                             purchase_id = row['id']
 
                     except mdb.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
                     finally:
                         if conn:
@@ -606,7 +607,7 @@ def webook():
                             conn.commit()
 
                         except sqlite3.Error as er:
-                            logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
 
                         finally:
                             if conn:
@@ -621,11 +622,11 @@ def webook():
                 try:
                     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
                     cur = conn.cursor()
-                    cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = "{fb_psid}";'.format(fb_psid=sender_id))
+                    cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = ?;', (sender_id,))
                     row = cur.fetchone()
                     if row is not None:
                         if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and messaging_event['message']['quick_reply']['payload'] == "OPT_IN":
-                            cur.execute('DELETE FROM blacklisted_users WHERE fb_psid = "{fb_psid}";'.format(fb_psid=sender_id))
+                            cur.execute('DELETE FROM blacklisted_users WHERE fb_psid = ?;', (sender_id,))
                             conn.commit()
                             conn.close()
 
@@ -633,11 +634,11 @@ def webook():
                             try:
                                 with conn2:
                                     cur2 = conn.cursor(mdb.cursors.DictCursor)
-                                    cur2.execute('UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = {fb_psid};'.format(fb_psid=sender_id))
+                                    cur2.execute('UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = %s;', (sender_id,))
                                     conn2.commit()
 
                             except mdb.Error, e:
-                                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
                             finally:
                                 if conn2:
@@ -649,7 +650,7 @@ def webook():
                             return "OK", 200
 
                 except sqlite3.Error as er:
-                    logger.info("::::::[cur.execute] sqlite3.Error - {message}".format(message=er.message))
+                    logger.info("::::::optin[cur.execute] sqlite3.Error - %s" % (er.message))
 
                 finally:
                     if conn:
@@ -658,7 +659,7 @@ def webook():
 
                 #-- new entry
                 if get_session_state(sender_id) == 0:
-                    logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
                     send_tracker("signup-fb", sender_id, "")
 
                     set_session_state(sender_id, 1)
@@ -673,7 +674,7 @@ def webook():
                         logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
 
                         if messaging_event['postback']['payload'] == "WELCOME_MESSAGE":
-                            logger.info("----------=NEW SESSION @({timestamp})=----------".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+                            logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
                             send_tracker("signup-fb", sender_id, "")
                             default_carousel(sender_id)
                             return "OK", 200
@@ -700,7 +701,7 @@ def webook():
 
                     # -- actual message
                     if 'message' in messaging_event:
-                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->{message}".format(message=messaging_event['sender']))
+                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
 
                         message = messaging_event['message']
 
@@ -718,7 +719,7 @@ def webook():
 
                         # ------- QUICK REPLY BUTTON
                         if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
-                            logger.info("QR --> {quick_replies}".format(quick_replies=quote(messaging_event['message']['quick_reply']['payload'])))
+                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
                             quick_reply = quote(messaging_event['message']['quick_reply']['payload'])
 
                             send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()),  messaging_event['sender']['id'], "")
@@ -775,7 +776,7 @@ def webook():
 
                             # -- typed '!end' / 'cancel' / 'quit'
                             if message_text.lower() in Const.OPT_OUT_REPLIES:
-                                logger.info("-=- ENDING HELP -=- ({timestamp})".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
+                                logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
                                 opt_out(sender_id)
 
                             else:
@@ -786,7 +787,7 @@ def webook():
 
 
 def send_text(recipient_id, message_text, quick_replies=None):
-    logger.info("send_text(recipient_id={recipient}, message_text={text}, quick_replies={quick_replies})".format(recipient=recipient_id, text=message_text, quick_replies=quick_replies))
+    logger.info("send_text(recipient_id=%s, message_text=%s, quick_replies=%s)" % (recipient_id, message_text, quick_replies))
 
     data = {
         'recipient' : {
@@ -804,7 +805,7 @@ def send_text(recipient_id, message_text, quick_replies=None):
 
 
 def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=None, quick_replies=None):
-    logger.info("send_card(recipient_id={recipient}, title={title}, image_url={image_url}, card_url={card_url}, subtitle={subtitle}, buttons={buttons}, quick_replies={quick_replies})".format(recipient=recipient_id, title=title, image_url=image_url, card_url=card_url, subtitle=subtitle, buttons=buttons, quick_replies=quick_replies))
+    logger.info("send_card(recipient_id=%s, title=%s, image_url=%s, card_url=%s, subtitle=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, image_url, card_url, subtitle, buttons, quick_replies))
 
     data = {
         'recipient' : {
@@ -837,7 +838,7 @@ def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=Non
 
 
 def send_carousel(recipient_id, elements, quick_replies=None):
-    logger.info("send_carousel(recipient_id={recipient}, elements={elements}, quick_replies={quick_replies})".format(recipient=recipient_id, elements=elements, quick_replies=quick_replies))
+    logger.info("send_carousel(recipient_id=%s, elements=%s, quick_replies=%s)" % (recipient_id, elements, quick_replies))
 
     data = {
         'recipient' : {
@@ -861,7 +862,7 @@ def send_carousel(recipient_id, elements, quick_replies=None):
 
 
 def send_image(recipient_id, url, quick_replies=None):
-    logger.info("send_image(recipient_id={recipient}, url={url}, quick_replies={quick_replies})".format(recipient=recipient_id, url=url, quick_replies=quick_replies))
+    logger.info("send_image(recipient_id=%s, url=%s, quick_replies=%s)" % (recipient_id, url, quick_replies))
 
     data = {
         'recipient' : {
@@ -884,7 +885,7 @@ def send_image(recipient_id, url, quick_replies=None):
 
 
 def send_video(recipient_id, url, quick_replies=None):
-    logger.info("send_image(recipient_id={recipient}, url={url}, quick_replies={quick_replies})".format(recipient=recipient_id, url=url, quick_replies=quick_replies))
+    logger.info("send_image(recipient_id=%s, url=%s, quick_replies=%s)" % (recipient_id, url, quick_replies))
 
     data = {
         'recipient' : {
@@ -907,7 +908,7 @@ def send_video(recipient_id, url, quick_replies=None):
 
 
 def send_message(payload):
-    logger.info("send_message(payload={payload})".format(payload=payload))
+    logger.info("send_message(payload=%s)" % (payload))
 
 
     response = requests.post(
@@ -916,7 +917,7 @@ def send_message(payload):
         json=json.loads(payload)
     )
 
-    logger.info("GRAPH RESPONSE ({code}): {result}".format(code=response.status_code, result=response.text))
+    logger.info("GRAPH RESPONSE (%s): %s" % (response.status_code, response.text))
 
     return True
 
