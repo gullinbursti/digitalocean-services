@@ -1,6 +1,9 @@
 from named_constants import Constants
 
 class Const(Constants):
+    FB_APP_ID = "267184583696625"
+    FB_PAGE_ID = "177712676037903"
+
     VERIFY_TOKEN = "AC7F552BD16A775B653F6EF6CD3902E6"
     ACCESS_TOKEN = "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
@@ -13,7 +16,7 @@ class Const(Constants):
     WEB_SERVER_IP = "192.241.212.32"
     PACIFIC_TIMEZONE = "America/Los_Angeles"
     RATE_GLYPH = u'\u2605'.encode('utf8')
-    IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\[\]\{\}\\]'
+    IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]'
 
     MYSQL_HOST = '138.197.216.56'
     MYSQL_NAME = 'prebot_marketplace'

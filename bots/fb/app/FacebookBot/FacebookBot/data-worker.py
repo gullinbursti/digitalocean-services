@@ -24,7 +24,6 @@ from sqlalchemy.orm import sessionmaker
 from constants import Const
 
 engine = create_engine("sqlite:///data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=False)
-# engine.raw_connection().connection.text_factory = str
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
@@ -77,10 +76,6 @@ class FBUser(Base):
 
     id = Column(Integer, primary_key=True)
     fb_psid = Column(String(255))
-    # first_name = Column(String(255, collation='utf-8'))
-    # last_name = Column(String(255, collation='utf-8'))
-    # first_name = Column(UnicodeText(255))
-    # last_name = Column(UnicodeText(255))
     first_name = Column(CoerceUTF8)
     last_name = Column(CoerceUTF8)
     profile_pic_url = Column(String(255))
@@ -488,15 +483,16 @@ def graph_updater():
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('SELECT `id` FROM `fb_users` WHERE `fb_psid` = %s LIMIT 1;' % (customer.fb_psid,))
+                    row = cur.fetchone()
 
-                    if cur.fetchone() is None:
+                    if row is None:
                         cur.execute('INSERT INTO `fb_users` (`id`, `user_id`, `fb_psid`, `first_name`, `last_name`, `profile_pic_url`, `locale`, `timezone`, `gender`, `payments_enabled`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid or "", fb_user.first_name.decode('utf-8') or "", fb_user.last_name.decode('utf-8') or "", fb_user.profile_pic_url or "", fb_user.locale or "", fb_user.timezone or 666, fb_user.gender or "", int(fb_user.payments_enabled)))
                         conn.commit()
                         cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_users`;')
                         fb_user.id = cur.fetchone()['id']
 
                     else:
-                        fb_user.id = cur.fetchone()['id']
+                        fb_user.id = row['id']
 
                     session.commit()
 
@@ -506,12 +502,6 @@ def graph_updater():
             finally:
                 if conn:
                     conn.close()
-
-
-graph_updater()
-quit()
-
-
 
 
 def product_fb_psid():

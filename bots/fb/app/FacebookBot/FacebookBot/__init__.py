@@ -16,17 +16,20 @@ import time
 
 from datetime import datetime
 
+
 import MySQLdb as mysql
 import pytz
 import qrtools
 import requests
 import stripe
 
+from dateutil.tz import tzoffset
 from dateutil.relativedelta import relativedelta
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from PIL import Image
 from stripe import CardError
+
 
 from constants import Const
 
@@ -34,14 +37,14 @@ from constants import Const
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///data/sqlite3/prebotfb.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ECHO'] = False
 
 locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
 reload(sys)
-sys.setdefaultencoding('utf8')
+sys.setdefaultencoding('utf-8')
 
 db = SQLAlchemy(app)
-db.text_factory = str
 
 logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler("/var/log/FacebookBot.log")
@@ -55,7 +58,23 @@ stripe.api_key = Const.STRIPE_DEV_API_KEY
 
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
+
+class CoerceUTF8(db.TypeDecorator):
+    """Safely coerce Python bytestrings to Unicode
+    before passing off to the database."""
+
+    impl = db.Unicode
+
+    def process_bind_param(self, value, dialect):
+        if isinstance(value, str):
+            value = value.decode('utf-8')
+        return value
+
+
+
 class Customer(db.Model):
+    __tablename__ = "customers"
+
     id = db.Column(db.Integer, primary_key=True)
     fb_psid = db.Column(db.String(255))
     fb_name = db.Column(db.String(255))
@@ -81,7 +100,50 @@ class Customer(db.Model):
         return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
 
 
+class FBUser(db.Model):
+    __tablename__ = "fb_users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    fb_psid = db.Column(db.String(255))
+    first_name = db.Column(CoerceUTF8)
+    last_name = db.Column(CoerceUTF8)
+    profile_pic_url = db.Column(db.String(255))
+    locale = db.Column(db.String(255))
+    timezone = db.Column(db.Integer)
+    gender = db.Column(db.String(255))
+    payments_enabled = db.Column(db.Boolean)
+    added = db.Column(db.Integer)
+
+    def __init__(self, fb_psid, graph):
+        self.fb_psid = fb_psid
+        self.first_name = graph.get('first_name').encode('utf-8') or None
+        self.last_name = graph.get('last_name').encode('utf-8') or None
+        self.profile_pic_url = graph.get('profile_pic') or None
+        self.locale = graph.get('locale') or None
+        self.timezone = graph.get('timezone') or None
+        self.gender = graph.get('gender') or None
+        self.payments_enabled = graph.get('is_payment_enabled') or False
+        self.added = int(time.time())
+
+    @property
+    def full_name(self):
+        return "%s %s" % (self.first_name, self.last_name)
+
+    @property
+    def local_dt(self):
+        return datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc).astimezone(tzoffset(None, self.timezone * 100))
+
+    @property
+    def profile_image(self):
+        return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
+
+    def __repr__(self):
+        return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s, [full_name=%s, local_dt=%s, profile_image=%s]>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone, self.gender, self.payments_enabled, self.added, self.full_name, self.local_dt, self.profile_image)
+
+
 class Payment(db.Model):
+    __tablename__ = "payments"
+
     id = db.Column(db.Integer, primary_key=True)
     fb_psid = db.Column(db.String(255))
     source = db.Column(db.String(255))
@@ -104,6 +166,8 @@ class Payment(db.Model):
 
 
 class Product(db.Model):
+    __tablename__ = "products"
+
     id = db.Column(db.Integer, primary_key=True)
     fb_psid = db.Column(db.String(255))
     storefront_id = db.Column(db.Integer)
@@ -156,6 +220,8 @@ class Product(db.Model):
 
 
 class Purchase(db.Model):
+    __tablename__ = "purchases"
+
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer)
     storefront_id = db.Column(db.Integer)
@@ -183,6 +249,8 @@ class Purchase(db.Model):
 
 
 class Rating(db.Model):
+    __tablename__ = "ratings"
+
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer)
     fb_psid = db.Column(db.String(255))
@@ -200,6 +268,8 @@ class Rating(db.Model):
 
 
 class Storefront(db.Model):
+    __tablename__ = "storefronts"
+
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.String(255))
     creation_state = db.Column(db.Integer)
@@ -248,6 +318,8 @@ class Storefront(db.Model):
 
 
 class Subscription(db.Model):
+    __tablename__ = "subscriptions"
+
     id = db.Column(db.Integer, primary_key=True)
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
@@ -385,28 +457,6 @@ def drop_sqlite(flag=15):
         except:
             db.session.rollback()
 
-def add_column(table_name, column_name, data_type):
-    logger.info("add_column(table_name=%s, column_name=%s, data_type=%s)" % (table_name, column_name, data_type))
-
-    connection = sqlite3.connect("{file_path}/data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))))
-    cursor = connection.cursor()
-
-    if data_type == "Integer":
-        data_type_formatted = "INTEGER"
-
-    elif data_type == "String":
-        data_type_formatted = "VARCHAR(100)"
-
-
-    sql_command = "ALTER TABLE '{table_name}' ADD column '{column_name}' '{data_type}'".format(table_name=table_name, column_name=column_name, data_type=data_type_formatted)
-
-    cursor.execute(sql_command)
-    connection.commit()
-    connection.close()
-
-    return "OK", 200
-
-
 def copy_remote_asset(src_url, local_file):
     logger.info("copy_remote_asset(src_url=%s, local_file=%s)" % (src_url, local_file))
 
@@ -493,7 +543,7 @@ def add_new_user(recipient_id, deeplink):
         deeplink = "/"
 
     try:
-        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
 
@@ -505,7 +555,7 @@ def add_new_user(recipient_id, deeplink):
             if row is None:
                 cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (recipient_id, deeplink))
                 conn.commit()
-                cur.execute('SELECT `id`, `added` FROM `users` WHERE `id` = @@IDENTITY LIMIT 1;')
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `users`;')
                 row = cur.fetchone()
 
                 #-- now update sqlite w/ the new guy
@@ -515,6 +565,21 @@ def add_new_user(recipient_id, deeplink):
 
                 else:
                     customer.id = row['id']
+
+                fb_user = FBUser(recipient_id, fb_graph_user(recipient_id))
+                db.session.add(fb_user)
+
+                cur.execute('SELECT `id` FROM `fb_users` WHERE `fb_psid` = %s LIMIT 1;' % (customer.fb_psid,))
+                row = cur.fetchone()
+
+                if row is None:
+                    cur.execute('INSERT INTO `fb_users` (`id`, `user_id`, `fb_psid`, `first_name`, `last_name`, `profile_pic_url`, `locale`, `timezone`, `gender`, `payments_enabled`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid or "", fb_user.first_name.decode('utf-8') or "", fb_user.last_name.decode('utf-8') or "", fb_user.profile_pic_url or "", fb_user.locale or "", fb_user.timezone or 666, fb_user.gender or "", int(fb_user.payments_enabled)))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_users`;')
+                    fb_user.id = cur.fetchone()['id']
+
+                else:
+                    fb_user.id = row['id']
 
             else:
                 #-- now update sqlite w/ existing guy
@@ -527,9 +592,8 @@ def add_new_user(recipient_id, deeplink):
 
             db.session.commit()
 
-
     except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -545,7 +609,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
     product = Product.query.filter(Product.id == product_id).first()
 
     try:
-        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
             cur.execute('SELECT `id` FROM `subscriptions` WHERE `user_id` = {user_id} AND `storefront_id` = {storefront_id} AND `product_id` = {product_id} LIMIT 1'.format(user_id=customer.id, storefront_id=storefront.id, product_id=product.id))
@@ -572,7 +636,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink="/"):
             db.session.commit()
 
     except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -667,14 +731,14 @@ def add_cc_payment(recipient_id):
                 db.session.rollback()
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `users` SET `email` = "{email}", `stripe_id` = "{stripe_id}", `card_id` = "{card_id}" WHERE `id` = {user_id} LIMIT 1;'.format(email=customer.email, stripe_id=customer.stripe_id, card_id=customer.card_id, user_id=customer.id))
                     conn.commit()
 
             except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -697,21 +761,21 @@ def purchase_product(recipient_id, source):
             purchase.claim_state = 1
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `users` SET `bitcoin_addr` = "{bitcoin_addr}" WHERE `id` = {user_id} AND `bitcoin_addr` != "{bitcoin_addr}" LIMIT 1;'.format(bitcoin_addr=customer.bitcoin_addr, user_id=customer.id))
                     cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, product.id, 2))
                     conn.commit()
 
-                    cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
                     row = cur.fetchone()
 
                     purchase.id = row['id']
                     customer.purchase_id = row['id']
 
             except mysql.Error as e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -776,21 +840,19 @@ def purchase_product(recipient_id, source):
                 db.session.commit()
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, customer.product_id, 1, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
                         conn.commit()
-                        cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
-                        row = cur.fetchone()
+                        cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
 
-                        purchase.id = row['id']
+                        purchase.id = cur.fetchone()['id']
                         customer.purchase_id = purchase.id
-                        purchase.added = row['added']
                         db.session.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -842,21 +904,21 @@ def purchase_product(recipient_id, source):
             purchase.claim_state = 1
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `users` SET `paypal_email` = "{paypal_email}" WHERE `id` = {user_id} AND `paypal_email` != "{paypal_email}" LIMIT 1;'.format(paypal_email=customer.paypal_email, user_id=customer.id))
                     cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, product.id, 3))
                     conn.commit()
 
-                    cur.execute('SELECT `id`, `added` FROM `purchases` WHERE `id` = @@IDENTITY LIMIT 1;')
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
                     row = cur.fetchone()
 
                     purchase.id = row['id']
                     customer.purchase_id = row['id']
 
             except mysql.Error as e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -1043,14 +1105,14 @@ def write_message_log(recipient_id, message_id, message_txt):
     logger.info("write_message_log(recipient_id=%s, message_id=%s, message_txt=%s)" % (recipient_id, message_id, json.dumps(message_txt)))
 
     try:
-        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
             cur.execute('INSERT INTO `chat_logs` (`id`, `fbps_id`, `message_id`, `body`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (recipient_id, message_id, json.dumps(message_txt)))
             conn.commit()
 
     except mysql.Error, e:
-        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
@@ -1159,8 +1221,8 @@ def build_card_element(title, subtitle=None, image_url=None, item_url=None, butt
 
     element = {
         'title'     : title,
-        'subtitle'  : subtitle,
-        'image_url' : image_url,
+        'subtitle'  : subtitle or "",
+        'image_url' : image_url or Const.IMAGE_URL_MARKETPLACE,
         'item_url'  : item_url
     }
 
@@ -1245,10 +1307,6 @@ def build_receipt_card(recipient_id, purchase_id):
 def build_list_card(recipient_id, body_elements, header_element=None, buttons=None, quick_replies=None):
     logger.info("build_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)" % (recipient_id, body_elements, header_element, buttons, quick_replies))
 
-    top_element_style = "large"
-    if header_element is None:
-        top_element_style = "compact"
-
     data = {
         'recipient' : {
             'id' : recipient_id
@@ -1258,7 +1316,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
                 'type'    : "template",
                 'payload' : {
                     'template_type'     : "list",
-                    'top_element_style' : top_element_style,
+                    'top_element_style' : "compact" if header_element is None else "large",
                     'elements'          : build_list_elements(body_elements, header_element)
                 }
             }
@@ -1274,7 +1332,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
     return data
 
 
-def build_content_card(recipient_id, title, subtitle, image_url, item_url, buttons=None, quick_replies=None):
+def build_content_card(recipient_id, title, subtitle=None, image_url=None, item_url=None, buttons=None, quick_replies=None):
     logger.info("build_content_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, subtitle, image_url, item_url, buttons, quick_replies))
 
     data = {
@@ -1289,8 +1347,8 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url, butto
                     'elements'      : [
                         build_card_element(
                             title = title,
-                            subtitle = subtitle,
-                            image_url = image_url,
+                            subtitle = subtitle or "",
+                            image_url = image_url or Const.IMAGE_URL_MARKETPLACE,
                             item_url = item_url,
                             buttons = buttons
                         )
@@ -1300,8 +1358,8 @@ def build_content_card(recipient_id, title, subtitle, image_url, item_url, butto
         }
     }
 
-    if buttons is not None:
-        data['message']['attachment']['payload']['elements'][0]['buttons'] = buttons
+    # if buttons is not None:
+    #     data['message']['attachment']['payload']['elements'][0]['buttons'] = buttons
 
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
@@ -1348,6 +1406,7 @@ def main_menu_quick_replies(fb_psid):
 
     return quick_replies
 
+
 def dm_quick_replies(purchase_id, dm_action=Const.DM_ACTION_PROMPT):
     logger.info("dm_quick_replies(purchase_id=%s, dm_action=%s)" % (purchase_id, dm_action))
 
@@ -1371,6 +1430,7 @@ def cancel_entry_quick_reply():
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
     ]
+
 
 def cancel_payment_quick_reply():
     logger.info("cancel_payment_quick_reply()")
@@ -1414,14 +1474,14 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                     send_image(recipient_id, product.image_url)
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;)'.format(product_id=product.id))
                     conn.commit()
 
             except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -1432,14 +1492,14 @@ def welcome_message(recipient_id, entry_type, deeplink=""):
                 storefront.views += 1
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = {storefront_id} LIMIT 1;)'.format(storefront_id=storefront.id))
                         conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -1497,7 +1557,6 @@ def send_admin_carousel(recipient_id):
                 title = "Create Shop",
                 subtitle = "Tap Button Below",
                 image_url = Const.IMAGE_URL_CREATE_STOREFRONT,
-                item_url = None,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Create Shop", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT)
                 ]
@@ -1512,7 +1571,6 @@ def send_admin_carousel(recipient_id):
                     title = "Add Item",
                     subtitle = "Tap Button Below",
                     image_url = Const.IMAGE_URL_ADD_PRODUCT,
-                    item_url = None,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Add Item", payload=Const.PB_PAYLOAD_ADD_PRODUCT)
                     ]
@@ -1547,7 +1605,6 @@ def send_admin_carousel(recipient_id):
                     title = "Share on Messenger",
                     subtitle = "Share now with your friends on Messenger",
                     image_url = Const.IMAGE_URL_SHARE_MESSENGER,
-                    item_url = None,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
@@ -1572,7 +1629,6 @@ def send_admin_carousel(recipient_id):
                     title = "Add Giveaway",
                     subtitle = "Add Steam giveaways to your shop.",
                     image_url = Const.IMAGE_URL_GIVEAWAYS,
-                    item_url = None,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Add Giveaway", payload=Const.PB_PAYLOAD_ADD_GIVEAWAYS)
                     ]
@@ -1584,7 +1640,6 @@ def send_admin_carousel(recipient_id):
                 title = storefront.display_name,
                 subtitle = storefront.description,
                 image_url = Const.IMAGE_URL_REMOVE_STOREFRONT,
-                item_url = None,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Remove Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT)
                 ]
@@ -1611,7 +1666,7 @@ def send_customer_carousel(recipient_id, product_id):
     elements = []
     if storefront is not None:
         try:
-            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = {product_id} LIMIT 1;'.format(product_id=product.id))
@@ -1619,7 +1674,7 @@ def send_customer_carousel(recipient_id, product_id):
                 conn.commit()
 
         except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -1635,7 +1690,6 @@ def send_customer_carousel(recipient_id, product_id):
                     title = product.display_name,
                     subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                     image_url = product.image_url,
-                    item_url = None,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Purchase", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
                     ]
@@ -1648,7 +1702,6 @@ def send_customer_carousel(recipient_id, product_id):
                     title = "You purchased {product_name} on {purchase_date}".format(product_name=product.display_name, purchase_date=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%b %d @ %I:%M%P %Z').lstrip("0")),
                     subtitle = product.description,
                     image_url = product.image_url,
-                    item_url = None,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload=Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER),
                         build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
@@ -1728,7 +1781,6 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 title = storefront.display_name,
                 subtitle = storefront.description,
                 image_url = storefront.logo_url,
-                item_url = None,
                 quick_replies = [
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Submit", Const.PB_PAYLOAD_SUBMIT_STOREFRONT),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Do", Const.PB_PAYLOAD_REDO_STOREFRONT),
@@ -1894,7 +1946,6 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 title = "You purchased {product_name} on {purchase_date}".format(product_name=product.display_name, purchase_date=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%b %d @ %I:%M%P %Z').lstrip("0")),
                 subtitle = product.description,
                 image_url = product.image_url,
-                item_url = None,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload=Const.PB_PAYLOAD_NOTIFY_STOREFRONT_OWNER),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
@@ -1912,12 +1963,13 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 build_button(Const.KWIK_BTN_TEXT, caption=(Const.RATE_GLYPH * 5), payload=Const.PB_PAYLOAD_PRODUCT_RATE_5_STAR)
             ]
 
+
+            stars = int(round(round(product.avg_rating, 2)))
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = "Rate {product_name}".format(product_name=product.display_name),
-                subtitle = "Average Rating: {stars}".format(stars=(Const.RATE_GLYPH * int(round(round(product.avg_rating, 2))))),
+                subtitle = None if stars == 0 else "Average Rating: {stars}".format(stars=(Const.RATE_GLYPH * stars)),
                 image_url = product.image_url,
-                item_url = None,
                 quick_replies = rate_buttons + cancel_entry_quick_reply()
             )
 
@@ -1969,7 +2021,6 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
                         title = "{product_name} - ${price:.2f}".format(product_name=product.display_name, price=product.price),
                         subtitle = subtitle,
                         image_url = product.image_url,
-                        item_url = None,
                         buttons = [
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id))
                         ]
@@ -2030,16 +2081,6 @@ def received_quick_reply(recipient_id, quick_reply):
                 else:
                     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-            # if customer.stripe_id is not None and customer.card_id is not None:
-            #     if Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).count() > 0:
-            #         send_customer_carousel(recipient_id, product.id)
-            #
-            #     else:
-            #         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
-            #
-            # else:
-            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
         else:
             send_admin_carousel(recipient_id)
 
@@ -2056,16 +2097,18 @@ def received_quick_reply(recipient_id, quick_reply):
             db.session.commit()
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (users_query.first().id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
-                    storefront.id = cur.lastrowid
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+
+                    storefront.id = cur.fetchone()['id']
                     db.session.commit()
 
             except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -2163,16 +2206,17 @@ def received_quick_reply(recipient_id, quick_reply):
             db.session.commit()
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP())', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date))
                     conn.commit()
-                    product.id = cur.lastrowid
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                    product.id = cur.fetchone()['id']
                     db.session.commit()
 
             except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -2255,14 +2299,14 @@ def received_quick_reply(recipient_id, quick_reply):
         db.session.commit()
 
         try:
-            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
                 conn.commit()
 
         except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -2371,7 +2415,7 @@ def received_quick_reply(recipient_id, quick_reply):
             db.session.add(rating)
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('INSERT INTO `product_ratings` (`id`, `product_id`, `user_id`, `stars`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (product.id, customer.id, rating.stars))
@@ -2391,7 +2435,8 @@ def received_quick_reply(recipient_id, quick_reply):
             product.avg_rating = total_rating / float(max(1, Rating.query.filter(Rating.product_id == product.id).count()))
             db.session.commit()
 
-            send_text(recipient_id, "Thank you for your feedback!", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Thank you for your feedback!")
+            send_customer_carousel(recipient_id, product.id)
 
 
 def received_payload_button(recipient_id, payload, referral=None):
@@ -2443,7 +2488,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                 db.session.rollback()
 
             try:
-                conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = {storefront_id};'.format(storefront_id=storefront.id))
@@ -2452,7 +2497,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                     conn.commit()
 
             except mysql.Error, e:
-                logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
             finally:
                 if conn:
@@ -2477,7 +2522,7 @@ def received_payload_button(recipient_id, payload, referral=None):
             db.session.rollback()
 
         try:
-            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('SELECT `id` FROM `storefronts` WHERE `name` = "{storefront_name}" LIMIT 1;'.format(storefront_name=storefront_query.first().name))
@@ -2493,7 +2538,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                 db.session.commit()
 
         except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -2521,7 +2566,7 @@ def received_payload_button(recipient_id, payload, referral=None):
             db.session.rollback()
 
         try:
-            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = {storefront_id};'.format(storefront_id=storefront.id))
@@ -2529,7 +2574,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                 conn.commit()
 
         except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -2610,7 +2655,7 @@ def received_payload_button(recipient_id, payload, referral=None):
         if product is not None:
             if customer.stripe_id is None or customer.card_id is None:
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('SELECT `stripe_id`, `card_id` FROM `users` WHERE `id` = {user_id} AND `stripe_id` != "" AND `card_id` != "" LIMIT 1;'.format(user_id=customer.id))
@@ -2622,7 +2667,7 @@ def received_payload_button(recipient_id, payload, referral=None):
                             db.session.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -2824,7 +2869,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 db.session.commit()
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
@@ -2836,7 +2881,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                         conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -3062,7 +3107,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                 db.session.commit()
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('UPDATE `products` SET `broadcast_message` = "{broadcast_message}" WHERE `storefront_id` = {storefront_id} AND `enabled` = 1;'.format(broadcast_message=product.broadcast_message, storefront_id=storefront_query.first().id))
@@ -3070,7 +3115,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                         conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -3107,14 +3152,14 @@ def received_text_response(recipient_id, message_text):
             db.session.rollback()
 
         try:
-            conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('UPDATE `users` SET `email` = "", `stripe_id` = "", `card_id` = "" WHERE `id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
                 conn.commit()
 
         except mysql.Error, e:
-            logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
         finally:
             if conn:
@@ -3224,7 +3269,7 @@ def received_text_response(recipient_id, message_text):
                 db.session.commit()
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
@@ -3236,7 +3281,7 @@ def received_text_response(recipient_id, message_text):
                         conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -3264,7 +3309,7 @@ def received_text_response(recipient_id, message_text):
                 db.session.commit()
 
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = {user_id} LIMIT 1;'.format(user_id=customer.id))
@@ -3276,7 +3321,7 @@ def received_text_response(recipient_id, message_text):
                         conn.commit()
 
                 except mysql.Error, e:
-                    logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                 finally:
                     if conn:
@@ -3407,7 +3452,7 @@ def received_text_response(recipient_id, message_text):
                 #-- name submitted
                 if product.creation_state == 1:
                     try:
-                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
                             cur.execute('SELECT `id` FROM `products` WHERE `display_name` = "{product_name}" AND `enabled` = 1;'.format(product_name=message_text))
@@ -3426,7 +3471,7 @@ def received_text_response(recipient_id, message_text):
                                 send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
 
                     except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                     finally:
                         if conn:
@@ -3464,7 +3509,7 @@ def received_text_response(recipient_id, message_text):
                     db.session.commit()
 
                     try:
-                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
                             cur.execute('UPDATE `products` SET `broadcast_message` = "{broadcast_message}" WHERE `storefront_id` = {storefront_id};'.format(broadcast_message=product.broadcast_message, storefront_id=storefront_query.first().id))
@@ -3472,7 +3517,7 @@ def received_text_response(recipient_id, message_text):
                             conn.commit()
 
                     except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                     finally:
                         if conn:
@@ -3493,7 +3538,7 @@ def received_text_response(recipient_id, message_text):
                 #-- name submitted
                 if storefront.creation_state == 0:
                     try:
-                        conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                         with conn:
                             cur = conn.cursor(mysql.cursors.DictCursor)
                             cur.execute('SELECT `id` FROM `storefronts` WHERE `display_name` = "{storefront_name}" AND `enabled` = 1;'.format(storefront_name=message_text))
@@ -3511,7 +3556,7 @@ def received_text_response(recipient_id, message_text):
                                 send_text(recipient_id, "That name is already taken, please choose another", cancel_entry_quick_reply())
 
                     except mysql.Error, e:
-                        logger.info("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
                     finally:
                         if conn:
@@ -3679,7 +3724,7 @@ def fbbot():
 
                 #-- check mysql for user
                 try:
-                    conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
                         cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=sender_id))
@@ -3973,6 +4018,17 @@ def send_message(payload):
     logger.info("SEND MESSAGE response: %s" % (response.json()))
 
     return True
+
+
+def fb_graph_user(recipient_id):
+    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id))
+
+    params = {
+        'fields'       : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
+        'access_token' : Const.ACCESS_TOKEN
+    }
+    response = requests.get("https://graph.facebook.com/v2.6/{recipient_id}".format(recipient_id=recipient_id), params=params)
+    return None if 'error' in response.json() else response.json()
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
