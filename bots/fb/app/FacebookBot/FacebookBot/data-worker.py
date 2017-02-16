@@ -44,7 +44,7 @@ class CoerceUTF8(TypeDecorator):
 
 
 class Customer(Base):
-    __tablename__ = "customer"
+    __tablename__ = "customers"
 
     id = Column(Integer, primary_key=True)
     fb_psid = Column(String(255))
@@ -114,7 +114,7 @@ class FBUser(Base):
 
 
 class Product(Base):
-    __tablename__ = "product"
+    __tablename__ = "products"
 
     id = Column(Integer, primary_key=True)
     fb_psid = Column(String(255))
@@ -148,7 +148,7 @@ class Product(Base):
 
 
 class Storefront(Base):
-    __tablename__ = "storefront"
+    __tablename__ = "storefronts"
 
     id = Column(Integer, primary_key=True)
     owner_id = Column(String(255))
