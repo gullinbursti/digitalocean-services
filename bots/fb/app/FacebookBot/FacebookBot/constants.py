@@ -147,6 +147,6 @@ class Const(Constants):
     PAYMENT_SOURCE_PAYPAL = 'PAYMENT_PAYPAL'
 
     RESERVED_ADMIN_REPLIES = "admin"#|main|main menu|menu"
-    RESERVED_CUSTOMER_REPLIES = ""#main|main menu|menu"
+    RESERVED_CUSTOMER_REPLIES = "shop"#main|main menu|menu"
     RESERVED_SUPPORT_REPLIES = "help|support"
     RESERVED_STOP_REPLIES = "cancel|end|quit|stop"
