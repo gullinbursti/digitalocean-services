@@ -21,7 +21,7 @@ import requests
 from flask import Flask, request
 from urllib2 import quote
 
-import const as Const
+from constants import Const
 
 reload(sys)
 sys.setdefaultencoding('utf8')
@@ -35,22 +35,6 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
 logger.setLevel(logging.INFO)
-
-Const.DB_HOST = 'external-db.s4086.gridserver.com'
-Const.DB_NAME = 'db4086_modd'
-Const.DB_USER = 'db4086_modd_usr'
-Const.DB_PASS = 'f4zeHUga.age'
-
-Const.VERIFY_TOKEN = "d41d8cd98f00b204e9800998ecf8427e"
-Const.ACCESS_TOKEN = "EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
-
-Const.FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
-Const.FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
-Const.FLIP_COIN_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
-
-Const.MAX_IGNORES = 4
-
-Const.OPT_OUT_REPLIES = "optout|quit|end|stop|cancel|exit"
 
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
@@ -95,8 +79,8 @@ def main_menu_quick_replies():
     return [
         {
             'content_type' : "text",
-            'title'        : "Today's Big Item",
-            'payload'      : "TODAYS_ITEM"
+            'title'        : "Main Menu",
+            'payload'      : "MAIN_MENU"
         }, {
             'content_type' : "text",
             'title'        : "Invite Friends Now",
@@ -123,6 +107,7 @@ def coin_flip_quick_replies():
         }
     ]
 
+
 def opt_out_quick_replies():
     logger.info("opt_out_quick_replies()")
     return [
@@ -145,7 +130,12 @@ def default_carousel(sender_id):
         coin_flip_element(sender_id)
     ]
 
-    if sender_id == "1298454546880273":
+    params = {
+        'fields'       : "is_payment_enabled",
+        'access_token' : Const.ACCESS_TOKEN
+    }
+    response = requests.get("https://graph.facebook.com/v2.6/{sender_id}".format(sender_id=sender_id), params=params)
+    if 'is_payment_enabled' in response.json() and response.json()['is_payment_enabled']:
         elements.append(daily_item_element(sender_id))
 
     if None in elements:
@@ -181,12 +171,12 @@ def daily_item_element(sender_id, standalone=False):
                     'item_url'  : None,
                     'buttons'   : [{
                         'type'            : "payment",
-                        'title'           : "Buy",
+                        'title'           : "Buy Now",
                         'payload'         : "%s-%d" % ("PURCHASE_ITEM", row['id']),
                         'payment_summary' : {
                             'currency'            : "USD",
                             'payment_type'        : "FIXED_AMOUNT",
-                            'is_test_payment'     : True,
+                            'is_test_payment'     : False,
                             'merchant_name'       : "Gamebots",
                             'requested_user_info' : [
                                 "contact_email"
@@ -445,7 +435,6 @@ def set_session_state(sender_id, state):
     logger.info("set_session_state(sender_id=%s, state=%s)" % (sender_id, state))
 
     current_state = get_session_state(sender_id)
-
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         cur = conn.cursor()
@@ -454,7 +443,6 @@ def set_session_state(sender_id, state):
 
         else:
             cur.execute('UPDATE sessions SET state = ? WHERE fb_psid = ?;', (state, sender_id))
-
         conn.commit()
 
     except sqlite3.Error as er:
@@ -506,13 +494,120 @@ def set_session_item(sender_id, item_id):
         if conn:
             conn.close()
 
+def get_session_purchase(sender_id):
+    logger.info("get_session_purchase(sender_id=%s)" % (sender_id))
+    purchase_id = None
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT purchase_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            purchase_id = row['purchase_id']
+
+        logger.info("purchase_id=%s" % (purchase_id))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return purchase_id
+
+def set_session_purchase(sender_id, purchase_id):
+    logger.info("set_session_purchase(sender_id=%s, purchase_id=%s)" % (sender_id, purchase_id))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET purchase_id = ? WHERE fb_psid = ?;', (purchase_id, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def purchase_item(sender_id, payment):
+    logger.info("set_session_item(sender_id=%s, payment=%s)" % (sender_id, payment))
+
+    purchase_id = 0
+    item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
+    item_name = None
+    customer_email = payment['requested_user_info']['contact_email']
+    amount = payment['amount']['amount']
+    fb_payment_id = payment['payment_credential']['fb_payment_id']
+    provider = payment['payment_credential']['provider_type']
+    charge_id = payment['payment_credential']['charge_id']
+
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
+            row = cur.fetchone()
+
+            if row is not None:
+                item_name = row['name']
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            conn.commit()
+            cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
+            row = cur.fetchone()
+            purchase_id = row['id']
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    if purchase_id != 0:
+        set_session_purchase(sender_id, purchase_id)
+
+        try:
+            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+            cur = conn.cursor()
+            cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            conn.commit()
+
+        except sqlite3.Error as er:
+            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
+
+        finally:
+            if conn:
+                conn.close()
+
+    set_session_state(sender_id, 2)
+    send_text(sender_id, "You have successfully purchased {item_name}, please enter your steam trade url to recieve it".format(item_name=item_name))
+
 
 
 @app.route('/', methods=['GET'])
 def verify():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info(
-        "=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
@@ -525,6 +620,9 @@ def verify():
 
 @app.route('/', methods=['POST'])
 def webook():
+
+    # return "OK", 200
+
     data = request.get_json()
 
     logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
@@ -553,68 +651,7 @@ def webook():
 
                 if 'payment' in messaging_event: # payment result
                     logger.info("-=- PAYMENT -=-")
-
-                    purchase_id = 0
-                    payment = messaging_event['payment']
-                    item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
-                    item_name = None
-                    customer_email = payment['requested_user_info']['contact_email']
-                    amount = payment['amount']['amount']
-                    fb_payment_id = payment['payment_credential']['fb_payment_id']
-                    provider = payment['payment_credential']['provider_type']
-                    charge_id = payment['payment_credential']['charge_id']
-
-                    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
-                    try:
-                        with conn:
-                            cur = conn.cursor(mdb.cursors.DictCursor)
-                            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` = ? LIMIT 1;', (item_id,))
-                            row = cur.fetchone()
-
-                            if row is not None:
-                                item_name = row['name']
-
-                    except mdb.Error, e:
-                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                    finally:
-                        if conn:
-                            conn.close()
-
-
-                    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
-                    try:
-                        with conn:
-                            cur = conn.cursor(mdb.cursors.DictCursor)
-                            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
-                            conn.commit()
-                            cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
-                            row = cur.fetchone()
-                            purchase_id = row['id']
-
-                    except mdb.Error, e:
-                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                    finally:
-                        if conn:
-                            conn.close()
-
-                    if purchase_id != 0:
-                        try:
-                            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-                            cur = conn.cursor()
-                            cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
-                            conn.commit()
-
-                        except sqlite3.Error as er:
-                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
-
-                        finally:
-                            if conn:
-                                conn.close()
-
-
-                    send_text(sender_id, "You have successfully purchased {item_name}!".format(item_name=item_name))
+                    purchase_item(sender_id, messaging_event['payment'])
                     return "OK", 200
 
 
@@ -645,7 +682,6 @@ def webook():
                                     cur2.close()
 
                         else:
-                            conn.close()
                             send_text(sender_id, "You have opted out of Gamebots.", opt_out_quick_replies())
                             return "OK", 200
 
@@ -668,7 +704,7 @@ def webook():
                     default_carousel(sender_id)
 
                 #-- existing reply
-                else:
+                elif get_session_state(sender_id) == 1:
                     # ------- POSTBACK BUTTON MESSAGE
                     if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                         logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
@@ -720,7 +756,7 @@ def webook():
                         # ------- QUICK REPLY BUTTON
                         if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
                             logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
-                            quick_reply = quote(messaging_event['message']['quick_reply']['payload'])
+                            quick_reply = messaging_event['message']['quick_reply']['payload']
 
                             send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()),  messaging_event['sender']['id'], "")
 
@@ -760,7 +796,7 @@ def webook():
                                 send_tracker("no-thanks", sender_id, "")
                                 default_carousel(sender_id)
 
-                            elif quick_reply == "TODAYS_ITEM":
+                            elif quick_reply == "MAIN_MENU":
                                 send_tracker("todays-item", sender_id, "")
                                 default_carousel(sender_id)
 
@@ -782,6 +818,42 @@ def webook():
                             else:
                                 send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
                                 default_carousel(sender_id)
+
+                elif get_session_state(sender_id) == 2:
+                    if 'message' in messaging_event and 'text' in messaging_event['message']:
+                        message_text = messaging_event['message']['text']
+                        purchase_id = get_session_purchase(sender_id)
+
+                        try:
+                            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+                            cur = conn.cursor()
+                            cur.execute('UPDATE payments SET trade_url = ? WHERE id = ? LIMIT 1;', (message_text, purchase_id))
+                            conn.commit()
+
+                        except sqlite3.Error as er:
+                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
+
+                        finally:
+                            if conn:
+                                conn.close()
+
+                        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                        try:
+                            with conn:
+                                cur = conn.cursor(mdb.cursors.DictCursor)
+                                cur.execute('UPDATE `fb_purchases` SET `trade_url` = %s WHERE `id` = %s LIMIT 1;', (message_text, purchase_id))
+                                conn.commit()
+
+                        except mdb.Error, e:
+                            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                        finally:
+                            if conn:
+                                conn.close()
+
+                        set_session_purchase(sender_id, 0)
+                        set_session_state(sender_id, 1)
+                        default_carousel(sender_id)
 
     return "OK", 200
 
