@@ -4,13 +4,15 @@
 
 import calendar
 import csv
-import MySQLdb as mysql
+import json
 import os
 import random
 import re
-import requests
 import threading
 import time
+
+import MySQLdb as mysql
+import requests
 
 from datetime import datetime
 
@@ -61,8 +63,7 @@ class Customer(Base):
     purchase_id = Column(Integer)
     added = Column(Integer)
 
-    def __init__(self, id, fb_psid, referrer="/"):
-        self.id = id
+    def __init__(self, fb_psid, referrer=None):
         self.fb_psid = fb_psid
         self.referrer = referrer
         self.added = int(time.time())
@@ -97,20 +98,8 @@ class FBUser(Base):
         self.payments_enabled = graph.get('is_payment_enabled') or False
         self.added = int(time.time())
 
-    @property
-    def full_name(self):
-        return "%s %s" % (self.first_name, self.last_name)
-
-    @property
-    def local_dt(self):
-        return datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc).astimezone(tzoffset(None, self.timezone * 100))
-
-    @property
-    def profile_image(self):
-        return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
-
     def __repr__(self):
-        return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s, [full_name=%s, local_dt=%s, profile_image=%s]>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone or 666, self.gender, self.payments_enabled, self.added, self.full_name, self.local_dt, self.profile_image)
+        return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone or 666, self.gender, self.payments_enabled, self.added)
 
 
 class Product(Base):
@@ -121,8 +110,8 @@ class Product(Base):
     storefront_id = Column(Integer)
     creation_state = Column(Integer)
     name = Column(String(255))
-    display_name = Column(String(255))
-    description = Column(String(255))
+    display_name = Column(CoerceUTF8)
+    description = Column(CoerceUTF8)
     image_url = Column(String(255))
     video_url = Column(String(255))
     broadcast_message = Column(String(255))
@@ -134,6 +123,35 @@ class Product(Base):
     release_date = Column(Integer)
     added = Column(Integer)
 
+
+    @property
+    def display_name_utf8(self):
+        return self.display_name.encode('utf-8')
+
+    @property
+    def description_utf8(self):
+        return self.description.encode('utf-8')
+
+    @property
+    def messenger_url(self):
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+
+    @property
+    def thumb_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.image_url)
+
+    @property
+    def landscape_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.image_url)
+
+    @property
+    def widescreen_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.image_url)
+
+    @property
+    def portrait_image_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
+
     def __init__(self, fb_psid, storefront_id):
         self.fb_psid = fb_psid
         self.storefront_id = storefront_id
@@ -144,19 +162,20 @@ class Product(Base):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (
+        self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
 
 
 class Storefront(Base):
     __tablename__ = "storefronts"
 
     id = Column(Integer, primary_key=True)
-    owner_id = Column(String(255))
+    fb_psid = Column(String(255))
+    type_id = Column(Integer)
     creation_state = Column(Integer)
-    type = Column(Integer)
     name = Column(String(255))
-    display_name = Column(String(255))
-    description = Column(String(255))
+    display_name = Column(CoerceUTF8)
+    description = Column(CoerceUTF8)
     logo_url = Column(String(255))
     video_url = Column(String(255))
     prebot_url = Column(String(255))
@@ -164,17 +183,50 @@ class Storefront(Base):
     views = Column(Integer)
     added = Column(Integer)
 
-    def __init__(self, owner_id, type=1):
-        self.owner_id = owner_id
-        self.creation_state = 0
+    def __init__(self, fb_psid, type=1):
+        self.fb_psid = fb_psid
+        self.creation_state = 4
         self.type = type
         self.giveaway = 0
         self.views = 0
-        self.added = int(time.time())
+        # self.added = int(time.time())
+
+    @property
+    def owner_id(self):
+        return self.fb_psid
+
+
+    @property
+    def display_name_utf8(self):
+        return self.display_name.encode('utf-8')
+
+    @property
+    def description_utf8(self):
+        return self.description.encode('utf-8')
+
+    @property
+    def messenger_url(self):
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+
+    @property
+    def thumb_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.logo_url)
+
+    @property
+    def landscape_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.logo_url)
+
+    @property
+    def widescreen_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.logo_url)
+
+    @property
+    def protrait_logo_url(self):
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
+
 
     def __repr__(self):
-        return "<Storefront id=%s, owner_id=%s, creation_state=%s, display_name=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.display_name, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
-
+        return "<Storefront id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, description=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.name, self.display_name, self.description, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
 class ImageSizer(threading.Thread):
@@ -224,7 +276,7 @@ def copy_remote_asset(src_url, local_file):
             for block in response.iter_content(1024):
                 handle.write(block)
         else:
-            logger.info("DOWNLOAD FAILED!!! %s" % (response.text))
+            print("DOWNLOAD FAILED!!! %s" % (response.text))
         del response
 
 
@@ -255,34 +307,24 @@ def add_user(fb_psid):
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
 
+            customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
+            if customer is None:
+                customer = Customer(fb_psid=fb_psid, referrer="/")
+                session.add(customer)
+            session.commit()
+
             #-- check against mysql
-            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = "{fb_psid}" LIMIT 1;'.format(fb_psid=fb_psid))
+            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (fb_psid,))
             row = cur.fetchone()
 
-            #-- go ahead n' add 'em
             if row is None:
                 cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (fb_psid, "/"))
                 conn.commit()
-                cur.execute('SELECT `id`, `added` FROM `users` WHERE `id` = @@IDENTITY LIMIT 1;')
-                row = cur.fetchone()
-
-                #-- now add on sqlite w/ the new guy
-                customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
-                if customer is None:
-                    customer = Customer(id=row['id'], fb_psid=fb_psid, referrer="/")
-                    session.add(customer)
-
-                else:
-                    customer.id = row['id']
+                cur.execute('SELECT @@`IDENTITY` AS `id` FROM `storefronts`;')
+                customer.id = cur.fetchone()['row']
 
             else:
-                customer = session.query(Customer).filter(Customer.fb_psid == fb_psid).first()
-                if customer is None:
-                    customer = Customer(id=row['id'], fb_psid=fb_psid, referrer="/")
-                    session.add(customer)
-
-                else:
-                    customer.id = row['id']
+                customer.id = row['id']
             session.commit()
 
     except mysql.Error, e:
@@ -330,7 +372,7 @@ def add_storefront(fb_psid, name, description, logo_url):
     storefront_tmp = Storefront(fb_psid)
     storefront_tmp.creation_state = 4
     storefront_tmp.display_name = name
-    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'xmlcharrefreplace'))
+    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'ignore'))
     storefront_tmp.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_tmp.name)
     storefront_tmp.logo_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
     storefront_tmp.description = description
@@ -346,16 +388,15 @@ def add_storefront(fb_psid, name, description, logo_url):
             cur = conn.cursor(mysql.cursors.DictCursor)
 
             #-- check against mysql
-            cur.execute('SELECT `id` FROM `storefronts` WHERE `owner_id` = {owner_id} AND `display_name` = "{display_name}" LIMIT 1;'.format(owner_id=customer.id, display_name=storefront.display_name))
+            cur.execute('SELECT `id` FROM `storefronts` WHERE `fb_psid` = %s AND `display_name` = %s LIMIT 1;', (customer.id, storefront.display_name))
             row = cur.fetchone()
 
             #-- not there, so create it
             if row is None:
-                cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP())', (customer.id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
+                cur.execute('INSERT INTO `storefronts` (`id`, `fb_psid`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name, storefront.description, storefront.logo_url, storefront.prebot_url))
                 conn.commit()
-                cur.execute('SELECT `id`, `added` FROM `storefronts` WHERE `id` = @@IDENTITY LIMIT 1;')
-                row = cur.fetchone()
-                storefront.id = row['id']
+                cur.execute('SELECT @@`IDENTITY` AS `id` FROM `storefronts`;')
+                storefront.id = cur.fetchone()['id']
 
             #-- update w/ existing id
             else:
@@ -425,16 +466,15 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
             cur = conn.cursor(mysql.cursors.DictCursor)
 
             #-- check against mysql
-            cur.execute('SELECT `id` FROM `products` WHERE `display_name` = "{display_name}" AND `storefront_id` IN (SELECT `id` FROM `storefronts` WHERE `id` = "{storefront_id}") LIMIT 1;'.format(display_name=storefront.display_name, storefront_id=storefront.id))
+            cur.execute('SELECT `id` FROM `products` WHERE `display_name` = %s AND `storefront_id` IN (SELECT `id` FROM `storefronts` WHERE `id` = %s) LIMIT 1;', (storefront.display_name, storefront.id))
             row = cur.fetchone()
 
             #-- add to mysql
             if row is None:
-                cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP())', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.price, product.prebot_url, product.release_date))
+                cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.name, product.display_name, product.description, product.image_url, product.price, product.prebot_url, product.release_date))
                 conn.commit()
-                cur.execute('SELECT `id`, `added` FROM `products` WHERE `id` = @@IDENTITY LIMIT 1;')
-                row = cur.fetchone()
-                product.id = row['id']
+                cur.execute('SELECT @@`IDENTITY` AS `id` FROM `storefronts`;')
+                product.id = cur.fetchone()['id']
 
             #-- update w/ existing id
             else:
@@ -525,7 +565,63 @@ def products_changer():
 
         print(product)
 
+def storefronts_from_owner(fb_psid=None):
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT * FROM `storefronts` WHERE `enabled` = 1;')
+            cnt = 0
+            for row in cur.fetchall():
+                # print(row)
+                cur.execute('SELECT `fb_psid` FROM `users` WHERE `id` = %s ORDER BY `added` DESC LIMIT 1;', (row['fb_psid'], ))
+                fb_psid = cur.fetchone()['fb_psid'] if cur.rowcount == 1 else None
+                if fb_psid is not None:
+                    print("ROW #%05d\t%s" % (cnt, fb_psid))
 
+                    # storefront = row['']
+                    storefront = Storefront(fb_psid)
+                    storefront.id = row['id']
+                    storefront.type_id = 1 if re.search(r'^90\d{13}0$', storefront.fb_psid) is None else 0
+                    storefront.display_name = row['display_name']
+                    storefront.name = row['name']
+                    storefront.description = row['description']
+                    storefront.prebot_url = row['prebot_url']
+                    storefront.logo_url = row['logo_url']
+                    storefront.video_url = None if row['video_url'] == "" else row['video_url']
+                    storefront.giveaway = row['giveaway']
+                    storefront.views = row['views']
+                    storefront.added = row['added'].strftime('%s')
+
+                    print("STOREFRONT -->\n%s\n\n" % (storefront,))
+                    session.add(storefront)
+
+                    cnt += 1
+                    if cnt % 100 == 0 :
+                        session.commit()
+                        print("STOREFRONT:\n%s", (session.query(Storefront).filter(Storefront.id == storefront.id).first(),))
+
+            session.commit()
+
+    except mysql.Error, e:
+        print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+
+
+storefronts_from_owner()
+
+
+
+
+
+
+
+quit()
 
 kik_names = []
 csgo_items = []
