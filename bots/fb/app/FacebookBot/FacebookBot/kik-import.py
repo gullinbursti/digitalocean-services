@@ -16,17 +16,33 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from PIL import Image
-from sqlalchemy import create_engine, Column, Float, Integer, String
+from sqlalchemy import create_engine, TypeDecorator, Column, Boolean, Float, Integer, String, Unicode, UnicodeText
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+
 from constants import Const
 
-Session = sessionmaker(bind=create_engine("sqlite:///data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=False))
+engine = create_engine("sqlite:///data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=False)
+# engine.raw_connection().connection.text_factory = str
+Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
 
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+
+
+class CoerceUTF8(TypeDecorator):
+    """Safely coerce Python bytestrings to Unicode
+    before passing off to the database."""
+
+    impl = Unicode
+
+    def process_bind_param(self, value, dialect):
+        if isinstance(value, str):
+            value = value.decode('utf-8')
+        return value
+
 
 class Customer(Base):
     __tablename__ = "customer"
@@ -54,6 +70,52 @@ class Customer(Base):
 
     def __repr__(self):
         return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
+
+
+class FBUser(Base):
+    __tablename__ = "fb_users"
+
+    id = Column(Integer, primary_key=True)
+    fb_psid = Column(String(255))
+    # first_name = Column(String(255, collation='utf-8'))
+    # last_name = Column(String(255, collation='utf-8'))
+    # first_name = Column(UnicodeText(255))
+    # last_name = Column(UnicodeText(255))
+    first_name = Column(CoerceUTF8)
+    last_name = Column(CoerceUTF8)
+    profile_pic_url = Column(String(255))
+    locale = Column(String(255))
+    timezone = Column(Integer)
+    gender = Column(String(255))
+    payments_enabled = Column(Boolean)
+    added = Column(Integer)
+
+    def __init__(self, fb_psid, graph):
+        print("graph=%s" % graph)
+        self.fb_psid = fb_psid
+        self.first_name = graph.get('first_name').encode('utf-8') or None
+        self.last_name = graph.get('last_name').encode('utf-8') or None
+        self.profile_pic_url = graph.get('profile_pic') or None
+        self.locale = graph.get('locale') or None
+        self.timezone = graph.get('timezone') or None
+        self.gender = graph.get('gender') or None
+        self.payments_enabled = graph.get('is_payment_enabled') or False
+        self.added = int(time.time())
+
+    @property
+    def full_name(self):
+        return "%s %s" % (self.first_name, self.last_name)
+
+    @property
+    def local_dt(self):
+        return datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc).astimezone(tzoffset(None, self.timezone * 100))
+
+    @property
+    def profile_image(self):
+        return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
+
+    def __repr__(self):
+        return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s, [full_name=%s, local_dt=%s, profile_image=%s]>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone or 666, self.gender, self.payments_enabled, self.added, self.full_name, self.local_dt, self.profile_image)
 
 
 class Product(Base):
@@ -172,6 +234,22 @@ def copy_remote_asset(src_url, local_file):
 
 
 
+def add_commerce(fb_psid, storefront_name, storefront_description, storefront_logo_url, product_name, product_image, product_video, product_price):
+    user_id = add_user(fb_psid)
+    storefront_id = add_storefront(fb_psid, storefront_name, storefront_description, storefront_logo_url)
+    product_id = add_product(fb_psid, storefront_id, product_name, product_image, product_price)
+    return (user_id, storefront_id, product_id)
+
+
+def name_fill():
+    with open("{basepath}/data/csv/kik_names.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
+        for row in csv.reader(f, delimiter=",", quotechar="\""):
+            kik_names.append(row[0])
+
+def item_fill():
+    with open("{basepath}/data/csv/csgo_items.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
+        for row in csv.DictReader(f, delimiter=",", quotechar="\"", fieldnames=["name", "img_url"]):
+            csgo_items.append(row)
 
 
 def add_user(fb_psid):
@@ -257,7 +335,7 @@ def add_storefront(fb_psid, name, description, logo_url):
     storefront_tmp = Storefront(fb_psid)
     storefront_tmp.creation_state = 4
     storefront_tmp.display_name = name
-    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\[\]\{\}\\]', "", name)
+    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'xmlcharrefreplace'))
     storefront_tmp.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_tmp.name)
     storefront_tmp.logo_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
     storefront_tmp.description = description
@@ -334,7 +412,7 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
     product_tmp = Product(fb_psid, storefront.id)
     product_tmp.creation_state = 5
     product_tmp.display_name = name
-    product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\|\(\)\[\]\{\}\\]', "", name)
+    product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'xmlcharrefreplace'))
     product_tmp.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_tmp.name)
     product_tmp.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=random.randint(2, 4))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
     product_tmp.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(int(product_tmp.release_date)).strftime('%a, %b %-d'))
@@ -379,7 +457,6 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
 
 
 
-
 def generate_fb_psid():
     psid = "99"
     for i in range(1, 15):
@@ -388,72 +465,85 @@ def generate_fb_psid():
     return "{psid}".format(psid=psid)
 
 
+def fb_graph_user(recipient_id):
+    print("fb_graph_user(recipient_id=%s)" % (recipient_id))
+
+    params = {
+        'fields'       : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
+        'access_token' : Const.ACCESS_TOKEN
+    }
+    response = requests.get("https://graph.facebook.com/v2.6/{recipient_id}".format(recipient_id=recipient_id), params=params)
+    return None if 'error' in response.json() else response.json()
 
 
-for product in session.query(Product).filter(Product.id > 9866):
-    storefront = session.query(Storefront).filter(Storefront.id == product.storefront_id).first()
-    if storefront is not None:
-        product.fb_psid = storefront.owner_id
+def graph_updater():
+    for customer in session.query(Customer).filter(Customer.id < 193):
+        graph = fb_graph_user(customer.fb_psid)
+        if graph is not None:
+            fb_user = FBUser(customer.fb_psid, graph)
+            session.add(fb_user)
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `fb_users` WHERE `fb_psid` = %s LIMIT 1;' % (customer.fb_psid,))
+
+                    if cur.fetchone() is None:
+                        cur.execute('INSERT INTO `fb_users` (`id`, `user_id`, `fb_psid`, `first_name`, `last_name`, `profile_pic_url`, `locale`, `timezone`, `gender`, `payments_enabled`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid or "", fb_user.first_name.decode('utf-8') or "", fb_user.last_name.decode('utf-8') or "", fb_user.profile_pic_url or "", fb_user.locale or "", fb_user.timezone or 666, fb_user.gender or "", int(fb_user.payments_enabled)))
+                        conn.commit()
+                        cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_users`;')
+                        fb_user.id = cur.fetchone()['id']
+
+                    else:
+                        fb_user.id = cur.fetchone()['id']
+
+                    session.commit()
+
+            except mysql.Error, e:
+                print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+graph_updater()
+quit()
+
+
+
+
+def product_fb_psid():
+    for product in session.query(Product).filter(Product.id > 9866):
+        storefront = session.query(Storefront).filter(Storefront.id == product.storefront_id).first()
+        if storefront is not None:
+            product.fb_psid = storefront.owner_id
+            session.commit()
+
+        print(product)
+
+
+def products_changer():
+    storefront_query = session.query(Storefront.id).filter(Storefront.display_name.like('% e-Shop')).subquery('storefront_query')
+    for product in session.query(Product).filter(Product.storefront_id.in_(storefront_query)):
+        owner_name = product.display_name.replace(" Snaps", "")
+        product.display_name = "%s Money Guide" % (owner_name)
+        product.name = "%sMoneyGuide" % (owner_name)
+        product.prebot_url = product.prebot_url.replace("Snaps", "MoneyGuide")
         session.commit()
 
-    print(product)
-
-
-quit()
-
-# storefront_query = session.query(Storefront.id).filter(Storefront.display_name.like('% e-Shop')).subquery('storefront_query')
-# for product in session.query(Product).filter(Product.storefront_id.in_(storefront_query)):
-#
-#     owner_name = product.display_name.replace(" Snaps", "")
-#     product.display_name = "%s Money Guide" % (owner_name)
-#     product.name = "%sMoneyGuide" % (owner_name)
-#     product.prebot_url = product.prebot_url.replace("Snaps", "MoneyGuide")
-#     session.commit()
-#
-#     print(product)
-#
-# quit()
-
-
-# fb_psid = generate_fb_psid()
-# add_user(fb_psid)
-# storefront_id = add_storefront(fb_psid, "Bracelets by Anne", "Custom made jewelry just for you", "https://i.imgur.com/prD7TK3.jpg")
-# add_product(fb_psid, storefront_id, "BraceletAnne", "https://i.imgur.com/prD7TK3.jpg", 399)
-#
-# fb_psid = generate_fb_psid()
-# add_user(fb_psid)
-# storefront_id = add_storefront(fb_psid, "CS:GO Skins Cheap", "Discounted CS:GO items", "https://i.imgur.com/lIP7k1z.jpg")
-# add_product(fb_psid, storefront_id, "MistyAK CSGO", "https://i.imgur.com/lIP7k1z.jpg", 4.99)
-#
-# fb_psid = generate_fb_psid()
-# add_user(fb_psid)
-# storefront_id = add_storefront(fb_psid, "Steam Keys", "Game keys from Steam", "https://i.imgur.com/Z1o0icQ.jpg")
-# add_product(fb_psid, storefront_id, "RocketLeague 00", "https://i.imgur.com/Z1o0icQ.jpg", 5.99)
-#
-# fb_psid = generate_fb_psid()
-# add_user(fb_psid)
-# storefront_id = add_storefront(fb_psid, "Knick Knacks", "Little things", "https://i.imgur.com/lnGGJfI.jpg")
-# add_product(fb_psid, storefront_id, "Tiny Sword Stand", "https://i.imgur.com/lnGGJfI.jpg", 199)
-#
-quit()
-
+        print(product)
 
 
 
 kik_names = []
-with open("{basepath}/data/csv/kik_names.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
-    for row in csv.reader(f, delimiter=",", quotechar="\""):
-        kik_names.append(row[0])
-
 csgo_items = []
-with open("{basepath}/data/csv/csgo_items.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
-    for row in csv.DictReader(f, delimiter=",", quotechar="\"", fieldnames=["name", "img_url"]):
-        csgo_items.append(row)
 
-
+name_fill()
+item_fill()
 
 print("Creating {name_total} users...".format(name_total=len(kik_names)))
-
 
 results = []
 for kik_name in kik_names:
@@ -474,22 +564,44 @@ for kik_name in kik_names:
 
     print("Importing ({cnt} / {tot}) --> \"{kik_name}\" as [{fb_psid}]".format(cnt=len(results), tot=len(kik_names), kik_name=entry['kik_name'], fb_psid=entry['fb_psid']))
 
-    entry['user_id'] = add_user(entry['fb_psid'])
-
-    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} Shop".format(kik_name=entry['kik_name']), "Buy {kik_name} snapchat pics here!".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/snapchat.png")
-    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Snaps".format(kik_name=entry['kik_name']), "http://prebot.me/thumbs/{card}.jpg".format(card=random.randint(1, 100)), round(random.uniform(0.50, 4.99), 2))
+    customer_id, storefront_id, product_id = add_commerce(
+        fb_psid = entry['fb_psid'],
+        storefront_name = "{kik_name} Shop".format(kik_name=entry['kik_name']),
+        storefront_description = "Buy {kik_name} snapchat pics here!".format(kik_name=entry['kik_name']),
+        storefront_logo_url = "http://prebot.me/thumbs/snapchat.png",
+        product_name = "{kik_name} Snaps".format(kik_name=entry['kik_name']),
+        product_image = "http://prebot.me/thumbs/{card}.jpg".format(card=random.randint(1, 100)),
+        product_video = None,
+        product_price = round(random.uniform(0.50, 4.99), 2)
+    )
+    entry['user_id'] = user_id
     entry['storefronts'].append(storefront_id)
     entry['products'].append(product_id)
 
-    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} e-Shop".format(kik_name=entry['kik_name']), "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png")
-    product_id = add_product(entry['fb_psid'], storefront_id, "{kik_name} Money Guide".format(kik_name=entry['kik_name']), "https://i.imgur.com/dafKv0U.png", round(random.uniform(0.50, 4.99), 2))
+    customer_id, storefront_id, product_id = add_commerce(
+        fb_psid = entry['fb_psid'],
+        storefront_name = "{kik_name} e-Shop".format(kik_name=entry['kik_name']),
+        storefront_description = "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']),
+        storefront_logo_url = "https://i.imgur.com/dafKv0U.png",
+        product_name = "{kik_name} Money Guide".format(kik_name=entry['kik_name']),
+        product_image = "https://i.imgur.com/dafKv0U.png",
+        product_video = None,
+        product_price = round(random.uniform(0.50, 4.99), 2)
+    )
     entry['storefronts'].append(storefront_id)
     entry['products'].append(product_id)
 
-    storefront_id = add_storefront(entry['fb_psid'], "{kik_name} CS:GO".format(kik_name=entry['kik_name']), "Buy CS:GO skins from {kik_name}".format(kik_name=entry['kik_name']), entry['item_img_url'])
-    product_id = add_product(entry['fb_psid'], storefront_id, "{item_name}".format(item_name=entry['item_name']), entry['item_img_url'], round(random.uniform(0.50, 4.99), 2))
-    entry['storefronts'].append(storefront_id)
-    entry['products'].append(product_id)
+    customer_id, storefront_id, product_id = add_commerce(
+        fb_psid = entry['fb_psid'],
+        storefront_name = "{kik_name} CS:GO".format(kik_name=entry['kik_name']),
+        storefront_description = "Buy CS:GO skins from {kik_name}".format(kik_name=entry['kik_name']),
+        storefront_logo_url = entry['item_img_url'],
+        product_name = "{item_name}".format(item_name=entry['item_name']),
+        product_image = entry['item_img_url'],
+        product_video = None,
+        product_price = round(random.uniform(0.50, 4.99), 2)
+    )
+
 
 
     with open("/var/www/FacebookBot/FacebookBot/log/{file_name}.csv".format(file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
@@ -503,6 +615,15 @@ for kik_name in kik_names:
 
     time.sleep(random.uniform(1, 2))
 
+quit()
+
+
+
+add_commerce(generate_fb_psid(), "Bracelets by Anne", "Custom made jewelry just for you", "https://i.imgur.com/prD7TK3.jpg", "BraceletAnne", "https://i.imgur.com/prD7TK3.jpg", None, 3.99)
+add_commerce(generate_fb_psid(), "CS:GO Skins Cheap", "Discounted CS:GO items", "https://i.imgur.com/lIP7k1z.jpg", "BraceletAnne", "https://i.imgur.com/lIP7k1z.jpg", None, 4.99)
+add_commerce(generate_fb_psid(), "Steam Keys", "Game keys from Steam", "https://i.imgur.com/Z1o0icQ.jpg", "RocketLeague 00", "https://i.imgur.com/Z1o0icQ.jpg", None, 5.99)
+add_commerce(generate_fb_psid(), "Knick Knacks", "Little things", "https://i.imgur.com/lnGGJfI.jpg", "Tiny Sword Stand", "https://i.imgur.com/lnGGJfI.jpg", None, 1.99)
+quit()
 
 
 
