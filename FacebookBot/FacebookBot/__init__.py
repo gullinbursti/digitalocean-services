@@ -209,7 +209,6 @@ def coin_flip_element(sender_id, standalone=False):
     logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
     element = None
-
     conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
     try:
         with conn:
@@ -341,7 +340,7 @@ def coin_flip_results(sender_id, item_id=None):
             card_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
             buttons=[
                 {
-                    'type'  : "element_share"
+                    'type'                 : "element_share"
                 }, {
                     'type'                 : "web_url",
                     'url'                  : "http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
@@ -351,12 +350,9 @@ def coin_flip_results(sender_id, item_id=None):
             ]
         )
 
-        if total_wins >= 5:
-            send_text(sender_id, "You must install one of these apps before claiming {item_name}.\n\nhttp://taps.io/BgNYg".format(item_name=flip_item['name']))
-
         send_text(
             recipient_id=sender_id,
-            message_text="WINNER! You won {item_name} - {pin_code} from {game_name}.\n\nSign into Steam: {claim_url}\n\nFollow all instructions to get items.".format(item_name=flip_item['name'], pin_code=flip_item['pin_code'], game_name=flip_item['game_name'],claim_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
+            message_text=Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL.format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
             quick_replies=coin_flip_quick_replies()
         )
 
@@ -383,7 +379,7 @@ def opt_out(sender_id):
             conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::opt_out[cur.execute] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::opt_out[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -446,7 +442,7 @@ def set_session_state(sender_id, state):
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -488,7 +484,7 @@ def set_session_item(sender_id, item_id):
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -529,7 +525,7 @@ def set_session_purchase(sender_id, purchase_id):
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -593,7 +589,7 @@ def purchase_item(sender_id, payment):
             conn.commit()
 
         except sqlite3.Error as er:
-            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
+            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message,))
 
         finally:
             if conn:
@@ -659,11 +655,11 @@ def webook():
                 try:
                     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
                     cur = conn.cursor()
-                    cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = ?;', (sender_id,))
+                    cur.execute('SELECT id FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
                     row = cur.fetchone()
                     if row is not None:
                         if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and messaging_event['message']['quick_reply']['payload'] == "OPT_IN":
-                            cur.execute('DELETE FROM blacklisted_users WHERE fb_psid = ?;', (sender_id,))
+                            cur.execute('DELETE FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
                             conn.commit()
                             conn.close()
 
@@ -686,7 +682,7 @@ def webook():
                             return "OK", 200
 
                 except sqlite3.Error as er:
-                    logger.info("::::::optin[cur.execute] sqlite3.Error - %s" % (er.message))
+                    logger.info("::::::optin[cur.execute] sqlite3.Error - %s" % (er.message,))
 
                 finally:
                     if conn:
@@ -827,11 +823,11 @@ def webook():
                         try:
                             conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
                             cur = conn.cursor()
-                            cur.execute('UPDATE payments SET trade_url = ? WHERE id = ? LIMIT 1;', (message_text, purchase_id))
+                            cur.execute('UPDATE payments SET `trade_url` = ? WHERE `id` = ? LIMIT 1;', (message_text, purchase_id))
                             conn.commit()
 
                         except sqlite3.Error as er:
-                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message))
+                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message,))
 
                         finally:
                             if conn:
