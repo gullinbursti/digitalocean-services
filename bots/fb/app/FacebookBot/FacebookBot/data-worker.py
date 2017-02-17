@@ -8,12 +8,14 @@ import json
 import os
 import random
 import re
+import StringIO
 import threading
 import time
 
 import MySQLdb as mysql
 import requests
 
+from collections import namedtuple
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
@@ -229,42 +231,7 @@ class Storefront(Base):
         return "<Storefront id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, description=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.name, self.display_name, self.description, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
-class ImageSizer(threading.Thread):
-    def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
-        if out_file is None:
-            out_file = in_file
 
-        threading.Thread.__init__(self)
-        self.in_file = in_file
-        self.out_file = out_file
-        self.canvas_size = canvas_size
-
-    def run(self):
-        os.chdir(os.path.dirname(self.in_file))
-        with Image.open(self.in_file.split("/")[-1]) as src_image:
-            scale_factor = max((src_image.size[0] / float(self.canvas_size[0]), src_image.size[1] / float(self.canvas_size[1])))
-            scale_size = ((
-                int(round(src_image.size[0] / float(scale_factor))),
-                int(round(src_image.size[1] / float(scale_factor)))
-            ))
-
-            padding = (
-                int((self.canvas_size[0] - scale_size[0]) * 0.5),
-                int((self.canvas_size[1] - scale_size[1]) * 0.5)
-            )
-
-            area = (
-                -padding[0],
-                -padding[1],
-                self.canvas_size[0] - padding[0],
-                self.canvas_size[1] - padding[1]
-            )
-
-            # print("[::|::|::|::] CROP ->org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s" % (src_image.size, scale_factor, scale_size, padding, area))
-
-            out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
-            os.chdir(os.path.dirname(self.out_file))
-            out_image.save("{out_file}".format(out_file=("-{sq}.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))))
 
 
 def copy_remote_asset(src_url, local_file):
@@ -612,16 +579,113 @@ def storefronts_from_owner(fb_psid=None):
 
 
 
+class ImageSizer(threading.Thread):
+    def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
+        if out_file is None:
+            out_file = in_file
 
-storefronts_from_owner()
+        threading.Thread.__init__(self)
+        self.in_file = in_file
+        self.out_file = out_file
+        self.canvas_size = canvas_size
+        self.image_datas = None
+        self.out_image = None
+        self.out_bytes = None
+
+    def run(self):
+        os.chdir(os.path.dirname(self.in_file))
+        with Image.open(self.in_file.split("/")[-1]) as src_image:
+            print("SRC IMAGE :: %s / %s %s" % (src_image.format, src_image.mode, "(%dx%d)" % src_image.size))
+
+            src_image = src_image.convert('RGB') if src_image.mode not in ('L', 'RGB') else src_image
+
+            scale_factor = max((src_image.size[0] / float(self.canvas_size[0]), src_image.size[1] / float(self.canvas_size[1])))
+            scale_size = ((
+                int(round(src_image.size[0] / float(scale_factor))),
+                int(round(src_image.size[1] / float(scale_factor)))
+            ))
+
+            padding = (
+                int((self.canvas_size[0] - scale_size[0]) * 0.5),
+                int((self.canvas_size[1] - scale_size[1]) * 0.5)
+            )
+
+            area = (
+                -padding[0],
+                -padding[1],
+                self.canvas_size[0] - padding[0],
+                self.canvas_size[1] - padding[1]
+            )
+
+            print("[::|::|::|::] CROP/-> org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s [::|::|::|::]" % (src_image.size, scale_factor, scale_size, padding, area))
+
+            out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
+            os.chdir(os.path.dirname(self.out_file))
+            self.out_image = out_image
+            self.out_bytes = out_image
+
+            try:
+                out_image.save("{out_file}".format(out_file=("-{sq}.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))), "JPEG")
+
+            except IOError:
+                print("Couldn't create image for %s" % (self.in_file,))
+
+    def thumb_bytes(self):
+        out_bytes = StringIO.StringIO()
+        self.out_bytes.save(out_bytes, 'JPEG')
+        return out_bytes.getvalue()
+
+
+
+
+
+def generate_images(src_file, out_file=None):
+    timestamp = ("%.03f" % (time.time())).replace(".", "_")
+    out_file = "/images/{timestamp}.jpg".format(timestamp=timestamp if out_file is None else out_file)
+
+    image_set = ((
+        'org', ['size', 'data'],
+        'thumb', ['size', 'data'],
+        'landscape', ['size', 'data'],
+        'portrait', ['size', 'data'],
+        'widescreen', ['size', 'data']
+    ))
+
+
+    image_sizer_sq = ImageSizer(in_file=src_file, out_file=None)
+    image_sizer_sq.start()
+
+    print(image_sizer_sq.thumb_bytes())
+
+
+
+
+
+    # image_sizer_ls = ImageSizer(in_file=src_file, out_file=None, canvas_size=(400, 300))
+    # image_sizer_ls.start()
+    #
+    # image_sizer_pt = ImageSizer(in_file=src_file, out_file=None, canvas_size=(480, 640))
+    # image_sizer_pt.start()
+    #
+    # image_sizer_ws = ImageSizer(in_file=src_file, canvas_size=(1280, 720))
+    # image_sizer_ws.start()
 
 
 
 
 
 
+
+
+static_assets_path = "{script_path}/static".format(script_path=os.path.dirname(os.path.realpath(__file__)))
+generate_images(static_assets_path)
 
 quit()
+
+
+
+
+
 
 kik_names = []
 csgo_items = []
@@ -630,6 +694,7 @@ name_fill()
 item_fill()
 
 print("Creating {name_total} users...".format(name_total=len(kik_names)))
+
 
 results = []
 for kik_name in kik_names:
@@ -690,7 +755,7 @@ for kik_name in kik_names:
 
 
 
-    with open("/var/www/FacebookBot/FacebookBot/log/{file_name}.csv".format(file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
+    with open("{script_path}/log/{file_name}.csv".format(script_path=os.path.dirname(os.path.realpath(__file__)), file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
         row = []
         for key in entry:
             row.append(entry[key])
