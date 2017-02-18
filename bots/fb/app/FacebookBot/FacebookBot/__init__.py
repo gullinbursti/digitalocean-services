@@ -659,6 +659,34 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink=None):
     return is_new
 
 
+
+def increment_shop_views(recipient_id, product_id, storefront_id=None):
+    logger.info("increment_shop_views(recipient_id=%s, product_id=%s, storefront_id=%s)" % (recipient_id, product_id, storefront_id))
+
+    product = Product.query.filter(Product.id == product_id).filter(Product.creation_state == 5).first()
+    storefront = Storefront.query.filter(Storefront.id == product.id).first()
+    if product is not None and storefront is not None:
+        product.views += 1
+        storefront.views += 1
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (product.id,))
+                cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (storefront.id,))
+                conn.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    db.session.commit()
+
+
 def add_cc_payment(recipient_id):
     logger.info("add_cc_payment(recipient_id=%s)" % (recipient_id))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
@@ -1443,82 +1471,37 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
         product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 5).first()
         if product is not None:
-            product.views += 1
-            customer.product_id = product.id
-
-            if product.video_url is not None and product.video_url != "":
-                send_video(recipient_id, product.video_url, product.attachment_id)
-
-            else:
-                if product.image_url is not None:
-                    send_image(recipient_id, product.image_url)
-
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (product.id,))
-                    conn.commit()
-
-            except mysql.Error, e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             if storefront is not None:
-                storefront.views += 1
+                send_text(
+                    recipient_id = recipient_id,
+                    message_text = "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                )
 
-                try:
-                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (storefront.id,))
-                        conn.commit()
+                subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
+                if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
+                    payment = Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL)
+                    db.session.add(purchase)
+                    db.session.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                    send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
+                    send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
 
-                finally:
-                    if conn:
-                        conn.close()
+                # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-            db.session.commit()
-
-
-        if product is not None and storefront is not None:
-
-            send_text(
-                recipient_id = recipient_id,
-                message_text = "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
-            )
-
-            subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
-            if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
-
-                payment = Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL)
-                db.session.add(purchase)
-                db.session.commit()
-
-                send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
-                send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
-
-            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-            if purchase is not None:
-                customer.purchase_id = purchase.id
-                db.session.commit()
-                send_customer_carousel(recipient_id, product.id)
-
-            else:
-                if customer.stripe_id is not None and customer.card_id is not None:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
+                purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+                if purchase is not None:
+                    customer.purchase_id = purchase.id
+                    db.session.commit()
+                    send_customer_carousel(recipient_id, product.id)
 
                 else:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                    if customer.stripe_id is not None and customer.card_id is not None:
+                        send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
+
+                    else:
+                        send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            increment_shop_views(recipient_id, product.storefront_id)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1656,22 +1639,9 @@ def send_customer_carousel(recipient_id, product_id):
 
     elements = []
     if storefront is not None:
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `products` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (product.id,))
-                cur.execute('UPDATE `storefronts` SET `views` = `views` + 1 WHERE `id` = %s LIMIT 1;', (storefront.id,))
-                conn.commit()
+        increment_shop_views(recipient_id, storefront.id)
 
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-
+        increment_shop_views
         purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
         if purchase is None:
             elements.append(
@@ -1721,11 +1691,11 @@ def send_customer_carousel(recipient_id, product_id):
         elements.append(
             build_card_element(
                 title = product.display_name_utf8,
-                subtitle = "View Shopbot",
+                subtitle = "View my shop now",
                 image_url = product.image_url,
                 item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ]
             )
@@ -1756,7 +1726,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                 image_url = storefront.logo_url,
                 item_url = storefront.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=storefront.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ]
             )
@@ -1775,6 +1745,9 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
             )
 
         elif card_type == Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO:
+            send_tracker("button-activate-pro", recipient_id, "")
+            send_tracker("button-paywall", recipient_id, "")
+
             data = build_list_card(
                 recipient_id=recipient_id,
                 body_elements = [
@@ -1809,11 +1782,11 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name_utf8,
-                subtitle = storefront.description,
+                subtitle = "View my shop now",
                 image_url = storefront.logo_url,
                 item_url = storefront.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=storefront.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=storefront.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ]
             )
@@ -1834,11 +1807,11 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle = "View Shopbot",
+                subtitle = "View my shop now",
                 image_url = product.image_url,
                 item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -1862,11 +1835,11 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle = "View Shopbot",
+                subtitle = "View my shop now",
                 image_url = product.image_url,
                 item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -1989,11 +1962,11 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_content_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle = "View Shopbot",
+                subtitle = "View my shop now",
                 image_url = product.image_url,
                 item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shopbot", url=product.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2136,17 +2109,13 @@ def received_quick_reply(recipient_id, quick_reply):
 
 
             send_tracker("shop-sign-up", recipient_id, "")
-            payload = {
-                'channel' : "#pre",
-                'username' : "fbprebot",
-                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                'text' : "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=recipient_id, storefront_name=storefront.display_name_utf8),
-                'attachments' : [{
-                    'image_url' : storefront.logo_url
-                }]
-            }
-            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
-
+            slack_outbound(
+                channel_name = Const.SLACK_ORTHODOX_CHANNEL,
+                username = Const.SLACK_ORTHODOX_HANDLE,
+                webhook = Const.SLACK_ORTHODOX_WEBHOOK,
+                message_text = "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=recipient_id, storefront_name=storefront.display_name_utf8),
+                image_url = storefront.logo_url
+            )
 
             send_text(
                 recipient_id=recipient_id,
@@ -2239,6 +2208,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
 
+            # slack
             payload = {
                 'channel' : "#pre",
                 'username' : "fbprebot",
@@ -2362,6 +2332,7 @@ def received_quick_reply(recipient_id, quick_reply):
 
     elif quick_reply == Const.PB_PAYLOAD_PAYMENT_YES:
         send_tracker("button-payment-yes", recipient_id, "")
+        send_tracker("button-purchase-product", recipient_id, "")
 
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.source == Const.PAYMENT_SOURCE_CREDIT_CARD).filter(Payment.creation_state == 5).first()
         if payment is not None:

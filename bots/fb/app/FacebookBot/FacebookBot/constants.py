@@ -12,6 +12,10 @@ class Const(Constants):
     SLACK_ORTHODOX_WEBHOOK = "https://hooks.slack.com/services/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"
     SLACK_PURCHASES_WEBHOOK = "https://hooks.slack.com/services/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"
 
+    SLACK_ORTHODOX_CHANNEL = "pre"
+    SLACK_ORTHODOX_HANDLE = "lemon8-fb"
+    SLACK_ORTHODOX_AVATAR = "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png"
+
     COIN_FLIP_API = "http://beta.modd.live/api/coin_flip.php"
 
     WEB_SERVER_IP = "192.241.212.32"
