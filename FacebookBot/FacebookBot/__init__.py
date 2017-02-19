@@ -598,6 +598,13 @@ def purchase_item(sender_id, payment):
     set_session_state(sender_id, 2)
     send_text(sender_id, "You have successfully purchased {item_name}, please enter your steam trade url to recieve it".format(item_name=item_name))
 
+    payload = {
+        'channel' : "#gamebots-purchases",
+        'username': "gamebotsc",
+        'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+        'text'    : "*{customer_email}* ({fb_psid}) just purchased _{item_name}_ for ${item_price:%.2f}".format(customer_email=customer_email, fb_psid=sender_id, item_name=item_name, item_price=amount),
+    }
+    response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
 
 @app.route('/', methods=['GET'])
