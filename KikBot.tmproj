@@ -122,7 +122,7 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>291</integer>
+				<integer>0</integer>
 				<key>line</key>
 				<integer>716</integer>
 			</dict>
@@ -156,6 +156,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{265, 43}, {1119, 828}}</string>
+	<string>{{266, 43}, {1119, 828}}</string>
 </dict>
 </plist>
