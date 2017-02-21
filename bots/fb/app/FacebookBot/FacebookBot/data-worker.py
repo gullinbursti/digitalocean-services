@@ -27,7 +27,7 @@ from sqlalchemy.orm import sessionmaker
 
 from constants import Const
 
-engine = create_engine("sqlite:///data/sqlite3/prebotfb.db".format(file_path=os.path.dirname(os.path.realpath(__file__))), echo=False)
+engine = create_engine("sqlite:///data/sqlite3/prebotfb.db", echo=False)
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
@@ -164,8 +164,32 @@ class Product(Base):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (
-        self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name_utf8, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+
+
+class Purchase(Base):
+    __tablename__ = "purchases"
+
+    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer)
+    storefront_id = Column(Integer)
+    product_id = Column(Integer)
+    type = Column(Integer)
+    charge_id = Column(String(255))
+    claim_state = Column(Integer)
+    added = Column(Integer)
+
+    def __init__(self, customer_id, storefront_id, product_id, type, charge_id=None):
+        self.customer_id = customer_id
+        self.storefront_id = storefront_id
+        self.product_id = product_id
+        self.type = type
+        self.charge_id = charge_id
+        self.claim_state = 0
+        self.added = int(time.time())
+
+    def __repr__(self):
+        return "<Purchase id=%s, customer_id=%s, storefront_id=%s, product_id=%s, type=%s, charge_id=%s, claim_state=%s, added=%s>" % (self.id, self.customer_id, self.storefront_id, self.product_id, self.type, self.charge_id, self.claim_state, self.added)
 
 
 class Storefront(Base):
@@ -228,10 +252,64 @@ class Storefront(Base):
 
 
     def __repr__(self):
-        return "<Storefront id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, description=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.owner_id, self.creation_state, self.name, self.display_name, self.description, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
+        return "<Storefront id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, description=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.fb_psid, self.creation_state, self.name, self.display_name_utf8, self.description_utf8, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
+class ImageSizer(threading.Thread):
+    def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
+        if out_file is None:
+            out_file = in_file
 
+        threading.Thread.__init__(self)
+        self.in_file = in_file
+        self.out_file = out_file
+        self.canvas_size = canvas_size
+        self.image_datas = None
+        self.out_image = None
+        self.out_bytes = None
+
+    def run(self):
+        os.chdir(os.path.dirname(self.in_file))
+        with Image.open(self.in_file.split("/")[-1]) as src_image:
+            print("SRC IMAGE :: %s / %s %s" % (src_image.format, src_image.mode, "(%dx%d)" % src_image.size))
+
+            src_image = src_image.convert('RGB') if src_image.mode not in ('L', 'RGB') else src_image
+
+            scale_factor = max((src_image.size[0] / float(self.canvas_size[0]), src_image.size[1] / float(self.canvas_size[1])))
+            scale_size = ((
+                int(round(src_image.size[0] / float(scale_factor))),
+                int(round(src_image.size[1] / float(scale_factor)))
+            ))
+
+            padding = (
+                int((self.canvas_size[0] - scale_size[0]) * 0.5),
+                int((self.canvas_size[1] - scale_size[1]) * 0.5)
+            )
+
+            area = (
+                -padding[0],
+                -padding[1],
+                self.canvas_size[0] - padding[0],
+                self.canvas_size[1] - padding[1]
+            )
+
+            print("[::|::|::|::] CROP/-> org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s [::|::|::|::]" % (src_image.size, scale_factor, scale_size, padding, area))
+
+            out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
+            os.chdir(os.path.dirname(self.out_file))
+            self.out_image = out_image
+            self.out_bytes = out_image
+
+            try:
+                out_image.save("{out_file}".format(out_file=("-{sq}.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))), "JPEG")
+
+            except IOError:
+                print("Couldn't create image for %s" % (self.in_file,))
+
+    def thumb_bytes(self):
+        out_bytes = StringIO.StringIO()
+        self.out_bytes.save(out_bytes, 'JPEG')
+        return out_bytes.getvalue()
 
 
 def copy_remote_asset(src_url, local_file):
@@ -579,62 +657,6 @@ def storefronts_from_owner(fb_psid=None):
 
 
 
-class ImageSizer(threading.Thread):
-    def __init__(self, in_file, out_file=None, canvas_size=(256, 256)):
-        if out_file is None:
-            out_file = in_file
-
-        threading.Thread.__init__(self)
-        self.in_file = in_file
-        self.out_file = out_file
-        self.canvas_size = canvas_size
-        self.image_datas = None
-        self.out_image = None
-        self.out_bytes = None
-
-    def run(self):
-        os.chdir(os.path.dirname(self.in_file))
-        with Image.open(self.in_file.split("/")[-1]) as src_image:
-            print("SRC IMAGE :: %s / %s %s" % (src_image.format, src_image.mode, "(%dx%d)" % src_image.size))
-
-            src_image = src_image.convert('RGB') if src_image.mode not in ('L', 'RGB') else src_image
-
-            scale_factor = max((src_image.size[0] / float(self.canvas_size[0]), src_image.size[1] / float(self.canvas_size[1])))
-            scale_size = ((
-                int(round(src_image.size[0] / float(scale_factor))),
-                int(round(src_image.size[1] / float(scale_factor)))
-            ))
-
-            padding = (
-                int((self.canvas_size[0] - scale_size[0]) * 0.5),
-                int((self.canvas_size[1] - scale_size[1]) * 0.5)
-            )
-
-            area = (
-                -padding[0],
-                -padding[1],
-                self.canvas_size[0] - padding[0],
-                self.canvas_size[1] - padding[1]
-            )
-
-            print("[::|::|::|::] CROP/-> org=%s, scale_factor=%f, scale_size=%s, padding=%s, area=%s [::|::|::|::]" % (src_image.size, scale_factor, scale_size, padding, area))
-
-            out_image = src_image.resize(scale_size, Image.BILINEAR).crop(area)
-            os.chdir(os.path.dirname(self.out_file))
-            self.out_image = out_image
-            self.out_bytes = out_image
-
-            try:
-                out_image.save("{out_file}".format(out_file=("-{sq}.".format(sq=self.canvas_size[0])).join(self.out_file.split("/")[-1].split("."))), "JPEG")
-
-            except IOError:
-                print("Couldn't create image for %s" % (self.in_file,))
-
-    def thumb_bytes(self):
-        out_bytes = StringIO.StringIO()
-        self.out_bytes.save(out_bytes, 'JPEG')
-        return out_bytes.getvalue()
-
 
 
 
@@ -657,10 +679,6 @@ def generate_images(src_file, out_file=None):
 
     print(image_sizer_sq.thumb_bytes())
 
-
-
-
-
     # image_sizer_ls = ImageSizer(in_file=src_file, out_file=None, canvas_size=(400, 300))
     # image_sizer_ls.start()
     #
@@ -671,16 +689,116 @@ def generate_images(src_file, out_file=None):
     # image_sizer_ws.start()
 
 
+def storefront_re_id(re_id=524289):
+    for storefront in session.query(Storefront).filter(Storefront.id >= 9447).filter(Storefront.creation_state < 4):
+        print("STOREFRONT --> %s", storefront.id)
+
+        re_id += 1
+        storefront.id = re_id
+        session.commit()
+
+
+def product_re_id(re_id=524289):
+    for product in session.query(Product).filter(Product.id >= 9447).filter(Product.creation_state < 5):
+        print("PRODUCT --> %s", product.id)
+
+        re_id += 1
+        product.id = re_id
+        session.commit()
 
 
 
 
+def storefronts_sync():
+    for storefront in session.query(Storefront).filter(Storefront.id >= 9480).filter(Storefront.creation_state == 4):
+        customer = session.query(Customer).filter(Customer.fb_psid == storefront.fb_psid).first()
+        if customer is not None:
+            print("STOREFRONT --> %s", storefront.id)
+            product = session.query(Product).filter(Product.storefront_id == storefront.id).first()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `storefronts` WHERE `name` = %s LIMIT 1;', (storefront.name,))
+                    row = cur.fetchone()
+
+                    if row is None:
+                        # print("INSERT --> %s" % ("INSERT INTO `storefronts`(`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES(NULL, % s, % s, % s, % s, % s, % s, FROM_UNIXTIME( % s));" % (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url, storefront.added)))
+                        cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description, storefront.logo_url, storefront.prebot_url, storefront.added))
+                        conn.commit()
+                        cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                        storefront.id = cur.fetchone()['id']
+                        if product is not None:
+                            product.storefront_id =storefront.id
+
+                    else:
+                        print("FOUND!!! %s with id %s" % (storefront.display_name_utf8, row['id']))
+                        storefront.id = row['id']
+                        if product is not None:
+                            product.storefront_id = storefront.id
+                    session.commit()
+
+            except mysql.Error, e:
+                print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
 
 
-static_assets_path = "{script_path}/static".format(script_path=os.path.dirname(os.path.realpath(__file__)))
-generate_images(static_assets_path)
 
+def products_sync():
+    for product in session.query(Product).filter(Product.id > Const.SQLITE_ID_START).filter(Product.creation_state == 5):
+        storefront = session.query(Storefront).filter(Storefront.fb_psid == product.fb_psid).first()
+        if storefront is not None:
+            product.storefront_id = storefront.id
+            purchases = session.query(Purchase).filter(Purchase.product_id == product.id).all()
+            print("\nPRODUCT %s --> %s %s" % (product.id, storefront.id, purchases))
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `products` WHERE `name` = %s LIMIT 1;', (product.name,))
+                    row = cur.fetchone()
+
+                    if row is None:
+                        print("INSERT --> %s" % ("INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), FROM_UNIXTIME(%s));" % (product.storefront_id, product.name, product.display_name_utf8, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date, product.added)))
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), FROM_UNIXTIME(%s));', (product.storefront_id, product.name, product.display_name_utf8, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date, product.added))
+                        conn.commit()
+                        cur.execute('SELECT @@`IDENTITY` AS `id` FROM `products`;')
+                        product.id = cur.fetchone()['id']
+                        for purchase in purchases:
+                            purchase.product_id = product.id
+                            cur.execute('UPDATE `purchases` SET `product_id` = %s WHERE `id` = %s LIMIT 1;', (product.id, purchase.id))
+                            conn.commit()
+
+                    else:
+                        print("FOUND!!! %s with id %s" % (storefront.display_name_utf8, row['id']))
+                        product.id = row['id']
+                        for purchase in purchases:
+                            purchase.product_id = product.id
+                            cur.execute('UPDATE `purchases` SET `product_id` = %s WHERE `id` = %s LIMIT 1;', (product.id, purchase.id))
+                            conn.commit()
+                    session.commit()
+
+            except mysql.Error, e:
+                print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+products_sync()
 quit()
+
+
+#static_assets_path = "{script_path}/static".format(script_path=os.path.dirname(os.path.realpath(__file__)))
+#generate_images(static_assets_path)
+# quit()
 
 
 

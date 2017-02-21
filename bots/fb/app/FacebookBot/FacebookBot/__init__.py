@@ -16,7 +16,6 @@ import time
 
 from datetime import datetime
 
-
 import MySQLdb as mysql
 import pytz
 import qrtools
@@ -236,7 +235,7 @@ class Product(db.Model):
 
 
     def __repr__(self):
-        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.creation_state, self.name, self.display_name_utf8, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
 
 
 class Purchase(db.Model):
@@ -338,7 +337,7 @@ class Storefront(db.Model):
 
 
     def __repr__(self):
-        return "<Storefront id=%s, type_id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.type_id, self.fb_psid, self.creation_state, self.name, self.display_name, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
+        return "<Storefront id=%s, type_id=%s, fb_psid=%s, creation_state=%s, name=%s, display_name=%s, description=%s, logo_url=%s, video_url=%s, prebot_url=%s, giveaway=%s, added=%s>" % (self.id, self.type_id, self.fb_psid, self.creation_state, self.name, self.display_name_utf8, self.description_utf8, self.logo_url, self.video_url, self.prebot_url, self.giveaway, self.added)
 
 
 class Subscription(db.Model):
@@ -874,7 +873,7 @@ def purchase_product(recipient_id, source):
                     conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
                         cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.product_id, 1, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
+                        cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 1, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
                         conn.commit()
                         cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
                         purchase.id = cur.fetchone()['id']
@@ -1471,6 +1470,8 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
         product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 5).first()
         if product is not None:
+            customer.product_id = product.id
+
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             if storefront is not None:
                 send_text(
@@ -1516,11 +1517,6 @@ def send_admin_carousel(recipient_id):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
-
-    # customer.storefront_id = None
-    # customer.product_id = None
-    # customer.purchase_id = None
-    db.session.commit()
 
     cards = []
 
@@ -1641,7 +1637,6 @@ def send_customer_carousel(recipient_id, product_id):
     if storefront is not None:
         increment_shop_views(recipient_id, storefront.id)
 
-        increment_shop_views
         purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
         if purchase is None:
             elements.append(
@@ -1667,26 +1662,6 @@ def send_customer_carousel(recipient_id, product_id):
                     ]
                 )
             )
-
-
-        # purchases = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.storefront_id == storefront.id).all()
-        # if len(purchases) > 0:
-        #     if len(purchases) == 1:
-        #         subtitle = "1 item"
-        #
-        #     else:
-        #         subtitle = "{total} items".format(total=len(purchases))
-        #
-        #     elements.append(
-        #         build_card_element(
-        #             title = "Purchases",
-        #             subtitle = subtitle,
-        #             image_url = Const.IMAGE_URL_PURCHASES,
-        #             buttons = [
-        #                 build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/{user_id}".format(user_id=customer.id))
-        #             ]
-        #         )
-        #     )
 
         elements.append(
             build_card_element(
@@ -2051,7 +2026,7 @@ def received_quick_reply(recipient_id, quick_reply):
     if quick_reply == Const.PB_PAYLOAD_MAIN_MENU:
         send_tracker("button-menu", recipient_id, "")
 
-        # customer.storefront_id = None
+        customer.storefront_id = None
         customer.product_id = None
         customer.purchase_id = None
         send_admin_carousel(recipient_id)
@@ -2094,7 +2069,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `storefronts` (`id`, `fb_psid`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description, storefront.logo_url, storefront.prebot_url))
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
                     storefront.id = cur.fetchone()['id']
@@ -2188,7 +2163,7 @@ def received_quick_reply(recipient_id, quick_reply):
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.name, product.display_name_utf8, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date))
                     conn.commit()
-                    cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
                     product.id = cur.fetchone()['id']
                     db.session.commit()
 
@@ -2411,8 +2386,6 @@ def received_quick_reply(recipient_id, quick_reply):
 
     elif quick_reply == Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT:
         send_tracker("button-activate-pro", recipient_id, "")
-
-
 
 
 
