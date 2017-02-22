@@ -196,11 +196,11 @@ class Product(db.Model):
 
     @property
     def display_name_utf8(self):
-        return self.display_name.encode('utf-8')
+        return self.display_name.encode('utf-8') if self.display_name is not None else None
 
     @property
     def description_utf8(self):
-        return self.description.encode('utf-8')
+        return self.description.encode('utf-8') if self.description is not None else None
 
     @property
     def messenger_url(self):
@@ -309,11 +309,11 @@ class Storefront(db.Model):
 
     @property
     def display_name_utf8(self):
-        return self.display_name.encode('utf-8')
+        return self.display_name.encode('utf-8') if self.display_name is not None else None
 
     @property
     def description_utf8(self):
-        return self.description.encode('utf-8')
+        return self.description.encode('utf-8') if self.description is not None else None
 
     @property
     def messenger_url(self):
@@ -621,39 +621,39 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink=None):
     storefront = Storefront.query.filter(Storefront.id == storefront_id).first()
     product = Product.query.filter(Product.id == product_id).first()
 
-    try:
-        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        with conn:
-            cur = conn.cursor(mysql.cursors.DictCursor)
+    if customer is not None and storefront is not None and product is not None:
+        subscription = Subscription.query.filter(Subscription.customer_id == customer.id).filter(Subscription.product_id == product.id).first()
+        if subscription is None:
+            subscription = Subscription(customer.id, storefront.id, product.id)
+            db.session.add(subscription)
+        db.session.commit()
 
-            subscription = Subscription.query.filter(Subscription.customer_id == customer.id).filter(Subscription.product_id == product.id).first()
-            if subscription is None:
-                subscription = Subscription(customer.id, storefront.id, product.id)
-                db.session.add(subscription)
-            db.session.commit()
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `subscriptions` WHERE `user_id` = %s AND `storefront_id` = %s AND `product_id` = %s LIMIT 1;', (customer.id, storefront.id, product.id))
+                row = cur.fetchone()
+                is_new = (row is None)
 
-            cur.execute('SELECT `id` FROM `subscriptions` WHERE `user_id` = %s AND `storefront_id` = %s AND `product_id` = %s LIMIT 1;', (customer.id, storefront.id, product.id))
-            row = cur.fetchone()
-            is_new = (row is None)
+                if row is None:
+                    send_tracker("user-subscribe", recipient_id, storefront.display_name_utf8)
 
-            if row is None:
-                send_tracker("user-subscribe", recipient_id, storefront.display_name_utf8)
+                    cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.id, product.id, deeplink or "/"))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `subscriptions`;')
+                    subscription.id = cur.fetchone()['id']
 
-                cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.id, product.id, deeplink or "/"))
-                conn.commit()
-                cur.execute('SELECT @@IDENTITY AS `id` FROM `subscriptions`;')
-                subscription.id = cur.fetchone()['id']
+                else:
+                    subscription.id = row['id']
+                db.session.commit()
 
-            else:
-                subscription.id = row['id']
-            db.session.commit()
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-    except mysql.Error, e:
-        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
+        finally:
+            if conn:
+                conn.close()
 
     return is_new
 
@@ -663,10 +663,11 @@ def increment_shop_views(recipient_id, product_id, storefront_id=None):
     logger.info("increment_shop_views(recipient_id=%s, product_id=%s, storefront_id=%s)" % (recipient_id, product_id, storefront_id))
 
     product = Product.query.filter(Product.id == product_id).filter(Product.creation_state == 5).first()
-    storefront = Storefront.query.filter(Storefront.id == product.id).first()
+    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
     if product is not None and storefront is not None:
         product.views += 1
         storefront.views += 1
+        db.session.commit()
 
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
@@ -682,8 +683,6 @@ def increment_shop_views(recipient_id, product_id, storefront_id=None):
         finally:
             if conn:
                 conn.close()
-
-    db.session.commit()
 
 
 def add_cc_payment(recipient_id):
@@ -1428,8 +1427,8 @@ def dm_quick_replies(purchase_id, dm_action=Const.DM_ACTION_PROMPT):
     return quick_replies
 
 
-def activate_premium_storefront_quick_replies(storefront):
-    logger.info("activate_premium_storefront_quick_replies(storefront=%s)" % (storefront,))
+def activate_premium_quick_replies(storefront):
+    logger.info("activate_premium_quick_replies(storefront=%s)" % (storefront,))
 
     return [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="${price:.2f}".format(caption=round(Const.PREMIUM_SHOP_PRICE * 0.01)), payload=Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT)
@@ -1488,8 +1487,6 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
                     send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
 
-                # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
                 purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
                 if purchase is not None:
                     customer.purchase_id = purchase.id
@@ -1497,12 +1494,9 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_customer_carousel(recipient_id, product.id)
 
                 else:
-                    if customer.stripe_id is not None and customer.card_id is not None:
-                        send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-                    else:
-                        send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-            increment_shop_views(recipient_id, product.storefront_id)
+            increment_shop_views(recipient_id, product.id)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1635,7 +1629,7 @@ def send_customer_carousel(recipient_id, product_id):
 
     elements = []
     if storefront is not None:
-        increment_shop_views(recipient_id, storefront.id)
+        increment_shop_views(recipient_id, product.id)
 
         purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
         if purchase is None:
@@ -1891,7 +1885,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Pay", payload=Const.PB_PAYLOAD_PURCHASE_PRODUCT)
                 ],
-                quick_replies = main_menu_quick_replies(recipient_id)
+                quick_replies = cancel_entry_quick_reply()
             )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_RECEIPT:
@@ -2046,11 +2040,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 send_customer_carousel(recipient_id, product.id)
 
             else:
-                if customer.stripe_id is not None and customer.card_id is not None:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC)
-
-                else:
-                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
         else:
             send_admin_carousel(recipient_id)
@@ -2236,7 +2226,7 @@ def received_quick_reply(recipient_id, quick_reply):
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
         if storefront is not None and product is not None:
             send_text(recipient_id, "http://{messenger_url}".format(messenger_url=product.messenger_url), main_menu_quick_replies(recipient_id))
-            send_text(recipient_id, "Tap, hold, then share {storefront_name}'s shop link above.".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Tap, hold, copy {storefront_name}'s shop link above.".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
 
         else:
             send_text(recipient_id, "Couldn't locate your shop!", main_menu_quick_replies(recipient_id))
