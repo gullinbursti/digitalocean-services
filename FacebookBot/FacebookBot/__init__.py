@@ -208,6 +208,8 @@ def daily_item_element(sender_id, standalone=False):
 def coin_flip_element(sender_id, standalone=False):
     logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
+    set_session_item(sender_id)
+
     element = None
     conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
     try:
@@ -303,7 +305,7 @@ def coin_flip_results(sender_id, item_id=None):
             conn.close()
 
 
-    if random.uniform(0, flip_item['win_boost']) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
+    if sender_id == Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= ((1 / float(4)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
         total_wins += 1
         payload = {
             'channel'     : "#bot-alerts",
@@ -320,7 +322,8 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s LIMIT 1;', (flip_item['item_id'],))
+                if sender_id != Const.ADMIN_FB_PSID:
+                    cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
                 cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
                 flip_item['claim_id'] = cur.lastrowid
@@ -337,24 +340,21 @@ def coin_flip_results(sender_id, item_id=None):
             recipient_id=sender_id,
             title="{item_name}".format(item_name=flip_item['name']),
             image_url=flip_item['image_url'],
-            card_url="http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
+            card_url=Const.FLIP_CLAIM_URL,
             buttons=[
                 {
                     'type'                 : "element_share"
                 }, {
                     'type'                 : "web_url",
-                    'url'                  : "http://prebot.me/claim/{claim_id}/{sender_id}".format(claim_id=flip_item['claim_id'], sender_id=sender_id),
+                    'url'                  : Const.FLIP_CLAIM_URL,
                     'title'                : "Trade",
                     'webview_height_ratio' : "compact"
                 }
             ]
         )
 
-        send_text(
-            recipient_id=sender_id,
-            message_text=Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL.format(claim_id=flip_item['claim_id'], sender_id=sender_id)),
-            quick_replies=coin_flip_quick_replies()
-        )
+        send_text(sender_id, Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL, sender_id=sender_id))
+        set_session_trade_url(sender_id, "_{PENDING}_")
 
     else:
         send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
@@ -427,7 +427,7 @@ def get_session_state(sender_id):
 
     return state
 
-def set_session_state(sender_id, state):
+def set_session_state(sender_id, state=1):
     logger.info("set_session_state(sender_id=%s, state=%s)" % (sender_id, state))
 
     current_state = get_session_state(sender_id)
@@ -457,7 +457,7 @@ def get_session_item(sender_id):
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC;', (sender_id,))
+        cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
         row = cur.fetchone()
 
         if row is not None:
@@ -474,7 +474,7 @@ def get_session_item(sender_id):
 
     return item_id
 
-def set_session_item(sender_id, item_id):
+def set_session_item(sender_id, item_id=0):
     logger.info("set_session_item(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -490,6 +490,50 @@ def set_session_item(sender_id, item_id):
         if conn:
             conn.close()
 
+
+def get_session_trade_url(sender_id):
+    logger.info("get_session_trade_url(sender_id=%s)" % (sender_id))
+    trade_url = None
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT trade_url FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            trade_url = row['trade_url']
+
+        logger.info("trade_url=%s" % (trade_url))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_trade_url[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return trade_url
+
+
+def set_session_trade_url(sender_id, trade_url=None):
+    logger.info("set_session_trade_url(sender_id=%s, trade_url=%s)" % (sender_id, trade_url))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET trade_url = ? WHERE fb_psid = ?;', (trade_url, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_trade_url[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+
 def get_session_purchase(sender_id):
     logger.info("get_session_purchase(sender_id=%s)" % (sender_id))
     purchase_id = None
@@ -498,7 +542,7 @@ def get_session_purchase(sender_id):
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('SELECT purchase_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC;', (sender_id,))
+        cur.execute('SELECT purchase_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
         row = cur.fetchone()
 
         if row is not None:
@@ -515,7 +559,7 @@ def get_session_purchase(sender_id):
 
     return purchase_id
 
-def set_session_purchase(sender_id, purchase_id):
+def set_session_purchase(sender_id, purchase_id=0):
     logger.info("set_session_purchase(sender_id=%s, purchase_id=%s)" % (sender_id, purchase_id))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -533,7 +577,7 @@ def set_session_purchase(sender_id, purchase_id):
 
 
 def purchase_item(sender_id, payment):
-    logger.info("set_session_item(sender_id=%s, payment=%s)" % (sender_id, payment))
+    logger.info("purchase_item(sender_id=%s, payment=%s)" % (sender_id, payment))
 
     purchase_id = 0
     item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
@@ -701,7 +745,7 @@ def webook():
                     logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
                     send_tracker("signup-fb", sender_id, "")
 
-                    set_session_state(sender_id, 1)
+                    set_session_state(sender_id)
                     send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
@@ -733,7 +777,6 @@ def webook():
                         elif messaging_event['postback']['payload'] == "MAIN_MENU":
                             send_tracker("main-menu", sender_id, "")
 
-
                         default_carousel(sender_id)
                         return "OK", 200
 
@@ -751,9 +794,31 @@ def webook():
                         write_message_log(sender_id, message_id, message)
 
                         # ------- IMAGE MESSAGE
-                        if 'attachments' in messaging_event['message']:
-                            send_text(sender_id, "I'm sorry, I cannot understand that type of message.")
-                            return "OK", 200
+                        if 'attachments' in message:
+                            for attachment in message['attachments']:
+                                if 'url' in attachment and get_session_trade_url(sender_id) == "_{PENDING}_":
+                                    set_session_trade_url(sender_id, message['text'])
+
+                                    try:
+                                        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                                        with conn:
+                                            cur = conn.cursor(mdb.cursors.DictCursor)
+                                            cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (message['text'], sender_id))
+                                            conn.commit()
+
+                                    except mdb.Error, e:
+                                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                                    finally:
+                                        if conn:
+                                            conn.close()
+
+                                    send_text(sender_id, "Trade URL set")
+                                    default_carousel(sender_id)
+
+                                else:
+                                    send_text(sender_id, "I'm sorry, I cannot understand that type of message.", main_menu_quick_replies())
+                                    return "OK", 200
 
 
                         # ------- QUICK REPLY BUTTON
@@ -801,27 +866,47 @@ def webook():
 
                             elif quick_reply == "MAIN_MENU":
                                 send_tracker("todays-item", sender_id, "")
+
+                                if get_session_trade_url(sender_id) == "_{PENDING}_":
+                                    set_session_trade_url(sender_id)
+
                                 default_carousel(sender_id)
 
                             else:
                                 default_carousel(sender_id)
 
-                            return "OK", 200
 
+                        else:
+                            # ------- TYPED TEXT MESSAGE
+                            if 'text' in message:
+                                message_text = message['text']
 
-                        # ------- TYPED TEXT MESSAGE
-                        if 'text' in message:
-                            message_text = message['text']
+                                if get_session_trade_url(sender_id) == "_{PENDING}_":
+                                    send_text(
+                                        recipient_id = sender_id,
+                                        message_text = "Invalid URL, try again...",
+                                        quick_replies = [{
+                                            'content_type' : "text",
+                                            'title'        : "Main Menu",
+                                            'payload'      : "MAIN_MENU"
+                                        }]
+                                    )
 
-                            # -- typed '!end' / 'cancel' / 'quit'
-                            if message_text.lower() in Const.OPT_OUT_REPLIES:
-                                logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-                                opt_out(sender_id)
+                                else:
+                                    # -- typed '!end' / 'cancel' / 'quit'
+                                    if message_text.lower() in Const.OPT_OUT_REPLIES:
+                                        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+                                        opt_out(sender_id)
+
+                                    else:
+                                        send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
+                                        default_carousel(sender_id)
 
                             else:
-                                send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
                                 default_carousel(sender_id)
 
+
+                #-- purchasing
                 elif get_session_state(sender_id) == 2:
                     if 'message' in messaging_event and 'text' in messaging_event['message']:
                         message_text = messaging_event['message']['text']
@@ -854,9 +939,12 @@ def webook():
                             if conn:
                                 conn.close()
 
-                        set_session_purchase(sender_id, 0)
-                        set_session_state(sender_id, 1)
+                        set_session_purchase(sender_id)
+                        set_session_state(sender_id)
                         default_carousel(sender_id)
+
+                else:
+                    default_carousel(sender_id)
 
     return "OK", 200
 
