@@ -126,7 +126,7 @@ class FBUser(db.Model):
 
     @property
     def local_dt(self):
-        return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(pytz.FixedOffset(self.timezone * 60))
+        return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(pytz.FixedOffset((self.timezone or 0) * 60))
 
     @property
     def profile_image(self):
@@ -2021,14 +2021,18 @@ def received_quick_reply(recipient_id, quick_reply):
 
         if customer.product_id is not None:
             product = Product.query.filter(Product.id == customer.product_id).first()
-            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-            if purchase is not None:
-                customer.purchase_id = purchase.id
-                db.session.commit()
-                send_customer_carousel(recipient_id, product.id)
 
+            if product is not None:
+                purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+                if purchase is not None:
+                    customer.purchase_id = purchase.id
+                    db.session.commit()
+                    send_customer_carousel(recipient_id, product.id)
+
+                else:
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
             else:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                send_admin_carousel(recipient_id)
 
         else:
             send_admin_carousel(recipient_id)
@@ -3577,7 +3581,7 @@ def fbbot():
                             customer.product_id = product.id
                             db.session.commit()
 
-                            send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the ${price:.2f} monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER, price=Const.PREMIUM_SHOP_PRICE))
+                            send_text(customer.fb_psid, "You have reached {max_subscriptions} subscribers and your shop is locked. Please select a payment method. taps.io/lmon8".format(max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER))
                             send_storefront_card(customer.fb_psid, product.storefront_id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
                         return "OK", 200
 

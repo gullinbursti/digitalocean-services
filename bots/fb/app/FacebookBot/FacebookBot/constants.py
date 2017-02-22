@@ -31,7 +31,7 @@ class Const(Constants):
     IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]'
 
     SQLITE_ID_START = 524288
-    SUBSCRIBERS_MAX_FREE_TIER = 20
+    SUBSCRIBERS_MAX_FREE_TIER = 100
     PREMIUM_SHOP_PRICE = 4.99
     FEATURED_PRODUCT_ID = 559
 
