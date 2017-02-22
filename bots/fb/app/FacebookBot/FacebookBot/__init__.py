@@ -1511,6 +1511,7 @@ def send_admin_carousel(recipient_id):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
+    feat_product = Product.query.filter(Product.id == Const.FEATURED_PRODUCT_ID).first()
 
     cards = []
 
@@ -1526,6 +1527,18 @@ def send_admin_carousel(recipient_id):
                 ]
             )
         )
+
+        if feat_product is not None:
+            cards.append(
+                build_card_element(
+                    title = feat_product.display_name_utf8,
+                    subtitle = feat_product.description,
+                    image_url = feat_product.image_url,
+                    buttons = [
+                        build_button(Const.CARD_BTN_URL, caption="View Shop", url=feat_product.messenger_url)
+                    ]
+                )
+            )
 
     else:
         product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 5).first()
@@ -1556,10 +1569,7 @@ def send_admin_carousel(recipient_id):
                         subtitle = subtitle,
                         image_url = Const.IMAGE_URL_PURCHASES,
                         buttons = [
-                            # build_button(Const.CARD_BTN_URL_COMPACT, caption="View Purchases", url="http://prebot.me/purchases/stores/{user_id}".format(user_id=customer.id)),
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
-                            # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via Bitcoin", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
-                            # build_button(Const.CARD_BTN_POSTBACK, caption="Payout via PayPal", payload=Const.PB_PAYLOAD_PAYOUT_PAYPAL)
                         ]
                     )
                 )
@@ -1587,18 +1597,6 @@ def send_admin_carousel(recipient_id):
                 )
             )
 
-        # if storefront.giveaway == 0:
-        #     cards.append(
-        #         build_card_element(
-        #             title = "Add Giveaway",
-        #             subtitle = "Add Steam giveaways to your shop.",
-        #             image_url = Const.IMAGE_URL_GIVEAWAYS,
-        #             buttons = [
-        #                 build_button(Const.CARD_BTN_POSTBACK, caption="Add Giveaway", payload=Const.PB_PAYLOAD_ADD_GIVEAWAYS)
-        #             ]
-        #         )
-        #     )
-
         cards.append(
             build_card_element(
                 title = storefront.display_name_utf8,
@@ -1609,6 +1607,18 @@ def send_admin_carousel(recipient_id):
                 ]
             )
         )
+
+        if feat_product is not None:
+            cards.append(
+                build_card_element(
+                    title = feat_product.display_name_utf8,
+                    subtitle = feat_product.description,
+                    image_url = feat_product.image_url,
+                    buttons = [
+                        build_button(Const.CARD_BTN_URL, caption="View Shop", url=feat_product.messenger_url)
+                    ]
+                )
+            )
 
 
     data = build_carousel(
@@ -1718,33 +1728,38 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
             send_tracker("button-paywall", recipient_id, "")
 
             data = build_list_card(
-                recipient_id=recipient_id,
+                recipient_id = recipient_id,
                 body_elements = [
                     build_card_element(
-                        title="${price:.2f} per month",
-                        subtitle="via Bitcoin".format(price=product.price),
-                        image_url=product.image_url,
-                        buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via PayPal", payload=Const.PB_PAYLOAD_PRO_STOREFRONT_PURCHASE)
-
+                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
+                        subtitle = "via Paypal".format(price=product.price),
+                        image_url = product.image_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
+                        ]
+                    ),
+                    build_card_element(
+                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
+                        subtitle = "via Bitcoin".format(price=product.price),
+                        image_url = product.image_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+                        ]
+                    ),
+                    build_card_element(
+                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
+                        subtitle = "via Stripe / CC".format(price=product.price),
+                        image_url = product.image_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
                         ]
                     )
-                ]
-            )
-
-
-
-            data = build_content_card(
-                recipient_id=recipient_id,
-                title="{storefront_name} - {product_name}",
-                subtitle="Your shop is now restricted until you activate a payment plan",
-                image_url=product.landscape_image_url,
-                buttons=[
-                    build_button(Const.KWIK_BTN_TEXT, "Bitcoin", Const.PB_PAYLOAD_PRO_STOREFRONT_PURCHASE),
-                    build_button(Const.KWIK_BTN_TEXT, "CC via Stripe", Const.PB_PAYLOAD_PRO_STOREFRONT_PURCHASE),
-                    build_button(Const.KWIK_BTN_TEXT, "PayPal", Const.PB_PAYLOAD_PRO_STOREFRONT_PURCHASE)
                 ],
-                quick_replies=cancel_entry_quick_reply()
+                header_element = build_card_element(
+                    title = "Your shop is now restricted until you activate a payment plan",
+                    image_url = product.landscape_image_url
+                ),
+                quick_replies = main_menu_quick_replies(recipient_id)
             )
 
         else:
@@ -3568,17 +3583,17 @@ def fbbot():
                 #-- users data
                 logger.info("\n=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
-                logger.info("CUSTOMER -->%s\n" % (customer))
-                logger.info("PURCHASED -->%s\n" % (Purchase.query.filter(Purchase.customer_id == customer.id).all()))
+                logger.info("CUSTOMER -->%s" % (customer))
+                logger.info("PURCHASED -->%s" % (Purchase.query.filter(Purchase.customer_id == customer.id).all()))
 
                 #-- look for created storefronts
-                logger.info("STOREFRONT -->%s\n" % (Storefront.query.filter(Storefront.fb_psid == sender_id).first()))
+                logger.info("STOREFRONT -->%s" % (Storefront.query.filter(Storefront.fb_psid == sender_id).first()))
 
                 #-- product related
                 storefront = Storefront.query.filter(Storefront.fb_psid == sender_id).filter(Storefront.creation_state == 4).first()
                 if storefront is not None:
-                    logger.info("PRODUCTS -->%s\n" % (Product.query.filter(Product.storefront_id == storefront.id).all()))
-                    logger.info("SUBSCRIPTIONS -->%s\n" % (Subscription.query.filter(Subscription.storefront_id == storefront.id).all()))
+                    logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront.id).all()))
+                    logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront.id).all()))
                     logger.info("PURCHASES -->%s" % (Purchase.query.filter(Purchase.storefront_id == storefront.id).all()))
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
