@@ -126,7 +126,7 @@ class FBUser(db.Model):
 
     @property
     def local_dt(self):
-        return datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc).astimezone(tzoffset(None, self.timezone * 100))
+        return datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(pytz.FixedOffset(self.timezone * 60))
 
     @property
     def profile_image(self):
@@ -135,17 +135,17 @@ class FBUser(db.Model):
 
     def __init__(self, fb_psid, graph):
         self.fb_psid = fb_psid
-        self.first_name = graph.get('first_name').encode('utf-8') or None
-        self.last_name = graph.get('last_name').encode('utf-8') or None
-        self.profile_pic_url = graph.get('profile_pic') or None
-        self.locale = graph.get('locale') or None
-        self.timezone = graph.get('timezone') or None
-        self.gender = graph.get('gender') or None
-        self.payments_enabled = graph.get('is_payment_enabled') or False
+        self.first_name = graph['first_name'].encode('utf-8') or None
+        self.last_name = graph['last_name'].encode('utf-8') or None
+        self.profile_pic_url = graph['profile_pic'] or None
+        self.locale = graph['locale'] or None
+        self.timezone = graph['timezone'] or None
+        self.gender = graph['gender'] or None
+        self.payments_enabled = graph['is_payment_enabled'] or False
         self.added = int(time.time())
 
-        def __repr__(self):
-            return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s, [full_name=%s, local_dt=%s, profile_image=%s]>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone, self.gender, self.payments_enabled, self.added, self.full_name, self.local_dt, self.profile_image)
+    def __repr__(self):
+        return "<FBUser id=%s, fb_psid=%s, first_name=%s, last_name=%s, profile_pic_url=%s, locale=%s, timezone=%s, gender=%s, payments_enabled=%s, added=%s, [full_name_utf8=%s, local_dt=%s, profile_image=%s]>" % (self.id, self.fb_psid, self.first_name, self.last_name, self.profile_pic_url, self.locale, self.timezone, self.gender, self.payments_enabled, self.added, self.full_name_utf8, self.local_dt, self.profile_image)
 
 
 class Payment(db.Model):
@@ -404,7 +404,7 @@ class VideoImageRenderer(threading.Thread):
         threading.Thread.__init__(self)
         self.src_url = src_url
         self.out_img = out_img
-        self.at_time = time.strftime("%H:%M:%S", time.gmtime(at_sec))
+        self.at_time = time.strftime('%H:%M:%S', time.gmtime(at_sec))
 
     def run(self):
         p = subprocess.Popen(
@@ -526,25 +526,20 @@ def async_tracker(url, payload):
         logger.info("TRACKER ERROR:%s" % (response.text))
 
 
-def slack_outbound(channel_name, username, webhook, message_text, image_url=None):
-    logger.info("slack_outbound(channel_name=%s, username=%s, webhook=%s, message_text=%s" % (channel_name, username, webhook, message_text))
+def slack_outbound(channel_name, message_text, image_url=None, username=None, webhook=None):
+    logger.info("slack_outbound(channel_name=%s, message_text=%s, image_url=%s, username=%s, webhook=%s" % (channel_name, message_text, image_url, username, webhook))
 
     payload = {
         'channel'    : "#{channel_name}".format(channel_name=channel_name),
-        'username'   : username,
-        'icon_url'   : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
+        'username'   : username or Const.SLACK_ORTHODOX_HANDLE,
+        'icon_url'   : Const.SLACK_ORTHODOX_AVATAR,
         'text'       : message_text
     }
 
-    attachments = []
     if image_url is not None:
-        attachments = [{ 'image_url': image_url }]
+        payload['attachments'] = [{ 'image_url' : image_url }]
 
-    if len(attachments) > 0:
-        payload['attachments'] = attachments
-
-
-    return  requests.post(webhook, data={ 'payload': json.dumps(payload) })
+    return  requests.post(webhook or Const.SLACK_ORTHODOX_WEBHOOK, data={ 'payload' : json.dumps(payload) })
 
 
 
@@ -585,23 +580,24 @@ def sync_user(recipient_id, deeplink=None):
 
             #-- check fb graph data
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            if fb_user is None:
+            if fb_user is None and fb_graph_user(recipient_id) is not None:
                 fb_user = FBUser(recipient_id, fb_graph_user(recipient_id))
                 db.session.add(fb_user)
-            db.session.commit()
+                db.session.commit()
 
-            cur.execute('SELECT `id` FROM `fb_users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
-            row = cur.fetchone()
+            if fb_user is not None:
+                cur.execute('SELECT `id` FROM `fb_users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
+                row = cur.fetchone()
 
-            if row is None:
-                cur.execute('INSERT INTO `fb_users` (`id`, `user_id`, `fb_psid`, `first_name`, `last_name`, `profile_pic_url`, `locale`, `timezone`, `gender`, `payments_enabled`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, recipient_id or "", fb_user.first_name.decode('utf-8') or "", fb_user.last_name.decode('utf-8') or "", fb_user.profile_pic_url or "", fb_user.locale or "", fb_user.timezone or 666, fb_user.gender or "", int(fb_user.payments_enabled)))
-                conn.commit()
-                cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_users`;')
-                fb_user.id = cur.fetchone()['id']
+                if row is None:
+                    cur.execute('INSERT INTO `fb_users` (`id`, `user_id`, `fb_psid`, `first_name`, `last_name`, `profile_pic_url`, `locale`, `timezone`, `gender`, `payments_enabled`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, recipient_id or "", fb_user.first_name.decode('utf-8') or "", fb_user.last_name.decode('utf-8') or "", fb_user.profile_pic_url or "", fb_user.locale or "", fb_user.timezone or 666, fb_user.gender or "", int(fb_user.payments_enabled)))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_users`;')
+                    fb_user.id = cur.fetchone()['id']
 
-            else:
-                fb_user.id = row['id']
-            db.session.commit()
+                else:
+                    fb_user.id = row['id']
+                db.session.commit()
 
     except mysql.Error, e:
         logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
@@ -816,38 +812,31 @@ def purchase_product(recipient_id, source):
 
 
             if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
-                payload = {
-                    'channel' : "#lemonade-shops",
-                    'username' : storefront.display_name_utf8,
-                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                    'text' : text,
-                    'attachments' : [{
-                        'image_url' : product.image_url
-                    }]
-                }
-                response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                slack_outbound(
+                    channel_name = "lemonade-shops",
+                    message_text ="Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr),
+                    image_url = product.image_url,
+                    username = storefront.display_name_utf8,
+                    webhook = Const.SLACK_SHOPS_WEBHOOK
+                )
 
             else:
                 send_text(
                     recipient_id = storefront.fb_psid,
-                    message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your ---bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr),
+                    message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr),
                     quick_replies = [
                         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Enter Bitcoin Address", payload=Const.PB_PAYLOAD_PAYOUT_BITCOIN),
                         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Later", payload=Const.PB_PAYLOAD_MAIN_MENU)
                     ]
                 )
 
-            payload = {
-                'channel' : "#lemonade-purchases",
-                'username' : "fbprebot",
-                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                'text' : "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
-                'attachments' : [{
-                    'image_url' : product.image_url
-                }]
-            }
-            response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+            slack_outbound(
+                channel_name = "lemonade-purchases",
+                message_text = "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                image_url = product.image_url,
+                webhook = Const.SLACK_PURCHASES_WEBHOOK
+            )
+
             return True
 
         elif source == Const.PAYMENT_SOURCE_CREDIT_CARD:
@@ -888,38 +877,30 @@ def purchase_product(recipient_id, source):
 
 
                 if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer your bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
-                    payload = {
-                        'channel' : "#lemonade-shops",
-                        'username' : storefront.display_name_utf8,
-                        'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                        'text' : text,
-                        'attachments' : [{
-                            'image_url' : product.image_url,
-                        }]
-                    }
-                    response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                    slack_outbound(
+                        channel_name = "lemonade-shops",
+                        message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email),
+                        image_url = product.image_url,
+                        username = storefront.display_name_utf8,
+                        webhook = Const.SLACK_SHOPS_WEBHOOK
+                    )
 
                 else:
                     send_text(
                         recipient_id = storefront.fb_psid,
-                        message_text = "Purchase complete for %s at %s.\nTo complete this order send the customer the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
+                        message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")),
                         quick_replies = [
                             build_quick_reply(Const.KWIK_BTN_TEXT, caption="Message Now", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_MESSAGE, purchase_id=purchase.id)),
                             build_quick_reply(Const.KWIK_BTN_TEXT, caption="Not Now", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)
                         ]
                     )
 
-                payload = {
-                    'channel' : "#lemonade-purchases",
-                    'username' : "fbprebot",
-                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                    'text' : "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
-                    'attachments' : [{
-                        'image_url' : product.image_url
-                    }]
-                }
-                response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                slack_outbound(
+                    channel_name = "lemonade-purchases",
+                    message_text ="*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                    image_url = product.image_url,
+                    webhook = Const.SLACK_PURCHASES_WEBHOOK
+                )
 
                 return True
 
@@ -957,7 +938,13 @@ def purchase_product(recipient_id, source):
             send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
             if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                text = "Purchase *#{purchase_id}* complete for _{product_name}_ at {pacific_time}.\nTo complete this order send the customer your bitcoin address {bitcoin_addr}.".format(purchase_id=purchase.id, product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr)
+                slack_outbound(
+                    channel_name = "lemonade-shops",
+                    message_text = "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a PayPal invoice now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email),
+                    image_url = product.image_url,
+                    username = storefront.display_name_utf8,
+                    webhook = Const.SLACK_SHOPS_WEBHOOK
+                )
 
             else:
                 send_text(
@@ -969,7 +956,11 @@ def purchase_product(recipient_id, source):
                     ]
                 )
 
-            response = slack_outbound("lemonade-purchases", "fb-bot", Const.SLACK_PURCHASES_WEBHOOK, "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8))
+            slack_outbound(
+                channel_name = "lemonade-purchases",
+                message_text ="*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                webhook = Const.SLACK_PURCHASES_WEBHOOK
+            )
             return True
 
     return False
@@ -1007,25 +998,24 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.DM_ACTION_PROMPT, messag
         elif dm_action == Const.DM_ACTION_SEND:
             if recipient_id == customer.fb_psid and storefront is not None:
                 if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    payload = {
-                        'channel'     : "#lemonade-shops",
-                        'username'    : storefront.display_name_utf8,
-                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                        'text'        : "Customer for purchase *#%s* says:\n_%s_" % (purchase.id, message_text)
-                    }
-                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                    slack_outbound(
+                        channel_name = "lemonade-shops",
+                        message_text = "Customer for purchase *#{purchase_id}* says:\n_{message_text}_".format(purchase_id=purchase.id, message_text=message_text),
+                        username = storefront.display_name_utf8,
+                        webhook = Const.SLACK_SHOPS_WEBHOOK
+                    )
 
                 else:
                     send_text(
                         recipient_id = storefront.fb_psid,
-                        message_text = "Customer says:\n%s" % (message_text),
+                        message_text = "Customer says:\n{message_text}".format(message_text=message_text),
                         quick_replies = dm_quick_replies(purchase_id, dm_action)
                     )
 
             else:
                 send_text(
                     recipient_id = customer.fb_psid,
-                    message_text = "Seller says:\n%s" % (message_text),
+                    message_text = "Seller says:\n{message_text}".format(message_text=message_text),
                     quick_replies = dm_quick_replies(purchase_id, dm_action)
 
                 )
@@ -1036,13 +1026,12 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.DM_ACTION_PROMPT, messag
 
             if recipient_id == customer.fb_psid:
                 if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    payload = {
-                        'channel'     : "#lemonade-shops",
-                        'username'    : storefront.display_name_utf8,
-                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                        'text'        : "Customer for purchase *#%s* closed DM" % (purchase.id)
-                    }
-                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                    slack_outbound(
+                        channel_name = "lemonade-shops",
+                        message_text = "Customer for purchase *#{purchase_id}* closed DM".format(purchase_id=purchase.id),
+                        username = storefront.display_name_utf8,
+                        webhook = Const.SLACK_SHOPS_WEBHOOK
+                    )
 
                 else:
                     send_text(storefront.fb_psid, "Customer closed the DM...", main_menu_quick_replies(recipient_id))
@@ -1050,13 +1039,12 @@ def route_dm(recipient_id, purchase_id, dm_action=Const.DM_ACTION_PROMPT, messag
 
             else:
                 if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    payload = {
-                        'channel'     : "#lemonade-shops",
-                        'username'    : storefront.display_name_utf8,
-                        'icon_url'    : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                        'text'        : "Closing out DM for purchase *#%s*" % (purchase.id)
-                    }
-                    response = requests.post(Const.SLACK_PURCHASES_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                    slack_outbound(
+                        channel_name = "lemonade-shops",
+                        message_text = "Closing out DM for purchase *#{purchase_id}*".format(purchase_id=purchase.id),
+                        username = storefront.display_name_utf8,
+                        webhook = Const.SLACK_SHOPS_WEBHOOK
+                    )
 
                 else:
                     send_text(storefront.fb_psid, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
@@ -1455,6 +1443,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     if entry_type == Const.MARKETPLACE_GREETING:
+        send_image(recipient_id, Const.IMAGE_URL_GREETING)
         send_text(recipient_id, Const.ORTHODOX_GREETING)
         send_admin_carousel(recipient_id)
 
@@ -1473,19 +1462,17 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             if storefront is not None:
+                if product.video_url is not None and product.video_url != "":
+                    send_video(recipient_id, product.video_url, product.attachment_id)
+
+                else:
+                    if product.image_url is not None:
+                        send_image(recipient_id, product.image_url)
+
                 send_text(
                     recipient_id = recipient_id,
                     message_text = "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                 )
-
-                subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
-                if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
-                    payment = Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL)
-                    db.session.add(purchase)
-                    db.session.commit()
-
-                    send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
-                    send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
 
                 purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
                 if purchase is not None:
@@ -1495,8 +1482,8 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
                 else:
                     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                increment_shop_views(recipient_id, product.id)
 
-            increment_shop_views(recipient_id, product.id)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1514,6 +1501,16 @@ def send_admin_carousel(recipient_id):
     feat_product = Product.query.filter(Product.id == Const.FEATURED_PRODUCT_ID).first()
 
     cards = []
+
+    # subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
+    # if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
+    #     payment = Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL)
+    #     db.session.add(purchase)
+    #     db.session.commit()
+    #
+    #     send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
+    #     send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
+
 
     #-- look for created storefront
     if storefront is None:
@@ -1743,7 +1740,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                         subtitle = "via Bitcoin".format(price=product.price),
                         image_url = product.image_url,
                         buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
                         ]
                     ),
                     build_card_element(
@@ -1751,7 +1748,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                         subtitle = "via Stripe / CC".format(price=product.price),
                         image_url = product.image_url,
                         buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
                         ]
                     )
                 ],
@@ -2098,9 +2095,9 @@ def received_quick_reply(recipient_id, quick_reply):
             )
 
             send_text(
-                recipient_id=recipient_id,
-                message_text="Great! You have created {storefront_name}. Do you want to add your PayPal or Bitcoin to receive payment?".format(storefront_name=storefront.display_name_utf8),
-                quick_replies =[
+                recipient_id = recipient_id,
+                message_text = "Great! You have created {storefront_name}. Do you want to add your PayPal or Bitcoin to receive payment?".format(storefront_name=storefront.display_name_utf8),
+                quick_replies = [
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Add PayPal", Const.PB_PAYLOAD_PAYOUT_PAYPAL),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Add Bitcoin", Const.PB_PAYLOAD_PAYOUT_BITCOIN),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Not Now", Const.PB_PAYLOAD_MAIN_MENU)
@@ -2188,17 +2185,13 @@ def received_quick_reply(recipient_id, quick_reply):
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
 
-            # slack
-            payload = {
-                'channel' : "#pre",
-                'username' : "fbprebot",
-                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                'text' : "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
-                'attachments' : [{
-                    'image_url' : product.image_url
-                }]
-            }
-            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+            slack_outbound(
+                channel_name = Const.SLACK_ORTHODOX_CHANNEL,
+                username = Const.SLACK_ORTHODOX_HANDLE,
+                webhook = Const.SLACK_ORTHODOX_WEBHOOK,
+                message_text = "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
+                image_url = product.image_url
+            )
 
     elif quick_reply == Const.PB_PAYLOAD_REDO_PRODUCT:
         send_tracker("button-redo-product", recipient_id, "")
@@ -2394,18 +2387,14 @@ def received_quick_reply(recipient_id, quick_reply):
 
 
 
-def received_payload_button(recipient_id, payload, referral=None):
-    logger.info("received_payload_button(recipient_id=%s, payload=%s, referral=%s)" % (recipient_id, payload, referral))
+def received_payload_button(recipient_id, payload):
+    logger.info("received_payload_button(recipient_id=%s, payload=%s)" % (recipient_id, payload))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     if payload == Const.PB_PAYLOAD_GREETING:
         logger.info("----------=BOT GREETING @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-
-        if referral is None:
-            send_image(recipient_id, Const.IMAGE_URL_GREETING)
-            welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
-            return "OK", 200
+        welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         send_tracker("button-create-shop", recipient_id, "")
@@ -3544,7 +3533,6 @@ def fbbot():
                 message_id = None
                 message_text = None
                 quick_reply = None
-                referral = None
 
                 # if sender_id == "1214675165306847":
                 #     logger.info("-=- BYPASS-USER -=-")
@@ -3568,8 +3556,10 @@ def fbbot():
                     return "OK", 200
 
 
-                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'xmlcharrefreplace')
-                # referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref']
+                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
+                # referral = None if referral is None or ('postback' not in messaging_event and 'referral' not in messaging_event['postback']) else messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
+                if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
+                    referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
 
                 #-- check mysql for user
                 customer = sync_user(sender_id, referral)
@@ -3584,6 +3574,7 @@ def fbbot():
                 logger.info("\n=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("CUSTOMER -->%s" % (customer))
+                logger.info("FB_USER -->%s" % (FBUser.query.filter(FBUser.fb_psid == sender_id).all()))
                 logger.info("PURCHASED -->%s" % (Purchase.query.filter(Purchase.customer_id == customer.id).all()))
 
                 #-- look for created storefronts
@@ -3606,7 +3597,7 @@ def fbbot():
                     if 'id' in messaging_event:
                         write_message_log(sender_id, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
 
-                    received_payload_button(sender_id, payload, referral)
+                    received_payload_button(sender_id, payload)
                     return "OK", 200
 
 
@@ -3634,7 +3625,6 @@ def fbbot():
 
 
                     if 'text' in message:
-                        # received_text_response(sender_id, message['text'].encode('ascii', 'ignore'))
                         received_text_response(sender_id, message['text'])
                         return "OK", 200
 
@@ -3677,33 +3667,27 @@ def slack():
 
             else:
                 logger.info("PURCHASE NOT FOUND!!")
-                payload = {
-                    'channel' : "#lemonade-shops",
-                    'username' : "shopbot",
-                    'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                    'text' : "Couldn't locate that purchase!"
-                }
-                response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+                slack_outbound(
+                    channel_name = "lemonade-shops",
+                    message_text = "Couldn't locate that purchase!",
+                    webhook = Const.SLACK_SHOPS_WEBHOOK
+                )
 
         else:
             logger.info("PURCHASE NOT FOUND!!")
-            payload = {
-                'channel' : "#lemonade-shops",
-                'username' : "shopbot",
-                'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-                'text' : "Couldn't locate that purchase!"
-            }
-            response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+            slack_outbound(
+                channel_name = "lemonade-shops",
+                message_text = "Couldn't locate that purchase!",
+                webhook = Const.SLACK_SHOPS_WEBHOOK
+            )
 
     else:
         logger.info("INAVLID TOKEN!!")
-        payload = {
-            'channel' : "#lemonade-shops",
-            'username' : "shopbot",
-            'icon_url' : "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png",
-            'text' : "Invalid token!"
-        }
-        response = requests.post(Const.SLACK_SHOPS_WEBHOOK, data={ 'payload' : json.dumps(payload) })
+        slack_outbound(
+            channel_name = "lemonade-shops",
+            message_text = "Invalid token!",
+            webhook = Const.SLACK_SHOPS_WEBHOOK
+        )
 
     return "OK", 200
 

@@ -12,17 +12,18 @@ class Const(Constants):
     MYSQL_USER = 'pre_usr'
     MYSQL_PASS = 'f4zeHUga.age'
 
+    STRIPE_DEV_API_KEY = "sk_test_3QTHaM9IjN2g3AI91Gqqaoxo"
+    STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
+
     SLACK_TOKEN = "DdWzzWFEAqAnK9loyaIFvaFK"
-    SLACK_SHOPS_WEBHOOK = "https://hooks.slack.com/services/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"
-    SLACK_ORTHODOX_WEBHOOK = "https://hooks.slack.com/services/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"
-    SLACK_PURCHASES_WEBHOOK = "https://hooks.slack.com/services/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"
 
     SLACK_ORTHODOX_CHANNEL = "pre"
     SLACK_ORTHODOX_HANDLE = "lemon8-fb"
     SLACK_ORTHODOX_AVATAR = "https://scontent.fsnc1-4.fna.fbcdn.net/t39.2081-0/p128x128/15728018_267940103621073_6998097150915641344_n.png"
+    SLACK_ORTHODOX_WEBHOOK = "https://hooks.slack.com/services/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"
 
-    STRIPE_DEV_API_KEY = "sk_test_3QTHaM9IjN2g3AI91Gqqaoxo"
-    STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
+    SLACK_SHOPS_WEBHOOK = "https://hooks.slack.com/services/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"
+    SLACK_PURCHASES_WEBHOOK = "https://hooks.slack.com/services/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"
 
     WEB_SERVER_IP = "192.241.212.32"
     PACIFIC_TIMEZONE = "America/Los_Angeles"
