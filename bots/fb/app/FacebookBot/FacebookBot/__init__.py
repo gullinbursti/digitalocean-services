@@ -1229,7 +1229,7 @@ def build_card_element(title, subtitle=None, image_url=None, item_url=None, butt
 def build_list_elements(body_elements, header_element=None):
     logger.info("build_list_elements(body_elements=%s, header_element=%s)" % (body_elements, header_element))
 
-    elements = [] if header_element is None else [header_element]
+    elements = [header_element] if header_element is not None else []
     for element in body_elements:
         elements.append(element)
 
@@ -1419,7 +1419,7 @@ def activate_premium_quick_replies(storefront):
     logger.info("activate_premium_quick_replies(storefront=%s)" % (storefront,))
 
     return [
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="${price:.2f}".format(caption=round(Const.PREMIUM_SHOP_PRICE * 0.01)), payload=Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT)
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="${price:.2f}".format(price=Const.PREMIUM_SHOP_PRICE), payload=Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT)
     ] + cancel_entry_quick_reply()
 
 def cancel_entry_quick_reply():
@@ -1452,10 +1452,6 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
-        storefront = None
-        product = None
-        purchase = None
-
         product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 5).first()
         if product is not None:
             customer.product_id = product.id
@@ -1498,19 +1494,8 @@ def send_admin_carousel(recipient_id):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
-    feat_product = Product.query.filter(Product.id == Const.FEATURED_PRODUCT_ID).first()
 
     cards = []
-
-    # subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
-    # if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
-    #     payment = Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL)
-    #     db.session.add(purchase)
-    #     db.session.commit()
-    #
-    #     send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the $4.99 monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER), )
-    #     send_storefront_card(storefront.fb_psid, storefront.id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
-
 
     #-- look for created storefront
     if storefront is None:
@@ -1524,18 +1509,6 @@ def send_admin_carousel(recipient_id):
                 ]
             )
         )
-
-        if feat_product is not None:
-            cards.append(
-                build_card_element(
-                    title = feat_product.display_name_utf8,
-                    subtitle = feat_product.description,
-                    image_url = feat_product.image_url,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="View Shop", url=feat_product.messenger_url)
-                    ]
-                )
-            )
 
     else:
         product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 5).first()
@@ -1605,17 +1578,18 @@ def send_admin_carousel(recipient_id):
             )
         )
 
-        if feat_product is not None:
-            cards.append(
-                build_card_element(
-                    title = feat_product.display_name_utf8,
-                    subtitle = feat_product.description,
-                    image_url = feat_product.image_url,
-                    buttons = [
-                        build_button(Const.CARD_BTN_URL, caption="View Shop", url=feat_product.messenger_url)
-                    ]
-                )
-            )
+    # feat_product = Product.query.filter(Product.id == Const.FEATURED_PRODUCT_ID).first()
+    # if feat_product is not None:
+    #     cards.append(
+    #         build_card_element(
+    #             title = feat_product.display_name_utf8,
+    #             subtitle = feat_product.description,
+    #             image_url = feat_product.image_url,
+    #             buttons = [
+    #                 build_button(Const.CARD_BTN_URL, caption="View Shop", url=feat_product.messenger_url)
+    #             ]
+    #         )
+    #     )
 
 
     data = build_carousel(
@@ -1724,40 +1698,42 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
             send_tracker("button-activate-pro", recipient_id, "")
             send_tracker("button-paywall", recipient_id, "")
 
-            data = build_list_card(
-                recipient_id = recipient_id,
-                body_elements = [
-                    build_card_element(
-                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
-                        subtitle = "via Paypal".format(price=product.price),
-                        image_url = product.image_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
-                        ]
+            product = Product.query.filter(Product.id == 1).first()
+            if product is not None:
+                data = build_list_card(
+                    recipient_id = recipient_id,
+                    body_elements = [
+                        build_card_element(
+                            title = "${price:.2f} per month".format(price=product.price),
+                            subtitle = "via Paypal",
+                            image_url = product.image_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
+                            ]
+                        ),
+                        build_card_element(
+                            title = "${price:.2f} per month".format(price=product.price),
+                            subtitle = "via Bitcoin",
+                            image_url = product.image_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+                            ]
+                        ),
+                        build_card_element(
+                            title = "${price:.2f} per month".format(price=product.price),
+                            subtitle = "via Stripe / CC",
+                            image_url = product.image_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
+                            ]
+                        )
+                    ],
+                    header_element = build_card_element(
+                        title = "Your shop is now restricted until you activate a payment plan",
+                        image_url = product.landscape_image_url
                     ),
-                    build_card_element(
-                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
-                        subtitle = "via Bitcoin".format(price=product.price),
-                        image_url = product.image_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
-                        ]
-                    ),
-                    build_card_element(
-                        title = "${price:.2f} per month".format(price=Const.PREMIUM_SHOP_PRICE),
-                        subtitle = "via Stripe / CC".format(price=product.price),
-                        image_url = product.image_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
-                        ]
-                    )
-                ],
-                header_element = build_card_element(
-                    title = "Your shop is now restricted until you activate a payment plan",
-                    image_url = product.landscape_image_url
-                ),
-                quick_replies = main_menu_quick_replies(recipient_id)
-            )
+                    quick_replies = main_menu_quick_replies(recipient_id)
+                )
 
         else:
             data = build_content_card(
@@ -2090,7 +2066,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 channel_name = Const.SLACK_ORTHODOX_CHANNEL,
                 username = Const.SLACK_ORTHODOX_HANDLE,
                 webhook = Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text = "*{sender_id}* just created a shop named _{storefront_name}_.".format(sender_id=recipient_id, storefront_name=storefront.display_name_utf8),
+                message_text = "*{fb_psid}* just created a shop named _{storefront_name}_.".format(fb_psid=recipient_id, storefront_name=storefront.display_name_utf8),
                 image_url = storefront.logo_url
             )
 
@@ -2189,7 +2165,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 channel_name = Const.SLACK_ORTHODOX_CHANNEL,
                 username = Const.SLACK_ORTHODOX_HANDLE,
                 webhook = Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text = "*{sender_id}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(sender_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
+                message_text = "*{fb_psid}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(fb_psid=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
                 image_url = product.image_url
             )
 
@@ -3566,7 +3542,7 @@ def fbbot():
 
                 #-- entered via url referral
                 if referral is not None:
-                    welcome_message(sender_id, Const.CUSTOMER_REFERRAL, referral)
+                    welcome_message(customer.fb_psid, Const.CUSTOMER_REFERRAL, referral)
                     return "OK", 200
 
 
@@ -3574,20 +3550,37 @@ def fbbot():
                 logger.info("\n=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("CUSTOMER -->%s" % (customer))
-                logger.info("FB_USER -->%s" % (FBUser.query.filter(FBUser.fb_psid == sender_id).all()))
+                logger.info("FB_USER -->%s" % (FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).all()))
                 logger.info("PURCHASED -->%s" % (Purchase.query.filter(Purchase.customer_id == customer.id).all()))
 
-                #-- look for created storefronts
-                logger.info("STOREFRONT -->%s" % (Storefront.query.filter(Storefront.fb_psid == sender_id).first()))
+                #-- storefront & product
+                storefront = Storefront.query.filter(Storefront.fb_psid == customer.fb_psid).first()
+                product = Product.query.filter(Product.fb_psid == customer.fb_psid).first()
+                logger.info("STOREFRONT -->%s" % (storefront))
+                logger.info("PRODUCT -->%s" % (product))
 
                 #-- product related
-                storefront = Storefront.query.filter(Storefront.fb_psid == sender_id).filter(Storefront.creation_state == 4).first()
-                if storefront is not None:
-                    logger.info("PRODUCTS -->%s" % (Product.query.filter(Product.storefront_id == storefront.id).all()))
-                    logger.info("SUBSCRIPTIONS -->%s" % (Subscription.query.filter(Subscription.storefront_id == storefront.id).all()))
-                    logger.info("PURCHASES -->%s" % (Purchase.query.filter(Purchase.storefront_id == storefront.id).all()))
+                if storefront is not None and product is not None:
+                    logger.info("SUBSCRIPTIONS -->%s" % (db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).all()))
+                    logger.info("PURCHASES -->%s" % (db.session.query(Purchase).filter((Purchase.storefront_id == storefront.id) | (Purchase.product_id == product.id)).all()))
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
+
+
+
+                #-- lockout if subscriber count > max
+                if storefront is not None and product is not None:
+                    subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
+                    if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
+                        product = Product.query.filter(Product.id == 1).first()
+                        if product is not None:
+                            customer.product_id = product.id
+                            db.session.commit()
+
+                            send_text(recipient_id, "{storefront_name} has passed {max_subscriptions} subscribers!\n\nIt is now locked until you activate the ${price:.2f} monthly access".format(storefront_name=storefront.display_name_utf8, max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER, price=Const.PREMIUM_SHOP_PRICE))
+                            send_storefront_card(customer.fb_psid, product.storefront_id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
+                        return "OK", 200
+
 
 
                 #-- postback response w/ payload
@@ -3595,41 +3588,41 @@ def fbbot():
                     payload = messaging_event['postback']['payload']
                     logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (payload))
                     if 'id' in messaging_event:
-                        write_message_log(sender_id, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
+                        write_message_log(customer.fb_psid, messaging_event['id'], { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
 
-                    received_payload_button(sender_id, payload)
+                    received_payload_button(customer.fb_psid, payload)
                     return "OK", 200
 
 
                 #-- actual message
                 if 'message' in messaging_event:
-                    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->%s" % (sender_id))
+                    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECEIVED ->%s" % (customer.fb_psid))
 
                     message = messaging_event['message']
                     message_id = message['mid']
 
                     #-- insert to log
-                    write_message_log(sender_id, message_id, message)
+                    write_message_log(customer.fb_psid, message_id, message)
 
                     if 'quick_reply' in message:
                         quick_reply = message['quick_reply']['payload']
                         logger.info("QR --> %s" % (quick_reply))
-                        received_quick_reply(sender_id, quick_reply)
+                        received_quick_reply(customer.fb_psid, quick_reply)
                         return "OK", 200
 
 
                     if 'attachments' in message:
                         for attachment in message['attachments']:
-                            recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+                            recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
                         return "OK", 200
 
 
                     if 'text' in message:
-                        received_text_response(sender_id, message['text'])
+                        received_text_response(customer.fb_psid, message['text'])
                         return "OK", 200
 
                 else:
-                    send_text(sender_id, Const.UNKNOWN_MESSAGE)
+                    send_text(customer.fb_psid, Const.UNKNOWN_MESSAGE)
 
     return "OK", 200
 
