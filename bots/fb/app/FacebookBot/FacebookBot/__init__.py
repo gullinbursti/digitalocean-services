@@ -58,6 +58,7 @@ stripe.api_key = Const.STRIPE_DEV_API_KEY
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
 
+
 class CoerceUTF8(db.TypeDecorator):
     """Safely coerce Python bytestrings to Unicode
     before passing off to the database."""
@@ -135,13 +136,13 @@ class FBUser(db.Model):
 
     def __init__(self, fb_psid, graph):
         self.fb_psid = fb_psid
-        self.first_name = graph['first_name'].encode('utf-8') or None
-        self.last_name = graph['last_name'].encode('utf-8') or None
-        self.profile_pic_url = graph['profile_pic'] or None
-        self.locale = graph['locale'] or None
-        self.timezone = graph['timezone'] or None
-        self.gender = graph['gender'] or None
-        self.payments_enabled = graph['is_payment_enabled'] or False
+        self.first_name = graph['first_name'].encode('utf-8') if 'first_name' in graph else None
+        self.last_name = graph['last_name'].encode('utf-8') if 'last_name' in graph else None
+        self.profile_pic_url = graph['profile_pic'] if 'profile_pic' in graph else None
+        self.locale = graph['locale'] if 'locale' in graph else None
+        self.timezone = graph['timezone'] if 'timezone' in graph else None
+        self.gender = graph['gender'] if 'gender' in graph else None
+        self.payments_enabled = graph['is_payment_enabled'] if 'is_payment_enabled' in graph else False
         self.added = int(time.time())
 
     def __repr__(self):
@@ -204,23 +205,23 @@ class Product(db.Model):
 
     @property
     def messenger_url(self):
-        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url) if self.prebot_url is not None else None
 
     @property
     def thumb_image_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.image_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.image_url) if self.image_url is not None else None
 
     @property
     def landscape_image_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.image_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.image_url) if self.image_url is not None else None
 
     @property
     def widescreen_image_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.image_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.image_url) if self.image_url is not None else None
 
     @property
     def portrait_image_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url) if self.image_url is not None else None
 
 
     def __init__(self, fb_psid, storefront_id):
@@ -317,23 +318,23 @@ class Storefront(db.Model):
 
     @property
     def messenger_url(self):
-        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url)
+        return re.sub(r'^.*\/(.*)$', r'm.me/lmon8?ref=/\1', self.prebot_url) if self.prebot_url is not None else None
 
     @property
     def thumb_logo_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.logo_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-256.\2', self.logo_url) if self.logo_url is not None else None
 
     @property
     def landscape_logo_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.logo_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-400.\2', self.logo_url) if self.logo_url is not None else None
 
     @property
     def widescreen_logo_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.logo_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-1280.\2', self.logo_url) if self.logo_url is not None else None
 
     @property
     def protrait_logo_url(self):
-        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url)
+        return re.sub(r'^(.*)\.(.{2,})$', r'\1-480.\2', self.image_url) if self.logo_url is not None else None
 
 
     def __repr__(self):
@@ -830,9 +831,10 @@ def purchase_product(recipient_id, source):
                     ]
                 )
 
+            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
                 channel_name = "lemonade-purchases",
-                message_text = "*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                message_text = "*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
                 image_url = product.image_url,
                 webhook = Const.SLACK_PURCHASES_WEBHOOK
             )
@@ -895,9 +897,10 @@ def purchase_product(recipient_id, source):
                         ]
                     )
 
+                fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
                 slack_outbound(
                     channel_name = "lemonade-purchases",
-                    message_text ="*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                    message_text ="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
                     image_url = product.image_url,
                     webhook = Const.SLACK_PURCHASES_WEBHOOK
                 )
@@ -956,9 +959,10 @@ def purchase_product(recipient_id, source):
                     ]
                 )
 
+            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
                 channel_name = "lemonade-purchases",
-                message_text ="*{recipient_id}* just purchased {product_name} from _{storefront_name}_.".format(recipient_id=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                message_text ="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
                 webhook = Const.SLACK_PURCHASES_WEBHOOK
             )
             return True
@@ -2066,11 +2070,13 @@ def received_quick_reply(recipient_id, quick_reply):
 
 
             send_tracker("shop-sign-up", recipient_id, "")
+
+            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
                 channel_name = Const.SLACK_ORTHODOX_CHANNEL,
                 username = Const.SLACK_ORTHODOX_HANDLE,
                 webhook = Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text = "*{fb_psid}* just created a shop named _{storefront_name}_.".format(fb_psid=recipient_id, storefront_name=storefront.display_name_utf8),
+                message_text = "*{fb_name}* just created a shop named _{storefront_name}_.".format(fb_fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, storefront_name=storefront.display_name_utf8),
                 image_url = storefront.logo_url
             )
 
@@ -2165,11 +2171,12 @@ def received_quick_reply(recipient_id, quick_reply):
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
 
+            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
                 channel_name = Const.SLACK_ORTHODOX_CHANNEL,
                 username = Const.SLACK_ORTHODOX_HANDLE,
                 webhook = Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text = "*{fb_psid}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(fb_psid=recipient_id, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
+                message_text = "*{fb_name}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, video_url=product.video_url),
                 image_url = product.image_url
             )
 
