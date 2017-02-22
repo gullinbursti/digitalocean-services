@@ -14,7 +14,7 @@ class Const(Constants):
 
     # FLIP_CLAIM_URL = "www.gamebots.chat/giveaway.html"
     FLIP_CLAIM_URL = "taps.io/gamebotsc"
-    FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\n1. Enter your Steam Trade URL\n\n2. Follow instructions: {claim_url}\n\n3. Wait 6 hours.\n"
+    FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\n1. Enter your Steam Trade URL\n\n2. Follow instructions: {claim_url}\n\n3. Wait 6 hours."
 
     FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
     FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"

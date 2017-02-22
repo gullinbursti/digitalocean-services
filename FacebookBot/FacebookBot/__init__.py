@@ -311,7 +311,7 @@ def coin_flip_results(sender_id, item_id=None):
             'channel'     : "#bot-alerts",
             'username'    : "gamebotsc",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Flip Win by *{sender_id}*:\n_{item_name}_\n{pin_code}".format(sender_id=sender_id, item_name=flip_item['item_id'], pin_code=flip_item['pin_code']),
+            'text'        : "Flip Win by *{sender_id}*:\n_{item_name}_\n{pin_code}".format(sender_id=sender_id, item_name=flip_item['name'], pin_code=flip_item['pin_code']),
             'attachments' : [{
                 'image_url' : flip_item['image_url']
             }]
@@ -326,7 +326,8 @@ def coin_flip_results(sender_id, item_id=None):
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
                 cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
-                flip_item['claim_id'] = cur.lastrowid
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `item_winners`;')
+                flip_item['claim_id'] = cur.fetchone()['id']
 
         except mdb.Error, e:
             logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -337,11 +338,11 @@ def coin_flip_results(sender_id, item_id=None):
 
         send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
         send_card(
-            recipient_id=sender_id,
-            title="{item_name}".format(item_name=flip_item['name']),
-            image_url=flip_item['image_url'],
-            card_url=Const.FLIP_CLAIM_URL,
-            buttons=[
+            recipient_id = sender_id,
+            title = "{item_name}".format(item_name=flip_item['name']),
+            image_url = flip_item['image_url'],
+            card_url = Const.FLIP_CLAIM_URL,
+            buttons = [
                 {
                     'type'                 : "element_share"
                 }, {
@@ -812,6 +813,14 @@ def webook():
                                     finally:
                                         if conn:
                                             conn.close()
+
+                                    payload = {
+                                        'channel'    : "#bot-alerts",
+                                        'username'   : "gamebotsc",
+                                        'icon_url'   : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                                        'text'       : "Trade URL set for *{sender_id}*:\n_{trade_url}".format(sender_id=sender_id, trade_url=message['text'])
+                                    }
+                                    response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
                                     send_text(sender_id, "Trade URL set")
                                     default_carousel(sender_id)
