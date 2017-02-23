@@ -2111,7 +2111,7 @@ def received_quick_reply(recipient_id, quick_reply):
                 channel_name = Const.SLACK_ORTHODOX_CHANNEL,
                 username = Const.SLACK_ORTHODOX_HANDLE,
                 webhook = Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text = "*{fb_name}* just created a shop named _{storefront_name}_.".format(fb_fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, storefront_name=storefront.display_name_utf8),
+                message_text = "*{fb_name}* just created a shop named _{storefront_name}_.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, storefront_name=storefront.display_name_utf8),
                 image_url = storefront.logo_url
             )
 
