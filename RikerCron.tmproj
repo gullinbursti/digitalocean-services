@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>cron/etc/lmon8-card-broadcast.conf</string>
+	<string>cron/php/lmon8-storefront-subscriptions.php</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -49,43 +49,105 @@
 	<integer>211</integer>
 	<key>metaData</key>
 	<dict>
-		<key>cron/etc/lmon8-card-broadcast.conf</key>
+		<key>cron/etc/lmon8-storefront-subscriptions.conf</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>8</integer>
+				<integer>14</integer>
 				<key>line</key>
-				<integer>6</integer>
+				<integer>5</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
-		<key>cron/php/lmon8-card-broadcast.php</key>
+		<key>cron/php/fb-flip-broadcast.php</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>29</integer>
+				<integer>7</integer>
 				<key>line</key>
+				<integer>178</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>157</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
 				<integer>4</integer>
+				<key>line</key>
+				<integer>172</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>7</integer>
+				<key>line</key>
+				<integer>178</integer>
+			</dict>
+		</dict>
+		<key>cron/php/lmon8-storefront-subscriptions.php</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>153</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
+			<integer>47</integer>
+		</dict>
+		<key>cron/php/lmon8-text-broadcast.php</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>106</integer>
+				<key>line</key>
+				<integer>109</integer>
+			</dict>
+			<key>columnSelection</key>
+			<false/>
+			<key>firstVisibleColumn</key>
 			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>82</integer>
+			<key>selectFrom</key>
+			<dict>
+				<key>column</key>
+				<integer>98</integer>
+				<key>line</key>
+				<integer>109</integer>
+			</dict>
+			<key>selectTo</key>
+			<dict>
+				<key>column</key>
+				<integer>106</integer>
+				<key>line</key>
+				<integer>109</integer>
+			</dict>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>cron/php/lmon8-card-broadcast.php</string>
-		<string>cron/etc/lmon8-card-broadcast.conf</string>
+		<string>cron/php/lmon8-storefront-subscriptions.php</string>
+		<string>cron/php/fb-flip-broadcast.php</string>
+		<string>cron/php/lmon8-text-broadcast.php</string>
+		<string>cron/etc/lmon8-storefront-subscriptions.conf</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{1602, -182}, {1216, 874}}</string>
+	<string>{{1582, -204}, {1216, 874}}</string>
 </dict>
 </plist>

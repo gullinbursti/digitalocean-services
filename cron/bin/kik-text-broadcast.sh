@@ -1,5 +1,5 @@
 #!/bin/bash
 
-/usr/bin/php /opt/cron/fb/kik-text-broadcast.php "${1}"
+/usr/bin/php /opt/cron/php/kik-text-broadcast.php
 
 exit 0;

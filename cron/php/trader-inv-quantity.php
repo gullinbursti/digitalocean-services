@@ -5,7 +5,7 @@ define('DB_NAME', "db4086_modd");
 define('DB_USER', "db4086_modd_usr");
 define('DB_PASS', "f4zeHUga.age");
 
-// lower 
+// lower
 define('MINIUM_QUANTITY', 20);
 
 // make the connection
@@ -20,7 +20,7 @@ function desc_sort($a, $b) {
   if ($a == $b) {
     return (0);
   }
-  
+
   return (($a < $b) ? -1 : 1);
 }
 
@@ -43,24 +43,24 @@ echo ("Steam inventory left: ". $tot ."\n");
 if (($quantity_bit & 0x01) == 0x01) {
   $query = 'SELECT `name`, `quantity` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY `quantity` DESC;';
   $result = mysqli_query($db_conn, $query);
-  
+
   // tally up items
   while ($inv_obj = mysqli_fetch_object($result)) {
     if (!array_key_exists($inv_obj->name, $inv_arr)) {
       $inv_arr[$inv_obj->name] = 0;
     }
-      
+
     $inv_arr[$inv_obj->name] += $inv_obj->quantity;
   }
-  
+
   uasort($inv_arr, 'desc_sort');
-  
+
   // report as text
   $txt_body = "";
   foreach (array_reverse($inv_arr) as $key=>$val) {
     $txt_body .= sprintf("*%-2s*\t_%s_\n", $val, $key);
   }
-  
+
   $payload_obj = array(
     'channel'  => "#pre",
     'username' => "steam-trader",
@@ -91,7 +91,7 @@ if (count($payload_obj) > 0) {
 
 	$response = curl_exec($ch);
 	curl_close($ch);
-	
+
 	if (strlen($response) > 0) {
 	  echo($response ."\n");
 	}
