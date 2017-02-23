@@ -1145,14 +1145,12 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_video(recipient_id, product.video_url, product.attachment_id)
 
                 else:
-                    if product.image_url is not None:
-                        send_image(recipient_id, product.image_url)
+                    if storefront.landscape_logo_url is not None:
+                        send_image(recipient_id, storefront.landscape_logo_url)
 
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id,
-                                                                                                                                                                                                                        deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(
-                        storefront_name=storefront.display_name_utf8)
+                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                 )
 
                 purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
@@ -1346,20 +1344,36 @@ def build_featured_storefront_elements(recipient_id, amt=3):
         ':us:'
     ]
 
-    products = Product.query.filter(Product.type_id == 1).filter(Product.creation_state == 5).filter(Product.fb_psid != recipient_id).all()
-    for i in range(0, min(max(amt, 0), 3)):
-        product = random.choice(products)
-        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT `id` FROM `products` WHERE `type` = 2 AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(amt, 5),))
 
-        elements.append(build_card_element(
-            title = "{storefront_name} {flag}".format(storefront_name=storefront.display_name_utf8, flag=emoji.emojize(random.choice(flags), use_aliases=True)),
-            subtitle = product.display_name_utf8,
-            image_url = product.landscape_image_url,
-            buttons = [
-                build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
-                build_button(Const.CARD_BTN_INVITE)
-            ]
-        ))
+            for row in cur.fetchall():
+                product = Product.query.filter(Product.id == row['id']).first()
+                if product is not None:
+                    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+                    if storefront is not None:
+                        elements.append(build_card_element(
+                            # title = "{storefront_name} {flag}".format(storefront_name=storefront.display_name_utf8, flag=emoji.emojize(random.choice(flags), use_aliases=True)),
+                            title = storefront.display_name_utf8,
+                            subtitle = product.display_name_utf8,
+                            image_url = product.landscape_image_url,
+                            item_url = product.messenger_url,
+                            buttons = [
+                                build_button(Const.CARD_BTN_POSTBACK, caption="View Shop", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
+                                build_button(Const.CARD_BTN_INVITE)
+                            ]
+                        ))
+
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
 
     return elements
 
@@ -1452,7 +1466,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
                 'payload' : {
                     'template_type'     : "list",
                     'top_element_style' : "compact" if header_element is None else "large",
-                    'elements'          : [header_element] if header_element is not None else [] + body_elements
+                    'elements'          : body_elements if header_element is None else [header_element] + body_elements
                 }
             }
         }
@@ -1616,11 +1630,9 @@ def send_admin_carousel(recipient_id):
         )
 
 
-    # featured_storefronts = build_featured_storefront_elements(recipient_id)
-
     data = build_carousel(
         recipient_id = recipient_id,
-        cards = cards,
+        cards = cards + build_featured_storefront_elements(recipient_id),
         quick_replies = main_menu_quick_replies(recipient_id)
     )
 
@@ -1864,7 +1876,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 header_element = build_card_element(
                     title = storefront.display_name_utf8,
                     subtitle = storefront.description,
-                    image_url = storefront.logo_url,
+                    image_url = storefront.landscape_logo_url,
                     item_url = None
                 ),
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2049,6 +2061,7 @@ def received_quick_reply(recipient_id, quick_reply):
             product = Product.query.filter(Product.id == customer.product_id).first()
 
             if product is not None:
+                increment_shop_views(recipient_id, product.id)
                 purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
                 if purchase is not None:
                     customer.purchase_id = purchase.id
@@ -2143,8 +2156,8 @@ def received_quick_reply(recipient_id, quick_reply):
         send_admin_carousel(recipient_id)
 
 
-    elif re.search('PRODUCT_RELEASE_(\d+)_DAYS', quick_reply) is not None:
-        match = re.match(r'PRODUCT_RELEASE_(?P<days>\d+)_DAYS', quick_reply)
+    elif re.search('^PRODUCT_RELEASE_(\d+)_DAYS$', quick_reply) is not None:
+        match = re.match(r'^PRODUCT_RELEASE_(?P<days>\d+)_DAYS$', quick_reply)
         send_tracker("button-product-release-{days}-days-store".format(days=match.group('days')), recipient_id, "")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 3).first()
@@ -2356,7 +2369,7 @@ def received_quick_reply(recipient_id, quick_reply):
         db.session.commit()
         send_text(recipient_id, "Post your Bitcoin wallet's QR code or type in the address", cancel_entry_quick_reply())
 
-    elif re.search(r'PRODUCT_RATE_\d+_STAR', quick_reply) is not None:
+    elif re.search(r'^PRODUCT_RATE_\d+_STAR$', quick_reply) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', quick_reply)
         send_tracker("button-product-rate-{stars}-star".format(stars=match.group('stars')), recipient_id, "")
 
@@ -2531,6 +2544,31 @@ def received_payload_button(recipient_id, payload):
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
 
 
+    elif re.search('^VIEW_PRODUCT\-(\d+)$', payload) is not None:
+        send_tracker("button-featured-shop", recipient_id, "")
+        product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
+        product = Product.query.filter(Product.id == product_id).first()
+        if product is not None:
+            customer.product_id = product.id
+            db.session.commit()
+
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+            increment_shop_views(recipient_id, product.id)
+
+            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+            if purchase is not None:
+                customer.purchase_id = purchase.id
+                db.session.commit()
+                send_customer_carousel(recipient_id, product.id)
+
+            else:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text = "Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(deeplink=product.name)) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                )
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+
+
     elif payload == Const.PB_PAYLOAD_SUPPORT:
         send_tracker("button-support", recipient_id, "")
         send_text(recipient_id, "Support for Lemonade:\nprebot.me/support")
@@ -2689,9 +2727,9 @@ def received_payload_button(recipient_id, payload):
         send_tracker("button-message-customers", recipient_id, "")
         send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCT_PURCHASES)
 
-    elif re.search('PURCHASE_MESSAGE\-(\d+)', payload) is not None:
+    elif re.search('^PURCHASE_MESSAGE\-(\d+)$', payload) is not None:
         send_tracker("button-purchase-message", recipient_id, "")
-        purchase_id = re.match(r'PURCHASE_MESSAGE\-(?P<purchase_id>\d+)', payload).group('purchase_id')
+        purchase_id = re.match(r'^PURCHASE_MESSAGE\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         purchase.claim_state = 1
         db.session.commit()
