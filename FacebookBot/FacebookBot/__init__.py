@@ -310,7 +310,7 @@ def coin_flip_results(sender_id, item_id=None):
             'channel'     : "#bot-alerts",
             'username'    : "gamebotsc",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Flip Win by *{sender_id}*:\n_{item_name}_\n{pin_code}".format(sender_id=sender_id, item_name=flip_item['name'], pin_code=flip_item['pin_code']),
+            'text'        : "Flip Win by *{user}* ({sender_id}):\n_{item_name}_\n{pin_code}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), sender_id=sender_id, item_name=flip_item['name'], pin_code=flip_item['pin_code']),
             'attachments' : [{
                 'image_url' : flip_item['image_url']
             }]
@@ -443,6 +443,51 @@ def set_session_state(sender_id, state=1):
 
     except sqlite3.Error as er:
         logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_session_name(sender_id):
+    logger.info("get_session_name(sender_id=%s)" % (sender_id))
+    full_name = None
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT f_name, l_name FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            full_name = "%s %s" % (row['f_name'] or "", row['l_name'] or "")
+            if len(full_name) == 1:
+                full_name = None
+
+        logger.info("full_name=%s" % (full_name))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_name[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return full_name
+
+
+def set_session_name(sender_id, first_name=None, last_name=None):
+    logger.info("set_session_name(sender_id=%s, first_name=%s, last_name=%s)" % (sender_id, first_name, last_name))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET f_name = ?, l_name = ? WHERE fb_psid = ?;', (first_name, last_name, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_name[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -751,6 +796,11 @@ def webook():
 
                 #-- existing reply
                 elif get_session_state(sender_id) == 1:
+                    if get_session_name(sender_id) is None:
+                        graph = fb_graph_user(sender_id)
+                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+
+
                     # ------- POSTBACK BUTTON MESSAGE
                     if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                         logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
@@ -816,7 +866,7 @@ def webook():
                                         'channel'    : "#bot-alerts",
                                         'username'   : "gamebotsc",
                                         'icon_url'   : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                                        'text'       : "Trade URL set for *{sender_id}*:\n_{trade_url}".format(sender_id=sender_id, trade_url=message['text'])
+                                        'text'       : "Trade URL set for *{user}*:\n_{trade_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), trade_url=message['text'])
                                     }
                                     response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
@@ -857,7 +907,7 @@ def webook():
                                     'channel'  : "#pre",
                                     'username' : "gamebotsc",
                                     'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                                    'text'     : "*{sender_id}* needs help…".format(sender_id=sender_id),
+                                    'text'     : "*{user}* needs help…".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id)),
                                 }
                                 response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
