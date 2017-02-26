@@ -7,7 +7,7 @@ define('DB_PASS', "f4zeHUga.age");
 
 define('BROADCASTER_ADDR', "162.243.150.21");
 define('BROADCASTER_USER_AGENT', "GameBots-Broadcaster-v3");
-define('FB_MESSAGE_TEMPLATE_PATH', "/opt/cron/etc/fb-text-broadcast.conf");
+define('FB_MESSAGE_TEMPLATE_PATH', "/opt/cron/etc/". basename(__FILE__, ".php") .".conf");
 
 
 function send_tracker($fb_psid) {
@@ -72,8 +72,8 @@ mysqli_set_charset($db_conn, 'utf8');
 // open txt config for templates
 $config_arr = array(
   'FB_GRAPH_API'        => "https://graph.facebook.com/v2.6/me/messages",
-  'FB_ACCESS_TOKEN'     => "EAAXFDiMELKsBADVw92wLSx3GMEpeYcMqgCoFsyw4oZCw2LyMO4MIDJljsVvh4ZAsBp5A9476i7knpaJZAiPpmVnFrRKkJ7DCdWamXJeF0HRKYDMNbJYImDoOmD3B0WmIZBEZAl3jaWusenO6jmUBg1NOEHdGp7ZAV09JxsBUBpVQZDZD",
-  'BODY_TEMPLATE'       => "I am selling a yellow jock for 80% off right now in Lemonade. http://m.me/prebotme?ref=/YellowJock"
+  'FB_ACCESS_TOKEN'     => "EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD",
+  'BODY_TEMPLATE'       => "Gamebots Status: if you won over the last 48hrs please DM us @gamebotsc for fast trade."
 );
 
 $handle = @fopen(FB_MESSAGE_TEMPLATE_PATH, 'r');
