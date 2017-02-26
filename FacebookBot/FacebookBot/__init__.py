@@ -60,7 +60,7 @@ def send_tracker(category, action, label):
 def write_message_log(sender_id, message_id, message_txt):
     logger.info("write_message_log(sender_id=%s, message_id=%s, message_txt=%s)" % (sender_id, message_id, json.dumps(message_txt)))
 
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME)
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -153,8 +153,9 @@ def daily_item_element(sender_id, standalone=False):
     logger.info("daily_item_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
     element = None
+    set_session_item(sender_id)
 
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -162,8 +163,6 @@ def daily_item_element(sender_id, standalone=False):
             row = cur.fetchone()
 
             if row is not None:
-                set_session_item(sender_id, row['id'])
-
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
                     'subtitle'  : "",
@@ -211,7 +210,7 @@ def coin_flip_element(sender_id, standalone=False):
     set_session_item(sender_id)
 
     element = None
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -263,7 +262,7 @@ def coin_flip_results(sender_id, item_id=None):
     flip_item = None
     win_boost = 1
 
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -318,7 +317,7 @@ def coin_flip_results(sender_id, item_id=None):
         }
         response = requests.post("https://hooks.slack.com/services/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",data={'payload': json.dumps(payload)})
 
-        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
@@ -386,7 +385,7 @@ def opt_out(sender_id):
         if conn:
             conn.close()
 
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -589,7 +588,7 @@ def purchase_item(sender_id, payment):
     provider = payment['payment_credential']['provider_type']
     charge_id = payment['payment_credential']['charge_id']
 
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -606,8 +605,7 @@ def purchase_item(sender_id, payment):
         if conn:
             conn.close()
 
-
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
@@ -801,7 +799,7 @@ def webook():
                                     set_session_trade_url(sender_id, message['text'])
 
                                     try:
-                                        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                                        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
                                         with conn:
                                             cur = conn.cursor(mdb.cursors.DictCursor)
                                             cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (message['text'], sender_id))
@@ -934,7 +932,7 @@ def webook():
                             if conn:
                                 conn.close()
 
-                        conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
+                        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
                         try:
                             with conn:
                                 cur = conn.cursor(mdb.cursors.DictCursor)
@@ -958,8 +956,20 @@ def webook():
     return "OK", 200
 
 
+def send_typing_indicator(recipient_id, is_typing):
+    data = {
+        'recipient'    : {
+            'id': recipient_id
+        },
+        'sender_action': "typing_on" if is_typing else "typing_off"
+    }
+
+    send_message(json.dumps(data))
+
+
 def send_text(recipient_id, message_text, quick_replies=None):
     logger.info("send_text(recipient_id=%s, message_text=%s, quick_replies=%s)" % (recipient_id, message_text, quick_replies))
+    send_typing_indicator(recipient_id, True)
 
     data = {
         'recipient' : {
@@ -974,10 +984,12 @@ def send_text(recipient_id, message_text, quick_replies=None):
         data['message']['quick_replies'] = quick_replies
 
     send_message(json.dumps(data))
+    send_typing_indicator(recipient_id, False)
 
 
 def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=None, quick_replies=None):
     logger.info("send_card(recipient_id=%s, title=%s, image_url=%s, card_url=%s, subtitle=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, image_url, card_url, subtitle, buttons, quick_replies))
+    send_typing_indicator(recipient_id, True)
 
     data = {
         'recipient' : {
@@ -1007,10 +1019,12 @@ def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=Non
         data['message']['quick_replies'] = quick_replies
 
     send_message(json.dumps(data))
+    send_typing_indicator(recipient_id, False)
 
 
 def send_carousel(recipient_id, elements, quick_replies=None):
     logger.info("send_carousel(recipient_id=%s, elements=%s, quick_replies=%s)" % (recipient_id, elements, quick_replies))
+    send_typing_indicator(recipient_id, True)
 
     data = {
         'recipient' : {
@@ -1031,10 +1045,12 @@ def send_carousel(recipient_id, elements, quick_replies=None):
         data['message']['quick_replies'] = quick_replies
 
     send_message(json.dumps(data))
+    send_typing_indicator(recipient_id, False)
 
 
 def send_image(recipient_id, url, quick_replies=None):
     logger.info("send_image(recipient_id=%s, url=%s, quick_replies=%s)" % (recipient_id, url, quick_replies))
+    send_typing_indicator(recipient_id, True)
 
     data = {
         'recipient' : {
@@ -1054,10 +1070,12 @@ def send_image(recipient_id, url, quick_replies=None):
         data['message']['quick_replies'] = quick_replies
 
     send_message(json.dumps(data))
+    send_typing_indicator(recipient_id, False)
 
 
 def send_video(recipient_id, url, quick_replies=None):
     logger.info("send_image(recipient_id=%s, url=%s, quick_replies=%s)" % (recipient_id, url, quick_replies))
+    send_typing_indicator(recipient_id, True)
 
     data = {
         'recipient' : {
@@ -1077,11 +1095,11 @@ def send_video(recipient_id, url, quick_replies=None):
         data['message']['quick_replies'] = quick_replies
 
     send_message(json.dumps(data))
+    send_typing_indicator(recipient_id, False)
 
 
 def send_message(payload):
     logger.info("send_message(payload=%s)" % (payload))
-
 
     response = requests.post(
         url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
@@ -1090,9 +1108,18 @@ def send_message(payload):
     )
 
     logger.info("GRAPH RESPONSE (%s): %s" % (response.status_code, response.text))
-
     return True
 
+
+def fb_graph_user(recipient_id):
+    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id))
+
+    params = {
+        'fields'      : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
+        'access_token': Const.ACCESS_TOKEN
+    }
+    response = requests.get("https://graph.facebook.com/v2.6/{recipient_id}".format(recipient_id=recipient_id), params=params)
+    return None if 'error' in response.json() else response.json()
 
 if __name__ == '__main__':
     app.run(debug=True)
