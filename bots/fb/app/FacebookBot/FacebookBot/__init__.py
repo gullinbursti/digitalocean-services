@@ -2977,7 +2977,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
         logger.info("VIDEO: %s" % (payload['url']))
 
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).first()
-        if storefront.creation_state < 4:
+        if storefront is None or storefront.creation_state < 4:
             handle_wrong_reply(recipient_id)
 
         storefront_query = db.session.query(Storefront.id).filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).subquery('storefront_query')

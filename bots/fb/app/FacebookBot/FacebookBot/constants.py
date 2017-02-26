@@ -28,7 +28,7 @@ class Const(Constants):
     WEB_SERVER_IP = "192.241.212.32"
     PACIFIC_TIMEZONE = "America/Los_Angeles"
     RATE_GLYPH = u'\u2605'.encode('utf8')
-    IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]'
+    IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]'
 
     SQLITE_ID_START = 524288
     SUBSCRIBERS_MAX_FREE_TIER = 100

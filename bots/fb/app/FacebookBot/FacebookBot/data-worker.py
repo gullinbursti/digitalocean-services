@@ -417,7 +417,7 @@ def add_storefront(fb_psid, name, description, logo_url):
     storefront_tmp = Storefront(fb_psid)
     storefront_tmp.creation_state = 4
     storefront_tmp.display_name = name
-    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'ignore'))
+    storefront_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'ignore'))
     storefront_tmp.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_tmp.name)
     storefront_tmp.logo_url = "http://prebot.me/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
     storefront_tmp.description = description
@@ -493,7 +493,7 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
     product_tmp = Product(fb_psid, storefront.id)
     product_tmp.creation_state = 5
     product_tmp.display_name = name
-    product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'xmlcharrefreplace'))
+    product_tmp.name = re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\]', "", name.encode('ascii', 'xmlcharrefreplace'))
     product_tmp.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_tmp.name)
     product_tmp.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=random.randint(2, 4))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
     product_tmp.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(int(product_tmp.release_date)).strftime('%a, %b %-d'))
