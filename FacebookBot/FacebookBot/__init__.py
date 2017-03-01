@@ -204,7 +204,7 @@ def daily_item_element(sender_id, standalone=False):
                             ],
                             'price_list' : [{
                                 'label'  : "Subtotal",
-                                'amount' : row['min_sell']
+                                'amount' : row['min_sell'] * 0.5
                             }]
                         }
                     }]
