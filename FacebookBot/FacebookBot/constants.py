@@ -14,10 +14,42 @@ class Const(Constants):
 
     # FLIP_CLAIM_URL = "www.gamebots.chat/giveaway.html"
     FLIP_CLAIM_URL = "taps.io/gamebotsc"
-    FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\n1. Enter your Steam Trade URL\n\n2. Follow instructions: {claim_url}\n\n3. Wait 6 hours."
+    # FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\n1. Enter your Steam Trade URL\n\n2. Follow instructions: {claim_url}\n\n3. Wait 6 hours."
+    FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\nEnter your Steam Trade URL now."
+
+    TRADE_URL_PURCHASE = "TRADE_URL_PURCHASE"
+    TRADE_URL_FLIP_ITEM = "TRADE_URL_FLIP_ITEM"
 
     FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
     FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
     FLIP_COIN_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
 
-    OPT_OUT_REPLIES = "optout|quit|end|stop|cancel|exit"
+    SESSION_STATE_UNKNOWN                 = -1
+    SESSION_STATE_NEW_USER                = 0
+    SESSION_STATE_HOME                    = 1
+    SESSION_STATE_FLIPPING                = 2
+    SESSION_STATE_FLIP_TRADE_URL          = 3
+    SESSION_STATE_FLIP_LMON8_URL          = 4
+
+    SESSION_STATE_DAILY_ITEM              = 7
+    SESSION_STATE_CHECKOUT_ITEM           = 8
+    SESSION_STATE_PURCHASE_ITEM           = 9
+    SESSION_STATE_PURCHASED_ITEM          = 10
+    SESSION_STATE_PURCHASED_TRADE_URL     = 11
+
+    PAYLOAD_TYPE_QUICK_REPLY = "PAYLOAD_TYPE_QUICK_REPLY"
+    PAYLOAD_TYPE_POSTBACK = "PAYLOAD_TYPE_POSTBACK"
+    PAYLOAD_TYPE_ATTACHMENT = "PAYLOAD_TYPE_ATTACHMENT"
+    PAYLOAD_TYPE_OTHER = "PAYLOAD_TYPE_OTHER"
+
+
+    PAYLOAD_ATTACHMENT_TEXT = "PAYLOAD_ATTACHMENT-text"
+    PAYLOAD_ATTACHMENT_IMAGE = "PAYLOAD_ATTACHMENT-image"
+    PAYLOAD_ATTACHMENT_VIDEO = "PAYLOAD_ATTACHMENT-video"
+    PAYLOAD_ATTACHMENT_URL = "PAYLOAD_ATTACHMENT-url"
+    PAYLOAD_ATTACHMENT_FALLBACK = "PAYLOAD_ATTACHMENT-fallback"
+    PAYLOAD_ATTACHMENT_OTHER = "PAYLOAD_ATTACHMENT-OTHER"
+
+
+    MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
+    OPT_OUT_REPLIES = "optout|quit|end|stop|exit"

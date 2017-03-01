@@ -74,14 +74,19 @@ def write_message_log(sender_id, message_id, message_txt):
             conn.close()
 
 
-def main_menu_quick_replies():
-    logger.info("main_menu_quick_replies()")
-    return [
+def main_menu_quick_reply():
+    logger.info("home_quick_replies()")
+    return [{
+        'content_type': "text",
+        'title'       : "Main Menu",
+        'payload'     : "MAIN_MENU"
+    }]
+
+
+def home_quick_replies():
+    logger.info("home_quick_replies()")
+    return main_menu_quick_reply() + [
         {
-            'content_type' : "text",
-            'title'        : "Main Menu",
-            'payload'      : "MAIN_MENU"
-        }, {
             'content_type' : "text",
             'title'        : "Invite Friends Now",
             'payload'      : "INVITE"
@@ -91,6 +96,23 @@ def main_menu_quick_replies():
             'payload'      : "SUPPORT"
         }
     ]
+
+
+def submit_quick_replies(captions=["Yes", "No"]):
+    logger.info("submit_quick_replies()")
+    return [{
+        'content_type': "text",
+        'title'       : captions[0],
+        'payload'     : "SUBMIT_YES"
+    }, {
+        'content_type': "text",
+        'title'       : captions[1],
+        'payload'     : "SUBMIT_NO"
+    }, {
+        'content_type': "text",
+        'title'       : "Cancel",
+        'payload'     : "SUBMIT_CANCEL"
+    }]
 
 
 def coin_flip_quick_replies():
@@ -145,7 +167,7 @@ def default_carousel(sender_id):
     send_carousel(
         recipient_id=sender_id,
         elements=elements,
-        quick_replies=main_menu_quick_replies()
+        quick_replies=home_quick_replies()
     )
 
 
@@ -207,6 +229,7 @@ def daily_item_element(sender_id, standalone=False):
 def coin_flip_element(sender_id, standalone=False):
     logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
 
+    item_id = None
     set_session_item(sender_id)
 
     element = None
@@ -218,7 +241,8 @@ def coin_flip_element(sender_id, standalone=False):
             row = cur.fetchone()
 
             if row is not None:
-                set_session_item(sender_id, row['id'])
+                item_id = row['id']
+                set_session_item(sender_id, item_id)
 
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
@@ -227,7 +251,7 @@ def coin_flip_element(sender_id, standalone=False):
                     'item_url'  : None,
                     'buttons'   : [{
                         'type'    : "postback",
-                        'payload' : "FLIP_COIN",
+                        'payload' : "FLIP_COIN-{item_id}".format(item_id=item_id),
                         'title'   : "Flip Coin"
                     }]
                 }
@@ -235,8 +259,8 @@ def coin_flip_element(sender_id, standalone=False):
                 if standalone is True:
                     element['buttons'].append({
                         'type'    : "postback",
-                        'payload' : "NO_THANKS",
-                        'title'   : "No Thanks"
+                        'title'   : "Menu",
+                        'payload' : "MAIN_MENU"
                     })
 
     except mdb.Error, e:
@@ -355,6 +379,7 @@ def coin_flip_results(sender_id, item_id=None):
 
         send_text(sender_id, Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL, sender_id=sender_id))
         set_session_trade_url(sender_id, "_{PENDING}_")
+        set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
 
     else:
         send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
@@ -363,48 +388,20 @@ def coin_flip_results(sender_id, item_id=None):
             message_text="TRY AGAIN! You lost {item_name} from {game_name}.".format(item_name=flip_item['name'], game_name=flip_item['game_name']),
             quick_replies=coin_flip_quick_replies()
         )
+        clear_session_dub(sender_id)
 
 
-def opt_out(sender_id):
-    logger.info("opt_out(sender_id=%s)" % (sender_id))
 
-    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    try:
-        cur = conn.cursor()
-        cur.execute('SELECT id FROM blacklisted_users WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
-        row = cur.fetchone()
 
-        if row is None:
-            cur.execute('INSERT INTO blacklisted_users (id, fb_psid, added) VALUES (NULL, ?, ?);', (sender_id, int(time.time())))
-            conn.commit()
+def check_lmon8_url(sender_id, deeplink=None):
+    logger.info("check_lmon8_url(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
 
-    except sqlite3.Error as er:
-        logger.info("::::::opt_out[cur.execute] sqlite3.Error - %s" % (er.message,))
 
-    finally:
-        if conn:
-            conn.close()
-
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('UPDATE `fbbot_logs` SET `enabled` = 0 WHERE `chat_id` = %s;', (sender_id,))
-            conn.commit()
-
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-    send_text(sender_id, "You will no longer recieve messages from Gamebots. If you need help visit facebook.com/gamebotsc", opt_out_quick_replies())
 
 
 def get_session_state(sender_id):
     logger.info("get_session_state(sender_id=%s)" % (sender_id))
-    state = 0
+    state = Const.SESSION_STATE_NEW_USER
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
@@ -427,14 +424,15 @@ def get_session_state(sender_id):
 
     return state
 
-def set_session_state(sender_id, state=1):
+def set_session_state(sender_id, state=Const.SESSION_STATE_HOME):
     logger.info("set_session_state(sender_id=%s, state=%s)" % (sender_id, state))
 
     current_state = get_session_state(sender_id)
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        if current_state == 0:
+        if current_state == Const.SESSION_STATE_NEW_USER:
             cur.execute('INSERT INTO sessions (id, fb_psid, state, added) VALUES (NULL, ?, ?, ?);', (sender_id, state, int(time.time())))
 
         else:
@@ -482,6 +480,7 @@ def set_session_name(sender_id, first_name=None, last_name=None):
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET f_name = ?, l_name = ? WHERE fb_psid = ?;', (first_name, last_name, sender_id))
         conn.commit()
@@ -494,28 +493,32 @@ def set_session_name(sender_id, first_name=None, last_name=None):
             conn.close()
 
 
-def get_session_item(sender_id):
+def get_session_item(sender_id, type="flip"):
     logger.info("get_session_item(sender_id=%s)" % (sender_id))
     item_id = None
 
-    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    try:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
-        row = cur.fetchone()
+    if type == "flip":
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('SELECT flip_id FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+            row = cur.fetchone()
 
-        if row is not None:
-            item_id = row['flip_id']
+            if row is not None:
+                item_id = row['flip_id']
 
-        logger.info("item_id=%s" % (item_id))
+            logger.info("item_id=%s" % (item_id))
 
-    except sqlite3.Error as er:
-        logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        except sqlite3.Error as er:
+            logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
 
-    finally:
-        if conn:
-            conn.close()
+        finally:
+            if conn:
+                conn.close()
+
+    else:
+        purchase_id, item_id = get_session_purchase(sender_id)
 
     return item_id
 
@@ -524,6 +527,7 @@ def set_session_item(sender_id, item_id=0):
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET flip_id = ? WHERE fb_psid = ?;', (item_id, sender_id))
         conn.commit()
@@ -567,6 +571,7 @@ def set_session_trade_url(sender_id, trade_url=None):
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET trade_url = ? WHERE fb_psid = ?;', (trade_url, sender_id))
         conn.commit()
@@ -582,6 +587,7 @@ def set_session_trade_url(sender_id, trade_url=None):
 def get_session_purchase(sender_id):
     logger.info("get_session_purchase(sender_id=%s)" % (sender_id))
     purchase_id = None
+    item = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
@@ -592,6 +598,11 @@ def get_session_purchase(sender_id):
 
         if row is not None:
             purchase_id = row['purchase_id']
+            cur.execute('SELECT item_id FROM payments WHERE id = ? ORDER BY added DESC LIMIT 1;', (purchase_id,))
+            row = cur.fetchone()
+            if row is not None:
+                item = get_item_details(row['item_id'])
+
 
         logger.info("purchase_id=%s" % (purchase_id))
 
@@ -602,13 +613,102 @@ def get_session_purchase(sender_id):
         if conn:
             conn.close()
 
-    return purchase_id
+    return (purchase_id, item['id'])
+
+
+
+def get_item_details(item_id):
+    logger.info("get_item_details(item_id=%s)" % (item_id))
+
+    item = None
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` IN (SELECT `item_id` FROM  `fb_purchases` WHERE `id` = %s) LIMIT 1;', (item_id,))
+            row = cur.fetchone()
+            if row is not None:
+                item = row
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return item
+
+
+def toggle_opt_out(sender_id, is_optout=True):
+    logger.info("toggle_opt_out(sender_id=%s, is_optout=%s)" % (sender_id, is_optout))
+
+    is_prev_oo = False
+    try:
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT id FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
+        row = cur.fetchone()
+
+        is_prev_oo = True if row is not None else False
+
+        if is_prev_oo == False and is_optout == True:
+            cur.execute('INSERT INTO blacklisted_users (id, fb_psid, added) VALUES (NULL, ?, ?);', (sender_id, int(time.time())))
+            conn.commit()
+
+        elif is_prev_oo == True and is_optout == False:
+            cur.execute('DELETE FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
+            conn.commit()
+
+
+        conn.close()
+
+
+    except sqlite3.Error as er:
+        logger.info("::::::opt_out[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('UPDATE `fbbot_logs` SET `enabled` = %s WHERE `chat_id` = %s;', (1 if is_optout else 0, sender_id,))
+            conn.commit()
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    if is_optout:
+        send_text(sender_id, "You will have opted out of Gamebots & will no longer recieve messages from Gamebots. If you need help visit facebook.com/gamebotsc", opt_out_quick_replies())
+        return "OK", 200
+
+
+def clear_session_dub(sender_id):
+    logger.info("clear_session_dub(sender_id=%s)" % (sender_id,))
+
+    set_session_item(sender_id)
+
+    if get_session_trade_url(sender_id) == "_{PENDING}_":
+        set_session_trade_url(sender_id)
+
+
+    set_session_state(sender_id)
+
 
 def set_session_purchase(sender_id, purchase_id=0):
     logger.info("set_session_purchase(sender_id=%s, purchase_id=%s)" % (sender_id, purchase_id))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
+        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('UPDATE sessions SET purchase_id = ? WHERE fb_psid = ?;', (purchase_id, sender_id))
         conn.commit()
@@ -643,35 +743,30 @@ def purchase_item(sender_id, payment):
             if row is not None:
                 item_name = row['name']
 
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            f_name = get_session_name(sender_id) or " ".split()[0]
+            l_name = get_session_name(sender_id) or " ".split()[-1]
+            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, f_name, l_name, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
             conn.commit()
+
             cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
             row = cur.fetchone()
             purchase_id = row['id']
 
+
     except mdb.Error, e:
         logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
             conn.close()
+
 
     if purchase_id != 0:
         set_session_purchase(sender_id, purchase_id)
 
         try:
             conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+            conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
             conn.commit()
@@ -683,14 +778,15 @@ def purchase_item(sender_id, payment):
             if conn:
                 conn.close()
 
-    set_session_state(sender_id, 2)
+    # -- state 8 means purchased, but no trade url yet…
+    set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
     send_text(sender_id, "You have successfully purchased {item_name}, please enter your steam trade url to recieve it".format(item_name=item_name))
 
     payload = {
-        'channel' : "#gamebots-purchases",
-        'username': "gamebotsc",
-        'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-        'text'    : "*{customer_email}* ({fb_psid}) just purchased _{item_name}_ for ${item_price:%.2f}".format(customer_email=customer_email, fb_psid=sender_id, item_name=item_name, item_price=amount),
+        'channel'  : "#gamebots-purchases",
+        'username' : "gamebotsc",
+        'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+        'text'     : "*{customer_email}* ({fb_psid}) just purchased _{item_name}_ for ${item_price:%.2f}".format(customer_email=customer_email, fb_psid=sender_id, item_name=item_name, item_price=amount),
     }
     response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
@@ -738,54 +834,24 @@ def webook():
 
 
                 sender_id = messaging_event['sender']['id']
+                message = messaging_event['message'] if 'message' in messaging_event else None
+                message_id = message['mid'] if message is not None and 'mid' in message else messaging_event['id'] if 'id' not in entry else entry['id']
+                quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None# (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
+                logger.info("QR --> %s" % (quick_reply or None,))
+
+                # -- insert to log
+                write_message_log(sender_id, message_id, { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
 
 
                 if 'payment' in messaging_event: # payment result
                     logger.info("-=- PAYMENT -=-")
+                    set_session_state(sender_id, Const.SESSION_STATE_PURCHASE_ITEM)
                     purchase_item(sender_id, messaging_event['payment'])
                     return "OK", 200
 
 
-
-                try:
-                    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-                    cur = conn.cursor()
-                    cur.execute('SELECT id FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
-                    row = cur.fetchone()
-                    if row is not None:
-                        if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and messaging_event['message']['quick_reply']['payload'] == "OPT_IN":
-                            cur.execute('DELETE FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
-                            conn.commit()
-                            conn.close()
-
-                            conn2 = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME);
-                            try:
-                                with conn2:
-                                    cur2 = conn.cursor(mdb.cursors.DictCursor)
-                                    cur2.execute('UPDATE `fbbot_logs` SET `enabled` = 1 WHERE `chat_id` = %s;', (sender_id,))
-                                    conn2.commit()
-
-                            except mdb.Error, e:
-                                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                            finally:
-                                if conn2:
-                                    cur2.close()
-
-                        else:
-                            send_text(sender_id, "You have opted out of Gamebots.", opt_out_quick_replies())
-                            return "OK", 200
-
-                except sqlite3.Error as er:
-                    logger.info("::::::optin[cur.execute] sqlite3.Error - %s" % (er.message,))
-
-                finally:
-                    if conn:
-                        cur.close()
-
-
                 #-- new entry
-                if get_session_state(sender_id) == 0:
+                if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
                     logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
                     send_tracker("signup-fb", sender_id, "")
 
@@ -794,211 +860,50 @@ def webook():
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
 
-                #-- existing reply
-                elif get_session_state(sender_id) == 1:
+                #-- existing
+                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_CHECKOUT_ITEM:
                     if get_session_name(sender_id) is None:
                         graph = fb_graph_user(sender_id)
                         set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
-
-
-                    # ------- POSTBACK BUTTON MESSAGE
-                    if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
-                        logger.info("-=- POSTBACK RESPONSE -=- (%s)" % (messaging_event['postback']['payload']))
-
-                        if messaging_event['postback']['payload'] == "WELCOME_MESSAGE":
-                            logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-                            send_tracker("signup-fb", sender_id, "")
-                            default_carousel(sender_id)
-                            return "OK", 200
-
-                        if re.search('FLIP_COIN-(\d+)', messaging_event['postback']['payload']) is not None:
-                            send_tracker("flip-item", sender_id, "")
-                            coin_flip_results(sender_id, re.match(r'FLIP_COIN-(?P<item_id>\d+)', messaging_event['postback']['payload']).group('item_id'))
-
-                        elif messaging_event['postback']['payload'] == "FLIP_COIN" and get_session_item(sender_id) is not None:
-                            send_tracker("flip-item", sender_id, "")
-                            coin_flip_results(sender_id, get_session_item(sender_id))
-                            return "OK", 200
-
-                        if messaging_event['postback']['payload'] == "NO_THANKS":
-                            send_tracker("no-thanks", sender_id, "")
-
-                        elif messaging_event['postback']['payload'] == "MAIN_MENU":
-                            send_tracker("main-menu", sender_id, "")
-
+                        set_session_state(sender_id, Const.SESSION_STATE_HOME)
                         default_carousel(sender_id)
-                        return "OK", 200
+
+                    else:
+
+                        # ------- POSTBACK BUTTON MESSAGE
+                        if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                            logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
+                            handle_payload(sender_id, Const.PAYLOAD_TYPE_POSTBACK, messaging_event['postback']['payload'])
+                            return "OK", 200
 
 
-                    # -- actual message
-                    if 'message' in messaging_event:
-                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
 
-                        message = messaging_event['message']
+                        # -- actual message w/ txt
+                        if 'message' in messaging_event:
+                            logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
 
-                        # MESSAGE CREDENTIALS
-                        message_id = message['mid']
+                            # ------- QUICK REPLY BUTTON
+                            if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
+                                logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
+                                handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
+                                return "OK", 200
 
-                        # -- insert to log
-                        write_message_log(sender_id, message_id, message)
-
-                        # ------- IMAGE MESSAGE
-                        if 'attachments' in message:
-                            for attachment in message['attachments']:
-                                if 'url' in attachment and get_session_trade_url(sender_id) == "_{PENDING}_":
-                                    set_session_trade_url(sender_id, message['text'])
-
-                                    try:
-                                        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                                        with conn:
-                                            cur = conn.cursor(mdb.cursors.DictCursor)
-                                            cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (message['text'], sender_id))
-                                            conn.commit()
-
-                                    except mdb.Error, e:
-                                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                                    finally:
-                                        if conn:
-                                            conn.close()
-
-                                    payload = {
-                                        'channel'    : "#bot-alerts",
-                                        'username'   : "gamebotsc",
-                                        'icon_url'   : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                                        'text'       : "Trade URL set for *{user}*:\n_{trade_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), trade_url=message['text'])
-                                    }
-                                    response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-
-                                    send_text(sender_id, "Trade URL set")
-                                    default_carousel(sender_id)
-
-                                else:
-                                    send_text(sender_id, "I'm sorry, I cannot understand that type of message.", main_menu_quick_replies())
-                                    return "OK", 200
-
-
-                        # ------- QUICK REPLY BUTTON
-                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
-                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
-                            quick_reply = messaging_event['message']['quick_reply']['payload']
-
-                            send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()),  messaging_event['sender']['id'], "")
-
-                            if quick_reply == "INVITE":
-                                send_card(
-                                    recipient_id=sender_id,
-                                    title="Share",
-                                    image_url=Const.FLIP_COIN_START_GIF_URL,
-                                    card_url="http://m.me/gamebotsc",
-                                    buttons=[{'type': "element_share"}],
-                                    quick_replies=[{
-                                        'content_type' : "text",
-                                        'title'        : "Main Menu",
-                                        'payload'      : "MAIN_MENU"
-                                    }]
-                                )
-
-                            elif quick_reply == "SUPPORT":
-                                send_text(sender_id, "If you need help visit facebook.com/gamebotsc")
-                                default_carousel(sender_id)
-
-                                payload = {
-                                    'channel'  : "#pre",
-                                    'username' : "gamebotsc",
-                                    'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                                    'text'     : "*{user}* needs help…".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id)),
-                                }
-                                response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-
-                            elif quick_reply == "NEXT_ITEM":
-                                send_tracker("next-item", sender_id, "")
-                                default_carousel(sender_id)
-
-                                # send_carousel(recipient_id=sender_id, elements=[coin_flip_element(sender_id, True)])
-
-                            elif quick_reply == "NO_THANKS":
-                                send_tracker("no-thanks", sender_id, "")
-                                default_carousel(sender_id)
-
-                            elif quick_reply == "MAIN_MENU":
-                                send_tracker("todays-item", sender_id, "")
-
-                                if get_session_trade_url(sender_id) == "_{PENDING}_":
-                                    set_session_trade_url(sender_id)
-
-                                default_carousel(sender_id)
-
-                            else:
-                                default_carousel(sender_id)
-
-
-                        else:
                             # ------- TYPED TEXT MESSAGE
                             if 'text' in message:
-                                message_text = message['text']
+                                recieved_text_reply(sender_id, message['text'])
+                                return "OK", 200
 
-                                if get_session_trade_url(sender_id) == "_{PENDING}_":
-                                    send_text(
-                                        recipient_id = sender_id,
-                                        message_text = "Invalid URL, try again...",
-                                        quick_replies = [{
-                                            'content_type' : "text",
-                                            'title'        : "Main Menu",
-                                            'payload'      : "MAIN_MENU"
-                                        }]
-                                    )
-
-                                else:
-                                    # -- typed '!end' / 'cancel' / 'quit'
-                                    if message_text.lower() in Const.OPT_OUT_REPLIES:
-                                        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-                                        opt_out(sender_id)
-
-                                    else:
-                                        send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.")
-                                        default_carousel(sender_id)
-
-                            else:
-                                default_carousel(sender_id)
+                            # ------- ATTACHMENT SENT
+                            if 'attachments' in message:
+                                for attachment in message['attachments']:
+                                    recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+                                return "OK", 200
 
 
-                #-- purchasing
-                elif get_session_state(sender_id) == 2:
-                    if 'message' in messaging_event and 'text' in messaging_event['message']:
-                        message_text = messaging_event['message']['text']
-                        purchase_id = get_session_purchase(sender_id)
-
-                        try:
-                            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-                            cur = conn.cursor()
-                            cur.execute('UPDATE payments SET `trade_url` = ? WHERE `id` = ? LIMIT 1;', (message_text, purchase_id))
-                            conn.commit()
-
-                        except sqlite3.Error as er:
-                            logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message,))
-
-                        finally:
-                            if conn:
-                                conn.close()
-
-                        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                        try:
-                            with conn:
-                                cur = conn.cursor(mdb.cursors.DictCursor)
-                                cur.execute('UPDATE `fb_purchases` SET `trade_url` = %s WHERE `id` = %s LIMIT 1;', (message_text, purchase_id))
-                                conn.commit()
-
-                        except mdb.Error, e:
-                            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                        finally:
-                            if conn:
-                                conn.close()
-
-                        set_session_purchase(sender_id)
-                        set_session_state(sender_id)
-                        default_carousel(sender_id)
+                #-- purchased -- now capture trade url
+                elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_ITEM:
+                    if 'message' in messaging_event and 'text' in messaging_event['message'] and get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_ITEM and re.search(r'^[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$', messaging_event['message']['text']) is not None:
+                        recieved_trade_url(sender_id, messaging_event['message']['text'], Const.TRADE_URL_PURCHASE)
 
                 else:
                     default_carousel(sender_id)
@@ -1006,12 +911,282 @@ def webook():
     return "OK", 200
 
 
+
+def recieved_quick_reply(sender_id, quick_reply):
+    logger.info("purchase_item(sender_id=%s, quick_reply=%s)" % (sender_id, quick_reply))
+
+    send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()), sender_id, "")
+    logger.info("QR --> %s" % (quick_reply,))
+
+    handle_payload(sender_id, Const.PAYLOAD_TYPE_OTHER, quick_reply)
+
+
+def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
+    logger.info("recieved_trade_url(sender_id=%s, url=%s, action=%s)" % (sender_id, url, action))
+
+    if action == Const.TRADE_URL_PURCHASE:
+        purchase_id = get_session_purchase(sender_id)
+
+        if get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
+            send_text(sender_id, "Set your trade url to {url}?".format(url=url), quick_replies=submit_quick_replies())
+
+
+    elif action == Const.TRADE_URL_FLIP_ITEM:
+        if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
+            send_text(sender_id, "Set your trade url to {url}?".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Re-Enter"]))
+
+
+def handle_payload(sender_id, payload_type, payload):
+    logger.info("handle_payload(sender_id=%s, payload_type=%s, payload=%s)" % (sender_id, payload_type, payload))
+
+    if payload == "MAIN_MENU":
+        send_tracker("todays-item", sender_id, "")
+        clear_session_dub(sender_id)
+        default_carousel(sender_id)
+
+
+    elif payload == "WELCOME_MESSAGE":
+        logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        send_tracker("signup-fb", sender_id, "")
+        default_carousel(sender_id)
+
+
+    elif payload == "NEXT_ITEM":
+        send_tracker("next-item", sender_id, "")
+        default_carousel(sender_id)
+
+
+    elif re.search('FLIP_COIN-(\d+)', payload) is not None:
+        send_tracker("flip-item", sender_id, "")
+        item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
+        if item_id is not None:
+            set_session_item(sender_id, item_id)
+            coin_flip_results(sender_id, item_id)
+
+    elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
+        send_tracker("flip-item", sender_id, "")
+
+        item_id = None
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                row = cur.fetchone()
+
+                if row is not None:
+                    item_id = row['id']
+                    set_session_item(sender_id, item_id)
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+        if item_id is not None:
+            coin_flip_results(sender_id, item_id)
+
+        else:
+            send_text(sender_id, "Can't find that item anymore! Try flipping again")
+            clear_session_dub(sender_id)
+            default_carousel(sender_id)
+
+
+    elif payload == "INVITE":
+        send_card(
+            recipient_id =sender_id,
+            title="Share",
+            image_url=Const.FLIP_COIN_START_GIF_URL,
+            card_url="http://m.me/gamebotsc",
+            buttons=[{ 'type'  : "element_share" }],
+            quick_replies=main_menu_quick_reply()
+        )
+
+    elif payload == "SUPPORT":
+        send_text(sender_id, "If you need help visit facebook.com/gamebotsc")
+        default_carousel(sender_id)
+
+        payload = {
+            'channel'  : "#pre",
+            'username' : "gamebotsc",
+            'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+            'text'     : "*{user}* needs help…".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id)),
+        }
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+
+    elif payload == "NO_THANKS":
+        send_tracker("no-thanks", sender_id, "")
+        default_carousel(sender_id)
+
+    elif payload == "SUBMIT_YES":
+        if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
+            trade_url = get_session_trade_url(sender_id)
+            send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
+
+            try:
+                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (trade_url, sender_id))
+                    conn.commit()
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+            finally:
+                if conn:
+                    conn.close()
+
+            payload = {
+                'channel'   : "#bot-alerts",
+                'username ' : "gamebotsc",
+                'icon_url'  : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                'text'      : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), trade_url=trade_url)
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+
+            set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
+            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8")
+
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
+            send_text(sender_id, "Great! Please wait up to 6 hours for your Trade to clear.")
+
+            clear_session_dub(sender_id)
+            default_carousel(sender_id)
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
+            purchase_id, item_id = get_session_purchase(sender_id)
+            trade_url = get_session_trade_url(sender_id)
+            send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
+
+            try:
+                conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute('UPDATE payments SET `trade_url` = ? WHERE `id` = ? LIMIT 1;', (trade_url, purchase_id))
+                conn.commit()
+
+            except sqlite3.Error as er:
+                logger.info("::::::payment[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('UPDATE `fb_purchases` SET `trade_url` = %s WHERE `id` = %s LIMIT 1;', (trade_url, purchase_id))
+                    conn.commit()
+
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+        else:
+            clear_session_dub(sender_id)
+            default_carousel(sender_id)
+
+
+    elif payload == "SUBMIT_NO":
+        if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
+            send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)))
+            set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
+            purchase_id = get_session_purchase(sender_id)
+
+            set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
+            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_session_purchase(sender_id)))
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
+            send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_session_item(sender_id)))
+
+        else:
+            clear_session_dub(sender_id)
+            default_carousel(sender_id)
+
+
+    elif payload == "SUBMIT_CANCEL":
+        clear_session_dub(sender_id)
+        default_carousel(sender_id)
+
+    elif payload == "NO_THANKS":
+        send_tracker("no-thanks", sender_id, "")
+        default_carousel(sender_id)
+
+    else:
+        default_carousel(sender_id)
+    return "OK", 200
+
+
+def recieved_text_reply(sender_id, message_text):
+    logger.info("recieved_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
+
+    if message_text.lower() in Const.MAIN_MENU_REPLIES:
+        clear_session_dub(sender_id)
+        default_carousel(sender_id)
+
+
+    elif message_text.lower() in Const.OPT_OUT_REPLIES:
+        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        toggle_opt_out(sender_id, True)
+
+    else:
+        # if get_session_trade_url(sender_id) == "_{PENDING}_":
+        if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
+            #if re.search(r'[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$', message_text) is not None:
+            if re.search(r'.*steamcommunity\.com\/tradeoffer\/([-a-zA-Z0-9@:%_\+.~#?&\/=]*)$$', message_text) is not None:
+                set_session_trade_url(sender_id, message_text)
+                recieved_trade_url(sender_id, message_text, Const.TRADE_URL_FLIP_ITEM)
+
+            else:
+                send_text(
+                    recipient_id=sender_id,
+                    message_text="Invalid URL, try again...",
+                    quick_replies=main_menu_quick_reply()
+                )
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
+            url = "http://m.me/lmon8?ref={deeplink}".format(deeplink=re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\\<\>]', "", message_text.encode('ascii', 'ignore')))
+            send_text(sender_id, "Set your lmon8 shop link to {url}?".format(url=url), quick_replies=submit_quick_replies())
+
+            try:
+                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('UPDATE `item_winners` SET `prebot_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (url, sender_id))
+                    conn.commit()
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+            finally:
+                if conn:
+                    conn.close()
+
+        else:
+            default_carousel(sender_id)
+
+
+
+def recieved_attachment(sender_id, attachment_type, attachment):
+    logger.info("recieved_attachment(sender_id=%s, attachment_type=%s, attachment=%s)" % (sender_id, attachment_type, attachment))
+
+    if attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
+        send_text(sender_id, "I'm sorry, I cannot understand that type of message.", home_quick_replies())
+
+
 def send_typing_indicator(recipient_id, is_typing):
     data = {
-        'recipient'    : {
-            'id': recipient_id
+        'recipient' : {
+            'id' : recipient_id
         },
-        'sender_action': "typing_on" if is_typing else "typing_off"
+        'sender_action' : "typing_on" if is_typing else "typing_off"
     }
 
     send_message(json.dumps(data))
@@ -1104,10 +1279,10 @@ def send_image(recipient_id, url, quick_replies=None):
 
     data = {
         'recipient' : {
-            'id' : recipient_id
+            'id'          : recipient_id
         },
         'message'   : {
-            'attachment' : {
+            'attachment'  : {
                 'type'    : "image",
                 'payload' : {
                     'url' : url

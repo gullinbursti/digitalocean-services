@@ -536,9 +536,8 @@ def webook():
           #-- typed '!end'
           if message_text == "!end":
             logger.info("-=- ENDING HELP -=- ({timestamp})".format(timestamp=time.strftime("%Y-%m-%d %H:%M:%S")))
-            end_chat(help_session)
+            end_chat(get_help_session(sender_id), )
             time.sleep(3)
-            start_chat(sender_id)
             return "ok", 200
           
           
