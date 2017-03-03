@@ -34,14 +34,14 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>6</integer>
+				<integer>17</integer>
 				<key>line</key>
-				<integer>1872</integer>
+				<integer>382</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>1858</integer>
+			<integer>378</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
@@ -51,6 +51,6 @@
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{364, 4}, {1076, 874}}</string>
+	<string>{{214, 276}, {1216, 601}}</string>
 </dict>
 </plist>
