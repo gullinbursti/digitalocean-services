@@ -91,15 +91,17 @@ class Customer(db.Model):
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
     purchase_id = db.Column(db.Integer)
+    points = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
     def __init__(self, fb_psid, referrer="/"):
         self.fb_psid = fb_psid
         self.referrer = referrer
+        self.points = 0
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%s, fb_psid=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_name=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.email, self.bitcoin_addr, self.referrer, self.paypal_name, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
+        return "<Customer id=%s, fb_psid=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_name=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.email, self.bitcoin_addr, self.referrer, self.paypal_name, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
 
 
 class FBUser(db.Model):
@@ -792,10 +794,25 @@ def view_product(recipient_id, product):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if product is not None:
         customer.product_id = product.id
+        customer.points += Const.POINT_AMOUNT_VIEW_PRODUCT
         db.session.commit()
 
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
         increment_shop_views(recipient_id, product.id)
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                conn.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
 
         # if product.video_url is not None and product.video_url != "":
         #     send_video(recipient_id, product.video_url, product.attachment_id)
@@ -1135,6 +1152,22 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             if storefront is not None:
+                customer.points += Const.POINT_AMOUNT_VIEW_PRODUCT
+
+                try:
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
                 if product.video_url is not None and product.video_url != "":
                     send_video(recipient_id, product.video_url, product.attachment_id)
 
@@ -2242,6 +2275,23 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
         if product is not None:
+            customer.points += Const.POINT_AMOUNT_SHARE_PRODUCT
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
 
 
@@ -2373,6 +2423,24 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                     db.session.commit()
                 except:
                     db.session.rollback()
+
+                customer.points += Const.POINT_AMOUNT_PURCHASE_PRODUCT
+                db.session.commit()
+
+                try:
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
 
                 send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
             else:
@@ -2516,14 +2584,15 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if storefront is not None:
             storefront.creation_state = 4
             storefront.added = int(time.time())
+            customer.points += Const.POINT_AMOUNT_SUBMIT_STOREFRONT
             db.session.commit()
 
             try:
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());',
-                                (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
+                    cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
                     storefront.id = cur.fetchone()['id']
@@ -2661,12 +2730,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if product is not None:
             product.creation_state = 7
             product.added = int(time.time())
+            customer.points += Const.POINT_AMOUNT_SUBMIT_PRODUCT
             db.session.commit()
 
             try:
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
                     cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')

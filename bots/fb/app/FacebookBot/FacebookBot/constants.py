@@ -37,6 +37,12 @@ class Const(Constants):
     PRODUCT_TYPE_PHYSICAL = 2
     PRODUCT_TYPE_VIRTUAL = 1
 
+    POINT_AMOUNT_VIEW_PRODUCT = 25
+    POINT_AMOUNT_SHARE_PRODUCT = 50
+    POINT_AMOUNT_SUBMIT_STOREFRONT = 100
+    POINT_AMOUNT_SUBMIT_PRODUCT = 200
+    POINT_AMOUNT_PURCHASE_PRODUCT = 300
+
     COIN_FLIP_API = "http://beta.modd.live/api/coin_flip.php"
 
     ORTHODOX_GREETING = "Hi, this is Lemonade. The fastest way to sell on Messenger."
