@@ -2359,6 +2359,23 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             else:
                 pass
 
+            customer.points += Const.POINT_AMOUNT_PURCHASE_PRODUCT
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
             send_customer_carousel(recipient_id, product.id)
 
         else:
@@ -2422,6 +2439,23 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
             else:
                 pass
+
+            customer.points += Const.POINT_AMOUNT_PURCHASE_PRODUCT
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
 
             send_customer_carousel(recipient_id, product.id)
 
