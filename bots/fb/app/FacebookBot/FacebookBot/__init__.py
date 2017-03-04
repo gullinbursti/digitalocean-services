@@ -836,7 +836,11 @@ def view_product(recipient_id, product):
                     message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                 )
 
-                send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER, new_sub_quick_replies(recipient_id))
+                send_image(
+                    recipient_id=storefront.fb_psid,
+                    url=Const.IMAGE_URL_NEW_SUBSCRIBER,
+                    quick_replies=new_sub_quick_replies(recipient_id)
+                )
                 fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
                 send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
 
@@ -1182,7 +1186,11 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                         message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                     )
 
-                    send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER, new_sub_quick_replies(recipient_id))
+                    send_image(
+                        recipient_id=storefront.fb_psid,
+                        url=Const.IMAGE_URL_NEW_SUBSCRIBER,
+                        quick_replies=new_sub_quick_replies(recipient_id)
+                    )
                     fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
                     send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
 
@@ -1765,7 +1773,8 @@ def send_customer_carousel(recipient_id, product_id):
                     image_url = product.image_url,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id)),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
                     ]
                 )
             )
