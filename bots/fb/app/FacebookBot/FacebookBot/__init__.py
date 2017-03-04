@@ -786,6 +786,53 @@ def add_cc_payment(recipient_id):
     return False
 
 
+def view_product(recipient_id, product):
+    logger.info("view_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    if product is not None:
+        customer.product_id = product.id
+        db.session.commit()
+
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        increment_shop_views(recipient_id, product.id)
+
+        # if product.video_url is not None and product.video_url != "":
+        #     send_video(recipient_id, product.video_url, product.attachment_id)
+        #
+        # else:
+        #     if storefront.landscape_logo_url is not None:
+        #         send_image(recipient_id, storefront.landscape_logo_url)
+
+        purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+        if purchase is not None:
+            customer.purchase_id = purchase.id
+            db.session.commit()
+            send_customer_carousel(recipient_id, product.id)
+
+        else:
+            if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(deeplink=product.name)):
+
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                )
+
+                send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER)
+                fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+                send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
+
+            else:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                )
+
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+
+
+
+
 def purchase_product(recipient_id, source):
     logger.info("purchase_product(recipient_id=%s, source=%s)" % (recipient_id, source))
 
@@ -821,6 +868,8 @@ def purchase_product(recipient_id, source):
             db.session.add(purchase)
             db.session.commit()
             send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+
+            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr))
             return True
 
@@ -860,6 +909,7 @@ def purchase_product(recipient_id, source):
                     if conn:
                         conn.close()
 
+                send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
                 route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.email))
                 return True
 
@@ -901,6 +951,7 @@ def purchase_product(recipient_id, source):
             else:
                 send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
+            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a PayPal invoice now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
             return True
 
@@ -1091,10 +1142,21 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     if storefront.landscape_logo_url is not None:
                         send_image(recipient_id, storefront.landscape_logo_url)
 
-                send_text(
-                    recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, deeplink) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
-                )
+                if add_subscription(recipient_id, storefront.id, product.id, deeplink):
+                    send_text(
+                        recipient_id=recipient_id,
+                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                    )
+
+                    send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER)
+                    fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+                    send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
+
+                else:
+                    send_text(
+                        recipient_id=recipient_id,
+                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                    )
 
                 send_home_content(recipient_id)
 
@@ -2050,7 +2112,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     # postback btn
-    if payload == Const.PB_PAYLOAD_GREETING:
+    if payload == Const.PB_PAYLOAD_RANDOM_STOREFRONT:
+        send_tracker("button-random-shop", recipient_id, "")
+        product = random.choice(Product.query.filter(Product.creation_state == 7).filter(Product.type_id == 1).all())
+        view_product(recipient_id, product)
+
+    elif payload == Const.PB_PAYLOAD_GREETING:
         logger.info("----------=BOT GREETING @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
         welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
 
@@ -2182,26 +2249,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_tracker("button-featured-shop", recipient_id, "")
         product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
         product = Product.query.filter(Product.id == product_id).first()
-        if product is not None:
-            customer.product_id = product.id
-            db.session.commit()
-
-            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-            increment_shop_views(recipient_id, product.id)
-
-            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-            if purchase is not None:
-                customer.purchase_id = purchase.id
-                db.session.commit()
-                send_customer_carousel(recipient_id, product.id)
-
-            else:
-                send_text(
-                    recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8) if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(
-                        deeplink=product.name)) else "Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
-                )
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+        view_product(recipient_id, product)
 
 
     elif payload == Const.PB_PAYLOAD_SUPPORT:
