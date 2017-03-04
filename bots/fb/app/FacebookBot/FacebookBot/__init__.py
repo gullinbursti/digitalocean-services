@@ -188,6 +188,7 @@ class Product(db.Model):
     name = db.Column(db.String(255))
     display_name = db.Column(CoerceUTF8)
     description = db.Column(CoerceUTF8)
+    tags = db.Column(CoerceUTF8)
     image_url = db.Column(db.String(255))
     video_url = db.Column(db.String(255))
     broadcast_message = db.Column(db.String(255))
@@ -196,6 +197,7 @@ class Product(db.Model):
     prebot_url = db.Column(db.String(255))
     views = db.Column(db.String(255))
     avg_rating = db.Column(db.Float)
+    physical_url = db.Column(db.String(255))
     release_date = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
@@ -207,6 +209,10 @@ class Product(db.Model):
     @property
     def description_utf8(self):
         return self.description.encode('utf-8') if self.description is not None else None
+
+    @property
+    def tags_list(self):
+        return [] if self.tags is None else [tag.encode('utf-8') for tag in self.tags.split(" ")]
 
     @property
     def messenger_url(self):
@@ -232,7 +238,6 @@ class Product(db.Model):
     def __init__(self, fb_psid, storefront_id):
         self.fb_psid = fb_psid
         self.storefront_id = storefront_id
-        self.type_id = 1
         self.creation_state = 0
         self.price = 1.99
         self.views = 0
@@ -242,7 +247,7 @@ class Product(db.Model):
 
 
     def __repr__(self):
-        return "<Product id=%s, fb_psid=%s, storefront_id=%s, type_id=%s, creation_state=%s, name=%s, display_name=%s, image_url=%s, video_url=%s, prebot_url=%s, release_date=%s, views=%s, avg_rating=%.2f, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.type_id, self.creation_state, self.name, self.display_name_utf8, self.image_url, self.video_url, self.prebot_url, self.release_date, self.views, self.avg_rating, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, type_id=%s, creation_state=%s, name=%s, display_name=%s, description=%s, tags=%s, image_url=%s, video_url=%s, prebot_url=%s, views=%s, avg_rating=%.2f, physical_url=%s, release_date=%s, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.type_id, self.creation_state, self.name, self.display_name_utf8, self.description_utf8, self.tags_list, self.image_url, self.video_url, self.prebot_url, self.views, self.avg_rating, self.physical_url, self.release_date, self.added)
 
 
 class Purchase(db.Model):
@@ -665,7 +670,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink=None):
 def increment_shop_views(recipient_id, product_id, storefront_id=None):
     logger.info("increment_shop_views(recipient_id=%s, product_id=%s, storefront_id=%s)" % (recipient_id, product_id, storefront_id))
 
-    product = Product.query.filter(Product.id == product_id).filter(Product.creation_state == 5).first()
+    product = Product.query.filter(Product.id == product_id).filter(Product.creation_state == 7).first()
     storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
     if product is not None and storefront is not None:
         product.views += 1
@@ -907,6 +912,7 @@ def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE
     if purchase is not None:
         customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
         storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+        product = Product.query.filter(Product.id == purchase.product_id).first()
 
         if recipient_id == customer.fb_psid:
             customer.purchase_id = purchase.id
@@ -1028,7 +1034,7 @@ def clear_entry_sequences(recipient_id):
 
     #-- pending product
     try:
-        Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state < 5).delete()
+        Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state < 7).delete()
         db.session.commit()
     except:
         db.session.rollback()
@@ -1072,7 +1078,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
-        product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 5).first()
+        product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 7).first()
         if product is not None:
             customer.product_id = product.id
 
@@ -1121,9 +1127,6 @@ def write_message_log(recipient_id, message_id, message_txt):
 
 def main_menu_quick_replies(fb_psid):
     logger.info("main_menu_quick_replies(fb_psid=%s)" % (fb_psid))
-
-    storefront_query = db.session.query(Storefront.id).filter(Storefront.fb_psid == fb_psid).filter(Storefront.creation_state == 4).subquery('storefront_query')
-    # product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state == 5).first()
 
     product = Product.query.filter(Product.fb_psid == fb_psid).first()
     quick_replies = [
@@ -1312,7 +1315,7 @@ def build_featured_storefront_elements(recipient_id, amt=3):
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `products` WHERE `type` = 2 AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(amt, 5),))
+            cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(max(amt, 0), 3),))
 
             for row in cur.fetchall():
                 product = Product.query.filter(Product.id == row['id']).first()
@@ -1549,7 +1552,7 @@ def send_admin_carousel(recipient_id):
         )
 
     else:
-        product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 5).first()
+        product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 7).first()
         if product is None:
             cards.append(
                 build_card_element(
@@ -2170,7 +2173,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_tracker("button-share", recipient_id, "")
         send_text(recipient_id, "Share your Shopbot with your friends on messenger")
 
-        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 5).first()
+        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
         if product is not None:
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
 
@@ -2538,7 +2541,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif re.search('^PRODUCT_RELEASE_(\d+)_DAYS$', payload) is not None:
-        match = re.match(r'^PRODUCT_RELEASE_(?P<days>\d+)_DAYS$', quick_reply)
+        match = re.match(r'^PRODUCT_RELEASE_(?P<days>\d+)_DAYS$', payload)
         send_tracker("button-product-release-{days}-days-store".format(days=match.group('days')), recipient_id, "")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 3).first()
@@ -2549,15 +2552,66 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             db.session.commit()
 
             send_text(recipient_id, "This item will be available today" if int(match.group('days')) < 30 else "This item will be available {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%A, %b %-d')))
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Is {product_name} a physical or virtual good?".format(product_name=product.display_name_utf8),
+                quick_replies=[
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Physical", Const.PB_PAYLOAD_PRODUCT_TYPE_PHYSICAL),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Virtual", Const.PB_PAYLOAD_PRODUCT_TYPE_VIRTUAL)
+                ] + cancel_entry_quick_reply()
+            )
+
+
+    elif payload == Const.PB_PAYLOAD_PRODUCT_TYPE_PHYSICAL:
+        send_tracker("button-product-physical", recipient_id, "")
+
+        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 4).first()
+        if product is not None:
+            product.type_id = Const.PRODUCT_TYPE_PHYSICAL
+            db.session.commit()
+
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Enter the URL of this product from your existing website",
+                quick_replies=cancel_entry_quick_reply()
+            )
+
+
+    elif payload == Const.PB_PAYLOAD_PRODUCT_TYPE_VIRTUAL:
+        send_tracker("button-product-virtual", recipient_id, "")
+
+        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 4).first()
+        if product is not None:
+            product.type_id = Const.PRODUCT_TYPE_VIRTUAL
+            product.creation_state = 5
+            db.session.commit()
+
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Enter some category tags separated by spaces or tap Skip",
+                quick_replies=[
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Skip", Const.PB_PAYLOAD_PRODUCT_TAG_SKIP)
+                ] + cancel_entry_quick_reply()
+        )
+
+    elif payload == Const.PB_PAYLOAD_PRODUCT_TAG_SKIP:
+        send_tracker("button-skip-tags", recipient_id, "")
+
+        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 5).first()
+        if product is not None:
+            product.creation_state = 6
+            db.session.commit()
+
             send_text(recipient_id, "Here's what your product will look like:")
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
+
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
         send_tracker("button-submit-product", recipient_id, "")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         if product is not None:
-            product.creation_state = 5
+            product.creation_state = 7
             product.added = int(time.time())
             db.session.commit()
 
@@ -2565,8 +2619,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `name`, `display_name`, `description`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());',
-                                (product.storefront_id, product.name, product.display_name_utf8, product.description, product.image_url, product.video_url, product.attachment_id, product.price, product.prebot_url, product.release_date))
+                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
                     product.id = cur.fetchone()['id']
@@ -2593,8 +2646,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 channel_name=Const.SLACK_ORTHODOX_CHANNEL,
                 username=Const.SLACK_ORTHODOX_HANDLE,
                 webhook=Const.SLACK_ORTHODOX_WEBHOOK,
-                message_text="*{fb_name}* just created a product named _{product_name}_ for the shop _{storefront_name}_.\n<{video_url}>".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8,
-                                                                                                                                                 video_url=product.video_url),
+                message_text="*{fb_name}* just created a {product_type} product named _{product_name}_ for the shop _{storefront_name}_.\n{physical_url}".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, product_type="virtual" if product.type_id == Const.PRODUCT_TYPE_VIRTUAL else "physical", product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, physical_url=product.physical_url or ""),
                 image_url=product.image_url
             )
 
@@ -3040,7 +3092,7 @@ def received_text_response(recipient_id, message_text):
     #-- purge sqlite db
     if message_text == "/shops":
         message_text = "Active shops:"
-        for product in db.session.query(Product).filter((Product.id < 949) & (Product.id > 9866)).filter(Product.creation_state == 5):
+        for product in db.session.query(Product).filter((Product.id < 949) & (Product.id > 9866)).filter(Product.creation_state == 7):
             logger.info("-------- %s" % (product.display_name_utf8,))
             message_text = "{message_text}\n/{deeplink}".format(message_text=message_text, deeplink=product.name)
         send_text(recipient_id, message_text)
@@ -3286,7 +3338,7 @@ def received_text_response(recipient_id, message_text):
         if storefront is not None:
 
             #-- look for in-progress product creation
-            product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 5).first()
+            product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state < 7).first()
             if product is not None:
 
                 #-- name submitted
@@ -3321,16 +3373,47 @@ def received_text_response(recipient_id, message_text):
                         product.price = round(float(message_text), 2)
                         db.session.commit()
 
-                        send_text(recipient_id = recipient_id, message_text = "Select a date the product will be available.", quick_replies = [
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
-                        ] + cancel_entry_quick_reply())
+                        send_text(
+                            recipient_id=recipient_id,
+                            message_text="Select a date the product will be available.",
+                            quick_replies=[
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
+                            ] + cancel_entry_quick_reply()
+                        )
 
                     else:
                         send_text(recipient_id, "Enter a valid price in USD (example 78.00)", cancel_entry_quick_reply())
+
+
+                elif product.creation_state == 4 and product.type_id == Const.PRODUCT_TYPE_PHYSICAL:
+                    if re.search(r'[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&\/=]*)$', message_text) is None:
+                        send_text(recipient_id, "Invalid URL, try again", cancel_entry_quick_reply())
+
+                    else:
+                        product.physical_url = message_text
+                        product.creation_state = 5
+                        db.session.commit()
+
+                        send_text(
+                            recipient_id=recipient_id,
+                            message_text="Enter some category tags separated by spaces or tap Skip",
+                            quick_replies=[
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Skip", Const.PB_PAYLOAD_PRODUCT_TAG_SKIP)
+                            ] + cancel_entry_quick_reply()
+                        )
+
+                elif product.creation_state == 5:
+                    product.creation_state = 6
+                    product.tags = message_text
+                    db.session.commit()
+
+
+                    send_text(recipient_id, "Here's what your product will look like:")
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
                 #-- entered text at wrong step
                 else:
@@ -3452,10 +3535,9 @@ def handle_wrong_reply(recipient_id):
 
     #-- product creation in progress
     else:
-        storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
         storefront_query = db.session.query(Storefront.id).filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).subquery('storefront_query')
-        product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state < 5).first()
-        if storefront is not None and product is not None:
+        product = Product.query.filter(Product.storefront_id.in_(storefront_query)).filter(Product.creation_state < 7).first()
+        if product is not None:
             send_text(recipient_id, "Incorrect response!")
             if product.creation_state == 0:
                 send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
@@ -3467,15 +3549,38 @@ def handle_wrong_reply(recipient_id):
                 send_text(recipient_id, "Enter the price of {product_name} in USD. (example 78.00)".format(product_name=product.display_name_utf8), cancel_entry_quick_reply())
 
             elif product.creation_state == 3:
-                send_text(recipient_id = recipient_id, message_text = "Select a date the product will be available.", quick_replies = [
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
-                ] + cancel_entry_quick_reply())
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Select a date the product will be available.",
+                    quick_replies=[
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=2)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_60_DAYS),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=3)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_90_DAYS),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, (datetime.now() + relativedelta(months=4)).strftime('%B %Y'), Const.PB_PAYLOAD_PRODUCT_RELEASE_120_DAYS)
+                    ] + cancel_entry_quick_reply()
+                )
 
             elif product.creation_state == 4:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Is {product_name} a physical or virtual good?".format(product_name=product.display_name_utf8),
+                    quick_replies=[
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Physical", Const.PB_PAYLOAD_PRODUCT_TYPE_PHYSICAL),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Virtual", Const.PB_PAYLOAD_PRODUCT_TYPE_VIRTUAL)
+                    ] + cancel_entry_quick_reply()
+                )
+
+            elif product.creation_state == 5:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Enter some category tags separated by spaces or tap Skip",
+                    quick_replies=[
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Skip", Const.PB_PAYLOAD_PRODUCT_TAG_SKIP)
+                    ] + cancel_entry_quick_reply()
+                )
+
+            elif product.creation_state == 6:
                 send_text(recipient_id, "Here's what your product will look like:")
                 send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
@@ -3616,7 +3721,11 @@ def fbbot():
 
                     if 'attachments' in message:
                         for attachment in message['attachments']:
-                            recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
+                            if attachment['type'] == "fallback":
+                                received_text_response(customer.fb_psid, message['text'])
+
+                            else:
+                                recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
                         return "OK", 200
 
 
