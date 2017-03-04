@@ -50,10 +50,11 @@ db = SQLAlchemy(app)
 
 logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler("/var/log/FacebookBot.log")
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(message)s', '%d-%b-%Y %H:%M:%S')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
 logger.setLevel(logging.INFO)
+
 
 stripe.api_key = Const.STRIPE_DEV_API_KEY
 
@@ -2753,10 +2754,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             send_admin_carousel(recipient_id)
+
+            send_image(recipient_id, Const.IMAGE_URL_ADD_PRODUCT)
             send_text(
                 recipient_id=recipient_id,
-                message_text="You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8,
-                                                                                                                                                                                                                     product_url=product.messenger_url),
+                message_text="You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, product_url=product.messenger_url),
                 quick_replies=main_menu_quick_replies(recipient_id)
             )
 
@@ -2842,8 +2844,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             subscriptions = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.enabled == 1).all()
             send_text(
                 recipient_id=recipient_id,
-                message_text="Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name_utf8) if len(subscriptions) < 20 else "Great! Item giveaways will now be unlocked for {storefront_name}.".format(
-                    storefront_name=storefront.display_name_utf8),
+                message_text="Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name_utf8) if len(subscriptions) < 20 else "Great! Item giveaways will now be unlocked for {storefront_name}.".format(storefront_name=storefront.display_name_utf8),
                 quick_replies=main_menu_quick_replies(recipient_id)
             )
 
@@ -3840,7 +3841,7 @@ def fbbot():
 
                     if 'attachments' in message:
                         for attachment in message['attachments']:
-                            if attachment['type'] == "fallback":
+                            if attachment['type'] == "fallback" and 'text' in message:
                                 received_text_response(customer.fb_psid, message['text'])
 
                             else:
