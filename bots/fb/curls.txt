@@ -64,9 +64,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "message":{
     "attachment":{
-      "type":"video",
+      "type":"image",
       "payload":{
-        "url":"http://prebot.me/videos/1487056936_415.mp4",
+        "url":"https://trello-attachments.s3.amazonaws.com/58b4a9c076898492726f0168/58b664c2a3cfad09e123fdf0/2167bd3b324a2ff8718df64628f2e0f8/welcome.gif",
         "is_reusable":true
       }
     }
