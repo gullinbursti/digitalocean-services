@@ -65,8 +65,9 @@ class Const(Constants):
     IMAGE_URL_SUPPORT = "https://i.imgur.com/tQ9mBeG.png"
 
     IMAGE_URL_NEW_SUBSCRIBER = "http://i.imgur.com/JurzrAB.gif"
-    IMAGE_URL_PRODUCT_PURCHASED = "https://i.imgur.com/jj72JHz.gif"
+    IMAGE_URL_PRODUCT_PURCHASED = "http://i.imgur.com/jj72JHz.gif"
     IMAGE_URL_PRODUCT_CREATED = "http://i.imgur.com/JurzrAB.gif"
+    IMAGE_URL_SAY_THANKS = "http://i.imgur.com/XRG8fHa.gif"
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
     STOREFRONT_AUTO_GEN = 'STOREFRONT_AUTO_GEN'
@@ -115,6 +116,7 @@ class Const(Constants):
 
     PB_PAYLOAD_MAIN_MENU = 'MAIN_MENU'
     PB_PAYLOAD_PREBOT_URL = "PREBOT_URL"
+    PB_PAYLOAD_SAY_THANKS = 'SAY_THANKS'
 
     PB_PAYLOAD_PAYMENT_YES = 'PAYMENT_YES'
     PB_PAYLOAD_PAYMENT_NO = 'PAYMENT_NO'

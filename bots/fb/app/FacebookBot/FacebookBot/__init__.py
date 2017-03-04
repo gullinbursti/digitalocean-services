@@ -836,7 +836,7 @@ def view_product(recipient_id, product):
                     message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                 )
 
-                send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER)
+                send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER, new_sub_quick_replies(recipient_id))
                 fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
                 send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
 
@@ -1182,7 +1182,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                         message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
                     )
 
-                    send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER)
+                    send_image(storefront.fb_psid, Const.IMAGE_URL_NEW_SUBSCRIBER, new_sub_quick_replies(recipient_id))
                     fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
                     send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
 
@@ -1233,6 +1233,14 @@ def main_menu_quick_replies(fb_psid):
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=product.messenger_url, payload=Const.PB_PAYLOAD_PREBOT_URL))
 
     return quick_replies
+
+
+def new_sub_quick_replies(fb_psid):
+    logger.info("new_sub_quick_replies(fb_psid=%s)" % (fb_psid,))
+
+    return [
+               build_quick_reply(Const.KWIK_BTN_TEXT, caption="Say Thanks", payload="{payload}-{fb_psid}".format(payload=Const.PB_PAYLOAD_SAY_THANKS, fb_psid=fb_psid))
+           ] + cancel_entry_quick_reply()
 
 
 def dm_quick_replies(fb_psid, purchase_id, dm_action=Const.DM_ACTION_PURCHASE):
@@ -2577,6 +2585,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         clear_entry_sequences(recipient_id)
         send_home_content(recipient_id)
 
+    elif re.search(r'^SAY_THANKS\-(\d+)$', payload) is not None:
+        send_tracker("button-say-thanks", recipient_id, "")
+        send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>\d+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
+
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
         send_tracker("button-submit-store", recipient_id, "")
@@ -2912,7 +2924,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         db.session.commit()
         send_text(recipient_id, "Post your Bitcoin wallet's QR code or type in the address", cancel_entry_quick_reply())
 
-    elif re.search(r'^PRODUCT_RATE_\d+_STAR$', payload) is not None:
+    elif re.search(r'^PRODUCT_RATE_(\d+)_STAR$', payload) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', payload)
         send_tracker("button-product-rate-{stars}-star".format(stars=match.group('stars')), recipient_id, "")
 

@@ -82,7 +82,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
       "composer_input_disabled":true,
       "call_to_actions":[
         {
-          "title":"Next Random Shop",
+          "title":"Next Shop",
           "type":"postback",
           "payload":"RANDOM_STOREFRONT"
         },
