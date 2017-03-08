@@ -703,10 +703,9 @@ def flip_result(message):
                             to = message.from_user,
                             chat_id = message.chat_id,
                             pic_url = item_flips[message.chat_id]['image_url'],
-                            url = "http://taps.io/gamebotsc",
+                            url =item_flips[message.chat_id]['image_url'],
                             title = "",
-                            text = "",
-                            attribution = custom_attribution("CLAIM ITEM NOW")
+                            text = ""
                         ),
                         TextMessage(
                             to = message.from_user,
