@@ -741,15 +741,15 @@ def wins_last_day(sender_id):
     return total_wins
 
 
-def has_paid_flip(sender_id):
-    logger.info("has_paid_flip(sender_id=%s)" % (sender_id,))
+def has_paid_flip(sender_id, hours=24):
+    logger.info("has_paid_flip(sender_id=%s, hours=%s)" % (sender_id, hours))
 
     has_paid = False
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR);', (sender_id,))
+            cur.execute('SELECT `id` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` > DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, hours))
             has_paid = cur.fetchone() is not None
 
     except mdb.Error, e:
@@ -1060,7 +1060,7 @@ def handle_payload(sender_id, payload_type, payload):
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
         send_tracker("flip-item", sender_id, "")
 
-        if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >=5 and has_paid_flip(sender_id)):
+        if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >=5 and has_paid_flip(sender_id, 16)):
             item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
             if item_id is not None:
                 set_session_item(sender_id, item_id)
@@ -1073,7 +1073,7 @@ def handle_payload(sender_id, payload_type, payload):
     elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
         send_tracker("flip-item", sender_id, "")
 
-        if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >= 5 and has_paid_flip(sender_id)):
+        if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >= 5 and has_paid_flip(sender_id, 16)):
             item_id = None
             conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
             try:
