@@ -39,6 +39,7 @@ class Const(Constants):
     PRODUCT_TYPE_PHYSICAL = 2
     PRODUCT_TYPE_VIRTUAL = 1
 
+    POINT_AMOUNT_NEXT_SHOP = 10
     POINT_AMOUNT_VIEW_PRODUCT = 25
     POINT_AMOUNT_SHARE_PRODUCT = 50
     POINT_AMOUNT_SUBMIT_STOREFRONT = 100
@@ -53,21 +54,31 @@ class Const(Constants):
 
     ATTACHMEMENT_ID_GREETING = "216350262174144"
     IMAGE_URL_GREETING = "http://i.imgur.com/QocV5nc.gif"
-    IMAGE_URL_CREATE_STOREFRONT = "https://i.imgur.com/aShmYBR.png"
-    IMAGE_URL_REMOVE_STOREFRONT = "https://i.imgur.com/0EbJPhk.png"
-    IMAGE_URL_ADD_PRODUCT = "https://i.imgur.com/arjLQFV.png"
-    IMAGE_URL_SHARE_STOREFRONT = "https://i.imgur.com/MvZR73I.png"
-    IMAGE_URL_SHARE_MESSENGER = "https://i.imgur.com/FLmisom.png"
-    IMAGE_URL_MARKETPLACE = "https://i.imgur.com/oeDnbGx.png"
-    IMAGE_URL_GIVEAWAYS = "https://i.imgur.com/huwkiVo.png"
-    IMAGE_URL_PURCHASES = "https://i.imgur.com/Bd8H09A.png"
+    IMAGE_URL_CREATE_STOREFRONT_CARD = "https://i.imgur.com/aShmYBR.png"
+    IMAGE_URL_REMOVE_STOREFRONT_CARD = "https://i.imgur.com/0EbJPhk.png"
+    IMAGE_URL_ADD_PRODUCT_CARD = "https://i.imgur.com/arjLQFV.png"
+    IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/MvZR73I.png"
+    IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/FLmisom.png"
+    IMAGE_URL_MARKETPLACE_CARD = "https://i.imgur.com/oeDnbGx.png"
+    IMAGE_URL_GIVEAWAYS_CARD = "https://i.imgur.com/huwkiVo.png"
+    IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/Bd8H09A.png"
     IMAGE_URL_NOTIFY_SUBSCRIBERS = "https://i.imgur.com/Bd8H09A.png"
-    IMAGE_URL_SUPPORT = "https://i.imgur.com/tQ9mBeG.png"
+    IMAGE_URL_SUPPORT_CARD = "https://i.imgur.com/tQ9mBeG.png"
 
     IMAGE_URL_NEW_SUBSCRIBER = "http://i.imgur.com/JurzrAB.gif"
     IMAGE_URL_PRODUCT_PURCHASED = "http://i.imgur.com/jj72JHz.gif"
     IMAGE_URL_PRODUCT_CREATED = "http://i.imgur.com/JurzrAB.gif"
     IMAGE_URL_SAY_THANKS = "http://i.imgur.com/XRG8fHa.gif"
+    IMAGE_URL_NEXT_SHOP = "http://i.imgur.com/XRG8fHa.gif"
+
+    IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
+    IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"
+    IMAGE_URL_SUPPORT_COMMAND = "https://i.imgur.com/lt1YMOC.gif"
+    IMAGE_URL_SUBS_COMMAND = "https://i.imgur.com/Q8YI9YV.gif"
+    IMAGE_URL_LEMONADE_COMMAND = "https://i.imgur.com/W65TYHj.gif"
+    IMAGE_URL_MAIN_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
+    IMAGE_URL_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
+
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
     STOREFRONT_AUTO_GEN = 'STOREFRONT_AUTO_GEN'
@@ -174,6 +185,7 @@ class Const(Constants):
     DM_ACTION_CLOSE = 'DM_ACTION_CLOSE'
 
     PB_PAYLOAD_DM_OPEN = 'DM_OPEN'
+    PB_PAYLOAD_DM_SEND_FB_NAME = 'DM_SEND_FB_NAME'
     PB_PAYLOAD_DM_REQUEST_INVOICE = 'DM_REQUEST_INVOICE'
     PB_PAYLOAD_DM_REQUEST_PAYMENT = 'DM_REQUEST_PAYMENT'
     PB_PAYLOAD_DM_CANCEL_PURCHASE = 'DM_CANCEL_PURCHASE'
@@ -192,7 +204,5 @@ class Const(Constants):
     PAYMENT_SOURCE_CREDIT_CARD = 'PAYMENT_CREDIT_CARD'
     PAYMENT_SOURCE_PAYPAL = 'PAYMENT_PAYPAL'
 
-    RESERVED_ADMIN_REPLIES = "admin"#|main|main menu|menu"
-    RESERVED_CUSTOMER_REPLIES = "shop"#main|main menu|menu"
-    RESERVED_SUPPORT_REPLIES = "help|support"
-    RESERVED_STOP_REPLIES = "cancel|end|quit|stop"
+    RESERVED_COMMAND_REPLIES = "lemonade|lmon8|admin|main|main menu|menu|support|help|subs"
+    RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
