@@ -1067,7 +1067,7 @@ def handle_payload(sender_id, payload_type, payload):
                 coin_flip_results(sender_id, item_id)
 
         else:
-            send_text(sender_id, "You need to deposit $1.00 in order to keep winning at flip coin today")
+            send_text(sender_id, "You have won 5 items today!\n\nYou must deposit $1.00 to continue playing Flip Coin.\n\nDaily deposit players have access to higher priced items.")
             flip_pay_wall(sender_id)
 
     elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
