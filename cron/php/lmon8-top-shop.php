@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 define('DB_HOST', "138.197.216.56");
 define('DB_NAME', "prebot_marketplace");
@@ -27,16 +27,16 @@ function send_tracker($fb_psid) {
       'cid'      => md5(BROADCASTER_ADDR)
     )
   );
-  
+
   $response_arr = array();
   foreach ($tracking_arr as $val) {
     $ch = curl_init();
     curl_setopt_array($ch, array(
-    	CURLOPT_USERAGENT      => BROADCASTER_USER_AGENT,
-    	CURLOPT_RETURNTRANSFER => true,
-    	CURLOPT_URL            => sprintf("http://beta.modd.live/api/bot_tracker.php?src=facebook&category=%s&action=%s&label=%s&value=%d&cid=%s", $val['category'], $val['action'], $val['label'], $val['value'], $val['cid'])
+      CURLOPT_USERAGENT      => BROADCASTER_USER_AGENT,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_URL            => sprintf("http://beta.modd.live/api/bot_tracker.php?src=facebook&category=%s&action=%s&label=%s&value=%d&cid=%s", $val['category'], $val['action'], $val['label'], $val['value'], $val['cid'])
     ));
-    
+
     array_push($response_arr, curl_exec($ch));
     curl_close($ch);
   }
@@ -44,24 +44,23 @@ function send_tracker($fb_psid) {
 
 function post_message($url, $payload_obj) {
   echo (sprintf("Sending payload -->\n%s\n\n", json_encode($payload_obj)));
-  
-  
-  $ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL, $url);
-	curl_setopt($ch, CURLOPT_POST, 1);
-	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload_obj));
-	curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
-	curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-	curl_setopt($ch, CURLOPT_FAILONERROR, 1);
-	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300);
-	curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
-	$response = curl_exec($ch);
-	curl_close($ch);
-	
-	if (strlen($response) > 0) {
-	  echo($response ."\n");
-	}
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload_obj));
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_FAILONERROR, 1);
+  curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 300);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+  $response = curl_exec($ch);
+  curl_close($ch);
+
+  if (strlen($response) > 0) {
+    echo($response ."\n");
+  }
 }
 
 
@@ -76,20 +75,20 @@ mysqli_set_charset($db_conn, 'utf8');
 
 // open txt config for templates
 $config_arr = array(
-  'FB_GRAPH_API'              => "https://graph.facebook.com/v2.6/me/messages",
-  'FB_ACCESS_TOKEN'           => "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD",
+  'FB_GRAPH_API'     => "https://graph.facebook.com/v2.6/me/messages",
+  'FB_ACCESS_TOKEN'  => "EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD",
   'BODY_TEMPLATE'    => "Today's topumsub shop is %s\n\nTYPE \"%s\" to subscribe.",
-  'BATCH_TEMPLATES'           => array()
+  'BATCH_TEMPLATES'  => array()
 );
 
 $handle = @fopen(FB_MESSAGE_TEMPLATE_PATH, 'r');
 if ($handle) {
-  
+
   // read in the line
   while (($buffer = fgets($handle, 4096)) !== false) {
     if (preg_match('/^[#$]/i', $buffer) || preg_match('/^\s*$/i', $buffer)) {
       continue;
-    
+
     } else {
       preg_match('/^(?P<key>[A-Z_]+)\t(?P<val>.*)$/', $buffer, $match_arr);
       $config_arr[$match_arr['key']] = $match_arr['val'];
@@ -100,7 +99,7 @@ if ($handle) {
   if (!feof($handle)) {
     //$message_template = FB_ORTHODOX_MESSAGE_TEMPLATE;
   }
-  
+
   fclose($handle);
 
 } else {
@@ -140,45 +139,40 @@ if (mysqli_num_rows($res) == 1) {
 }
 
 // summary
-echo("Sending to ". number_format(mysqli_num_rows($result)) ." total users w/ message: \"". $body_txt ."\"\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n");
+echo("Sending to ". number_format(mysqli_num_rows($result)) ." total users w/ message: \"". sprintf($body_txt, $product_obj->display_name, $storefront_obj->cnt, preg_replace('/^.*\/(.*)$/', 'm.me/lmon8?ref=/$1', $product_obj->prebot_url)) ."\"\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n");
 
 // iterate
 $cnt = 0;
 while ($fb_user_obj = mysqli_fetch_object($result)) {
-  
-  
+
   // output status
   echo(sprintf("FB (%05s/%05s)--> [%-16s]\n", number_format(++$cnt), number_format(mysqli_num_rows($result)), $fb_user_obj->fb_psid));
-  
-  
 
 
   // build json array
   $payload_arr = array(
     'recipient' => array(
-			'id' => $fb_user_obj->fb_psid
-		),
-		'message'   => array(
-		  'attachment' => array(
-		    'type'    => "image",
-		    'payload' => array(
-		      'url' => "https://i.imgur.com/73iVUkb.gif"
-		    )
-		  )
-		)
+      'id' => $fb_user_obj->fb_psid
+    ),
+    'message'   => array(
+      'attachment' => array(
+        'type'    => "image",
+        'payload' => array(
+          'url' => "https://i.imgur.com/73iVUkb.gif"
+        )
+      )
+    )
   );
   post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
 
-
-
   // build json array
   $payload_arr = array(
-		'recipient' => array(
-			'id'      => $fb_user_obj->fb_psid
-		),
-		'message' => array(
-		  'text'          => $body_txt,
-		  'quick_replies' => array(
+    'recipient' => array(
+      'id' => $fb_user_obj->fb_psid
+     ),
+    'message'   => array(
+      'text'          => sprintf($body_txt, $product_obj->display_name, $storefront_obj->cnt, preg_replace('/^.*\/(.*)$/', 'm.me/lmon8?ref=/$1', $product_obj->prebot_url)),
+      'quick_replies' => array(
         array(
           'content_type' => "text",
           'title'        => "Main Menu",
@@ -186,16 +180,16 @@ while ($fb_user_obj = mysqli_fetch_object($result)) {
         )
       )
     )
-	);
+  );
 
-	post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
+  post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
   send_tracker($fb_user_obj->fb_psid);
 }
 
 // close db
 if ($db_conn) {
-	mysqli_close($db_conn);
-	$db_conn = null;
+  mysqli_close($db_conn);
+  $db_conn = null;
 }
 
 ?>

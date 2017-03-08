@@ -134,13 +134,30 @@ foreach ($storefronts_arr as $key=>$val) {
 
   // output status
   echo(sprintf("FB (%05s/%05s)--> [%-16s]\n", number_format(++$cnt), number_format(count($storefronts_arr)), $key));
+  
+  // build json array
+  $payload_arr = array(
+    'recipient' => array(
+			'id' => $key
+		),
+		'message'   => array(
+		  'attachment' => array(
+		    'type'    => "image",
+		    'payload' => array(
+		      'url' => "https://i.imgur.com/73iVUkb.gif"
+		    )
+		  )
+		)
+  );
+  post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
+  
     
   // build json array
   $payload_arr = array(
 		'recipient' => array(
 			'id' => $key
 		),
-		'message' => array(
+		'message'   => array(
 		  'text'          => sprintf($config_arr['BODY_TEMPLATE'], $val['display_name'], $val['total'], ($val['total'] == 1) ? "" : "s"),
 		  'quick_replies' => array(
         array(
