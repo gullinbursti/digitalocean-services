@@ -32,6 +32,9 @@ class Const(Constants):
     RATE_GLYPH = u'\u2605'.encode('utf8')
     IGNORED_NAME_PATTERN = r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\\<\>]'
 
+    GA_TRACKING_ID = "UA-79705534-2"
+    GA_TRACKING_URL = "http://www.google-analytics.com/collect"
+
     SQLITE_ID_START = 524288
     SUBSCRIBERS_MAX_FREE_TIER = 100
     PREMIUM_SHOP_PRICE = 4.99

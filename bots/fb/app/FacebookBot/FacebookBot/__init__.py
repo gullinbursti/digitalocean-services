@@ -478,72 +478,97 @@ def copy_remote_asset(src_url, local_file):
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
-    logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s)" % (fb_psid, category, action, label))
+    logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
 
     # "http://beta.modd.live/api/user_tracking.php?username={username}&chat_id={chat_id}".format(username=label, chat_id=action),
     # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={action}&label={label}&value={value}&cid={cid}".format(category=category, action=category, label=action, value, cid=hashlib.md5(label.encode()).hexdigest()),
     # "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value={value}&cid={cid}".format(label=action, value, cid=hashlib.md5(label.encode()).hexdigest())
 
     action = action or category
-    label = label or ""
+    label = label or fb_psid
     value = value or "0"
+
+    # t1 = threading.Thread(
+    #     target=async_tracker,
+    #     name="user_tracking",
+    #     kwargs={
+    #         'url'     : "http://beta.modd.live/api/user_tracking.php",
+    #         'payload' : {
+    #             'username' : "",
+    #             'chat_id'  : fb_psid
+    #         }
+    #     }
+    # )
+    #
+    # t2 = threading.Thread(
+    #     target=async_tracker,
+    #     name="bot_tracker-1",
+    #     kwargs={
+    #         'url'     : "http://beta.modd.live/api/bot_tracker.php",
+    #         'payload' : {
+    #             'src'      : "prebot",
+    #             'category' : category,
+    #             'action'   : action,
+    #             'label'    : label,
+    #             'value'    : value,
+    #             'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
+    #         }
+    #     }
+    # )
+    #
+    # t3 = threading.Thread(
+    #     target=async_tracker,
+    #     name="bot_tracker-2",
+    #     kwargs={
+    #         'url'     : "http://beta.modd.live/api/bot_tracker.php",
+    #         'payload' : {
+    #             'src'      : "prebot",
+    #             'category' : "user-message",
+    #             'action'   : action,
+    #             'label'    : label,
+    #             'value'    : value,
+    #             'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
+    #         }
+    #     }
+    # )
+    #
+    # t1.start()
+    # t2.start()
+    # t3.start()
+
+
 
     t1 = threading.Thread(
         target=async_tracker,
-        name="user_tracking",
+        name="ga-tracker",
         kwargs={
-            'url'     : "http://beta.modd.live/api/user_tracking.php",
-            'payload' : {
-                'username' : "",
-                'chat_id'  : fb_psid
+            'payload': {
+                'v'   : 1,
+                't'   : "event",
+                'tid' : Const.GA_TRACKING_ID,
+                'cid' : hashlib.md5(fb_psid.encode()).hexdigest(),
+                'ec'  : category,
+                'ea'  : action,
+                'el'  : label,
+                'ev'  : value
             }
         }
     )
-
-    t2 = threading.Thread(
-        target=async_tracker,
-        name="bot_tracker-1",
-        kwargs={
-            'url'     : "http://beta.modd.live/api/bot_tracker.php",
-            'payload' : {
-                'src'      : "prebot",
-                'category' : category,
-                'action'   : action,
-                'label'    : label,
-                'value'    : value,
-                'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
-            }
-        }
-    )
-
-    t3 = threading.Thread(
-        target=async_tracker,
-        name="bot_tracker-2",
-        kwargs={
-            'url'     : "http://beta.modd.live/api/bot_tracker.php",
-            'payload' : {
-                'src'      : "prebot",
-                'category' : "user-message",
-                'action'   : action,
-                'label'    : label,
-                'value'    : value,
-                'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
-            }
-        }
-    )
-
     t1.start()
-    t2.start()
-    t3.start()
 
     return True
 
-def async_tracker(url, payload):
-    #logger.info("async_tracker(url=%s, payload=%s" % (url, payload))
 
-    response = requests.get(url, params=payload)
+def async_tracker(payload):
+    # logger.info("async_tracker(payload=%s" % (payload,))
+
+    response = requests.post(Const.GA_TRACKING_URL, data=payload, headers={ 'User-Agent' : "Lemonade-Tracker-v1" })
     if response.status_code != 200:
         logger.info("TRACKER ERROR:%s" % (response.text))
+
+    # response = requests.get(url, params=payload)
+    # if response.status_code != 200:
+    #     logger.info("TRACKER ERROR:%s" % (response.text))
 
 
 def slack_outbound(channel_name, message_text, image_url=None, username=None, webhook=None):
@@ -653,7 +678,7 @@ def add_subscription(recipient_id, storefront_id, product_id=0, deeplink=None):
                 is_new = (row is None)
 
                 if row is None:
-                    send_tracker(fb_psid=recipient_id, category="user-subscribe", label=storefront.display_name_utf8)
+                    # send_tracker(fb_psid=recipient_id, category="user-subscribe", label=storefront.display_name_utf8)
 
                     cur.execute('INSERT INTO `subscriptions` (`id`, `user_id`, `storefront_id`, `product_id`, `deeplink`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.id, product.id, deeplink or "/"))
                     conn.commit()
@@ -827,6 +852,7 @@ def view_product(recipient_id, product):
         db.session.commit()
 
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        send_tracker(fb_psid=recipient_id, category="view-shop", label=storefront.display_name_utf8)
         increment_shop_views(recipient_id, product.id)
 
         add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
@@ -846,7 +872,7 @@ def view_product(recipient_id, product):
 
         else:
             if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(deeplink=product.name)):
-
+                send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
                 send_text(
                     recipient_id=recipient_id,
                     message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have {points} and are now subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
@@ -905,6 +931,8 @@ def purchase_product(recipient_id, source):
 
             db.session.add(purchase)
             db.session.commit()
+            send_tracker(fb_psid=recipient_id, category="purchase-complete-bitcoin")
+
             send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
             send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
@@ -923,7 +951,7 @@ def purchase_product(recipient_id, source):
             #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
 
             if stripe_charge['status'] == "succeeded":
-                send_tracker(fb_psid=recipient_id, category="purchase-complete")
+                send_tracker(fb_psid=recipient_id, category="purchase-complete-stripe")
 
                 purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
                 db.session.add(purchase)
@@ -981,6 +1009,8 @@ def purchase_product(recipient_id, source):
 
             db.session.add(purchase)
             db.session.commit()
+
+            send_tracker(fb_psid=recipient_id, category="purchase-complete-paypal")
 
             storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
             if storefront_owner.paypal_name is not None:
@@ -1170,9 +1200,9 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
-        if re.search(r'^\?createshop$', deeplink) is not None:
+        if re.search(r'^\/?createshop$', deeplink) is not None:
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            send_tracker(fb_psid=recipient_id, category="createshop", action=recipient_id, label=None if fb_user is None else fb_user.full_name_utf8)
+            send_tracker(fb_psid=recipient_id, category="adref", action=deeplink)
 
 
         product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 7).first()
@@ -1191,8 +1221,9 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     if storefront.landscape_logo_url is not None:
                         send_image(recipient_id, storefront.landscape_logo_url)
 
-
+                send_tracker(fb_psid=recipient_id, category="view-shop", label=storefront.display_name_utf8)
                 if add_subscription(recipient_id, storefront.id, product.id, deeplink):
+                    send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
                     send_text(
                         recipient_id=recipient_id,
                         message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
@@ -1849,8 +1880,8 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
             )
 
         elif card_type == Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO:
-            send_tracker(fb_psid=recipient_id, category="button-activate-pro")
-            send_tracker(fb_psid=recipient_id, category="button-paywall")
+            # send_tracker(fb_psid=recipient_id, category="button-activate-pro")
+            # send_tracker(fb_psid=recipient_id, category="button-paywall")
 
             product = Product.query.filter(Product.id == 1).first()
             if product is not None:
@@ -2177,7 +2208,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     # postback btn
     if payload == Const.PB_PAYLOAD_RANDOM_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-random-shop")
+        send_tracker(fb_psid=recipient_id, category="next-shop")
         add_points(recipient_id, Const.POINT_AMOUNT_NEXT_SHOP)
 
         product = random.choice(Product.query.filter(Product.creation_state == 7).filter(Product.type_id == 1).all())
@@ -2189,7 +2220,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-create-shop")
+        # send_tracker(fb_psid=recipient_id, category="button-create-shop")
 
         try:
             Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
@@ -2210,7 +2241,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "Give your Shopbot a name.", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-delete-shop")
+        # send_tracker(fb_psid=recipient_id, category="button-delete-shop")
 
         for storefront in Storefront.query.filter(Storefront.fb_psid == recipient_id):
             send_text(recipient_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name_utf8))
@@ -2247,7 +2278,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_ADD_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-add-item")
+        # send_tracker(fb_psid=recipient_id, category="button-add-item")
 
         try:
             Product.query.filter(Product.fb_psid == recipient_id).delete()
@@ -2264,7 +2295,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_DELETE_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-delete-item")
+        # send_tracker(fb_psid=recipient_id, category="button-delete-item")
 
         for product in Product.query.filter(Product.fb_psid == recipient_id):
             send_text(recipient_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name_utf8))
@@ -2304,7 +2335,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_SHARE_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-share")
+        send_tracker(fb_psid=recipient_id, category="share")
         send_text(recipient_id, "Share your Shopbot with your friends on messenger")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
@@ -2315,19 +2346,19 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif re.search('^VIEW_PRODUCT\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-featured-shop")
+        # send_tracker(fb_psid=recipient_id, category="button-featured-shop")
         product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
         product = Product.query.filter(Product.id == product_id).first()
         view_product(recipient_id, product)
 
 
     elif payload == Const.PB_PAYLOAD_SUPPORT:
-        send_tracker(fb_psid=recipient_id, category="button-support")
+        # send_tracker(fb_psid=recipient_id, category="button-support")
         send_text(recipient_id, "Support for Lemonade:\nprebot.me/support")
 
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-reserve")
+        # send_tracker(fb_psid=recipient_id, category="button-reserve")
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
@@ -2335,7 +2366,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_BITCOIN:
-        send_tracker(fb_psid=recipient_id, category="button-payment-bitcoin")
+        send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -2367,7 +2398,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_text(recipient_id, "Post your Bitcoin wallet's QR code or typein  the address", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD:
-        send_tracker(fb_psid=recipient_id, category="button-checkout")
+        send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -2405,7 +2436,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PAYPAL:
-        send_tracker(fb_psid=recipient_id, category="button-payment-bitcoin")
+        send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -2433,7 +2464,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-purchase")
+        # send_tracker(fb_psid=recipient_id, category="button-purchase")
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
@@ -2454,36 +2485,36 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_RATE_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-rate-storefront")
+        # send_tracker(fb_psid=recipient_id, category="button-rate-storefront")
         send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_RATE)
 
 
     elif payload == Const.PB_PAYLOAD_MESSAGE_CUSTOMERS:
-        send_tracker(fb_psid=recipient_id, category="button-message-customers")
+        # send_tracker(fb_psid=recipient_id, category="button-message-customers")
         send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCT_PURCHASES)
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
-        send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
+        # send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
 
         customer.paypal_email = "_{PENDING}_"
         db.session.commit()
         send_text(recipient_id, "Enter your PayPal.Me name", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
-        send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
+        # send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
 
         customer.bitcoin_addr = "_{PENDING}_"
         db.session.commit()
         send_text(recipient_id, "Post your Bitcoin wallet's QR code or type in the address", cancel_entry_quick_reply())
 
     elif re.search(r'^DM_OPEN\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-open")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-open")
         purchase_id = re.match(r'^DM_OPEN\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         send_text(recipient_id, "Send the seller" if purchase.customer_id == customer.id else "Send the buyer", dm_quick_replies(recipient_id, purchase_id, Const.DM_ACTION_SEND))
 
     elif re.search(r'^DM_SEND_FB_NAME\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-send-fb-name")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-send-fb-name")
         purchase_id = re.match(r'^DM_SEND_FB_NAME\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         customer.fb_name = "_{PENDING}_"
@@ -2493,7 +2524,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "Type your Facebook username for the seller" if purchase.customer_id == customer.id else "Type your Facebook username for the buyer", cancel_entry_quick_reply())
 
     elif re.search(r'^DM_REQUEST_INVOICE\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-request-invoice")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-request-invoice")
         purchase_id = re.match(r'^DM_REQUEST_INVOICE\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         customer.purchase_id = purchase_id
         db.session.commit()
@@ -2517,7 +2548,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif re.search(r'^DM_REQUEST_PAYMENT\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-request-payment")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-request-payment")
         purchase_id = re.match(r'^DM_REQUEST_PAYMENT\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         purchase.claim_state = 1
@@ -2534,21 +2565,21 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif re.search(r'^DM_CANCEL_PURCHASE\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-cancel-purchase")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-cancel-purchase")
         purchase_id = re.match(r'^DM_CANCEL_PURCHASE\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "CANCEL_ORDER")
 
 
     elif re.search(r'^DM_CLOSE\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-dm-close")
+        # send_tracker(fb_psid=recipient_id, category="button-dm-close")
         purchase_id = re.match(r'^DM_CLOSE\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_CLOSE)
 
 
     elif payload == Const.PB_PAYLOAD_FLIP_COIN_NEXT_ITEM:
-        send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
+        # send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
 
         payload = {
             'action'   : "NEXT_ITEM",
@@ -2557,7 +2588,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         response = requests.post("{api_url}?token={timestamp}".format(api_url=Const.COIN_FLIP_API, timestamp=int(time.time())), data=payload)
 
     elif payload == Const.PB_PAYLOAD_FLIP_COIN_DO_FLIP:
-        send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
+        # send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
 
         payload = {
             'action'   : "FLIP_ITEM",
@@ -2574,7 +2605,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     # quick replies
     elif payload == Const.PB_PAYLOAD_MAIN_MENU:
-        send_tracker(fb_psid=recipient_id, category="button-menu")
+        # send_tracker(fb_psid=recipient_id, category="button-menu")
 
         customer.storefront_id = None
         customer.product_id = None
@@ -2584,22 +2615,22 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_admin_carousel(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_HOME_CONTENT:
-        send_tracker(fb_psid=recipient_id, category="button-ok")
+        # send_tracker(fb_psid=recipient_id, category="button-ok")
         send_home_content(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
-        send_tracker(fb_psid=recipient_id, category="button-cancel-entry-sequence")
+        # send_tracker(fb_psid=recipient_id, category="button-cancel-entry-sequence")
 
         clear_entry_sequences(recipient_id)
         send_home_content(recipient_id)
 
     elif re.search(r'^SAY_THANKS\-(\d+)$', payload) is not None:
-        send_tracker(fb_psid=recipient_id, category="button-say-thanks")
+        # send_tracker(fb_psid=recipient_id, category="button-say-thanks")
         send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>\d+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
 
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-submit-store")
+        send_tracker(fb_psid=recipient_id, category="create-shop")
 
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 3).first()
         if storefront is not None:
@@ -2626,7 +2657,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 if conn:
                     conn.close()
 
-            send_tracker(fb_psid=recipient_id, category="shop-sign-up")
+            # send_tracker(fb_psid=recipient_id, category="shop-sign-up")
 
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
@@ -2648,7 +2679,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             )
 
     elif payload == Const.PB_PAYLOAD_REDO_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-redo-store")
+        # send_tracker(fb_psid=recipient_id, category="button-redo-store")
 
         try:
             Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
@@ -2663,7 +2694,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "Give your Lemonade Shop Bot a name.", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_CANCEL_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-cancel-store")
+        # send_tracker(fb_psid=recipient_id, category="button-cancel-store")
 
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 3).first()
         if storefront is not None:
@@ -2680,7 +2711,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif re.search('^PRODUCT_RELEASE_(\d+)_DAYS$', payload) is not None:
         match = re.match(r'^PRODUCT_RELEASE_(?P<days>\d+)_DAYS$', payload)
-        send_tracker("button-product-release-{days}-days-store".format(days=match.group('days')), recipient_id, "")
+        # send_tracker("button-product-release-{days}-days-store".format(days=match.group('days')), recipient_id, "")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 3).first()
         if product is not None:
@@ -2701,7 +2732,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_TYPE_PHYSICAL:
-        send_tracker(fb_psid=recipient_id, category="button-product-physical")
+        # send_tracker(fb_psid=recipient_id, category="button-product-physical")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 4).first()
         if product is not None:
@@ -2716,7 +2747,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_TYPE_VIRTUAL:
-        send_tracker(fb_psid=recipient_id, category="button-product-virtual")
+        # send_tracker(fb_psid=recipient_id, category="button-product-virtual")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 4).first()
         if product is not None:
@@ -2733,7 +2764,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         )
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_TAG_SKIP:
-        send_tracker(fb_psid=recipient_id, category="button-skip-tags")
+        # send_tracker(fb_psid=recipient_id, category="button-skip-tags")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 5).first()
         if product is not None:
@@ -2745,7 +2776,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-submit-product")
+        send_tracker(fb_psid=recipient_id, category="add-product")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         if product is not None:
@@ -2792,7 +2823,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             )
 
     elif payload == Const.PB_PAYLOAD_REDO_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-redo-product")
+        # send_tracker(fb_psid=recipient_id, category="button-redo-product")
 
         try:
             Product.query.filter(Product.fb_psid == recipient_id).delete()
@@ -2807,7 +2838,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_CANCEL_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-undo-product")
+        # send_tracker(fb_psid=recipient_id, category="button-undo-product")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         if product is not None:
@@ -2822,11 +2853,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_admin_carousel(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_AFFILIATE_GIVEAWAY:
-        send_tracker(fb_psid=recipient_id, category="button-givaway")
+        # send_tracker(fb_psid=recipient_id, category="button-givaway")
         send_text(recipient_id, "Win CS:GO items by playing flip coin with Lemonade! Details coming soon.", quick_replies=[build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
 
     elif payload == Const.PB_PAYLOAD_PREBOT_URL:
-        send_tracker(fb_psid=recipient_id, category="button-url")
+        # send_tracker(fb_psid=recipient_id, category="button-url")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
@@ -2839,7 +2870,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_GIVEAWAYS_YES:
-        send_tracker(fb_psid=recipient_id, category="button-giveaways-yes")
+        # send_tracker(fb_psid=recipient_id, category="button-giveaways-yes")
 
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
         storefront.giveaway = 1
@@ -2873,11 +2904,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_GIVEAWAYS_NO:
-        send_tracker(fb_psid=recipient_id, category="button-giveaways-no")
+        # send_tracker(fb_psid=recipient_id, category="button-giveaways-no")
         send_admin_carousel(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="button-reserve")
+        # send_tracker(fb_psid=recipient_id, category="button-reserve")
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
@@ -2885,8 +2916,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_PAYMENT_YES:
-        send_tracker(fb_psid=recipient_id, category="button-payment-yes")
-        send_tracker(fb_psid=recipient_id, category="button-purchase-product")
+        # send_tracker(fb_psid=recipient_id, category="button-payment-yes")
+        # send_tracker(fb_psid=recipient_id, category="button-purchase-product")
 
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).filter(Payment.source == Const.PAYMENT_SOURCE_CREDIT_CARD).filter(Payment.creation_state == 5).first()
         if payment is not None:
@@ -2895,7 +2926,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT_CC if add_cc_payment(recipient_id) else Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PAYMENT_NO:
-        send_tracker(fb_psid=recipient_id, category="button-payment-no")
+        # send_tracker(fb_psid=recipient_id, category="button-payment-no")
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
             db.session.commit()
@@ -2904,7 +2935,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         add_cc_payment(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_PAYMENT_CANCEL:
-        send_tracker(fb_psid=recipient_id, category="button-payment-cancel")
+        # send_tracker(fb_psid=recipient_id, category="button-payment-cancel")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -2915,7 +2946,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
-        send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
+        # send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
 
         customer.paypal_name = "_{PENDING}_"
         db.session.commit()
@@ -2926,7 +2957,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_text(recipient_id, "Enter your PayPal email address", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
-        send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
+        # send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
 
         customer.bitcoin_addr = "_{PENDING}_"
         db.session.commit()
@@ -2934,7 +2965,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif re.search(r'^PRODUCT_RATE_(\d+)_STAR$', payload) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', payload)
-        send_tracker("button-product-rate-{stars}-star".format(stars=match.group('stars')), recipient_id, "")
+        # send_tracker("button-product-rate-{stars}-star".format(stars=match.group('stars')), recipient_id, "")
 
         purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
         product = Product.query.filter(Product.id == purchase.product_id).first()
@@ -2968,10 +2999,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_customer_carousel(recipient_id, product.id)
 
     elif payload == Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="button-activate-pro")
+        # send_tracker(fb_psid=recipient_id, category="button-activate-pro")
+        pass
 
     else:
-        send_tracker(fb_psid=recipient_id, category="unknown-button")
+        # send_tracker(fb_psid=recipient_id, category="unknown-button")
         send_text(recipient_id, "Button not recognized!")
 
 
@@ -3764,7 +3796,7 @@ def fbbot():
 
                 if 'read' in messaging_event:
                     # logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
-                    send_tracker(fb_psid=sender_id, category="read-receipt")
+                    # send_tracker(fb_psid=sender_id, category="read-receipt")
                     return "OK", 200
 
                 if 'optin' in messaging_event:
