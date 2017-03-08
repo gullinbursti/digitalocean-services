@@ -1170,7 +1170,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
-        if re.search(r'^\/createshop$', deeplink) is not None:
+        if re.search(r'^\?createshop$', deeplink) is not None:
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             send_tracker(fb_psid=recipient_id, category="createshop", action=recipient_id, label=None if fb_user is None else fb_user.full_name_utf8)
 
