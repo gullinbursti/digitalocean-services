@@ -1354,7 +1354,7 @@ def cancel_payment_quick_reply():
 
 
 def build_button(btn_type, caption="", url="", payload=""):
-    logger.info("build_button(btn_type=%s, caption=%s, url=%s, payload=%s)" % (btn_type, caption, url, payload))
+    # logger.info("build_button(btn_type=%s, caption=%s, url=%s, payload=%s)" % (btn_type, caption, url, payload))
 
     button = None
     if btn_type == Const.CARD_BTN_POSTBACK:
@@ -1414,7 +1414,7 @@ def build_button(btn_type, caption="", url="", payload=""):
 
 
 def build_quick_reply(btn_type, caption, payload, image_url=None):
-    logger.info("build_quick_reply(btn_type=%s, caption=%s, payload=%s)" % (btn_type, caption, payload))
+    # logger.info("build_quick_reply(btn_type=%s, caption=%s, payload=%s)" % (btn_type, caption, payload))
 
     button = None
     if btn_type == Const.KWIK_BTN_TEXT:
@@ -1502,7 +1502,7 @@ def build_featured_storefront_elements(recipient_id, amt=3):
 
 
 def build_card_element(title, subtitle=None, image_url=None, item_url=None, buttons=None):
-    logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)" % (title, subtitle, image_url, item_url, buttons))
+    # logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)" % (title, subtitle, image_url, item_url, buttons))
 
     element = {
         'title'     : title,
@@ -1577,7 +1577,7 @@ def build_receipt_card(recipient_id, purchase_id):
 
 
 def build_list_card(recipient_id, body_elements, header_element=None, buttons=None, quick_replies=None):
-    logger.info("build_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)" % (recipient_id, body_elements, header_element, buttons, quick_replies))
+    # logger.info("build_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)" % (recipient_id, body_elements, header_element, buttons, quick_replies))
 
     data = {
         'recipient' : {
@@ -1605,7 +1605,7 @@ def build_list_card(recipient_id, body_elements, header_element=None, buttons=No
 
 
 def build_standard_card(recipient_id, title, subtitle=None, image_url=None, item_url=None, buttons=None, quick_replies=None):
-    logger.info("build_standard_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, subtitle, image_url, item_url, buttons, quick_replies))
+    # logger.info("build_standard_card(recipient_id=%s, title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, subtitle, image_url, item_url, buttons, quick_replies))
 
     data = {
         'recipient' : {
@@ -1640,7 +1640,7 @@ def build_standard_card(recipient_id, title, subtitle=None, image_url=None, item
 
 
 def build_carousel(recipient_id, cards, quick_replies=None):
-    logger.info("build_carousel(recipient_id=%s, cards=%s, quick_replies=%s)" % (recipient_id, cards, quick_replies))
+    # logger.info("build_carousel(recipient_id=%s, cards=%s, quick_replies=%s)" % (recipient_id, cards, quick_replies))
 
     data = {
         'recipient' : {
@@ -1707,6 +1707,17 @@ def send_admin_carousel(recipient_id):
             )
         )
 
+        cards.append(
+            build_card_element(
+                title="Share on Messenger",
+                subtitle="Share now with your friends on Messenger",
+                image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
+                buttons=[
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_APP)
+                ]
+            )
+        )
+
     else:
         product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 7).first()
         if product is None:
@@ -1717,6 +1728,17 @@ def send_admin_carousel(recipient_id):
                     image_url = Const.IMAGE_URL_ADD_PRODUCT_CARD,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Add Item", payload=Const.PB_PAYLOAD_ADD_PRODUCT)
+                    ]
+                )
+            )
+
+            cards.append(
+                build_card_element(
+                    title="Share on Messenger",
+                    subtitle="Share now with your friends on Messenger",
+                    image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
+                    buttons=[
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_APP)
                     ]
                 )
             )
@@ -2197,6 +2219,23 @@ def send_suport_card(recipient_id):
     send_message(json.dumps(data))
 
 
+def send_app_card(recipient_id):
+    logger.info("send_app_card(recipient_id=%s)" % (recipient_id,))
+
+    data = build_standard_card(
+        recipient_id=recipient_id,
+        title="Lemonade on Messenger",
+        image_url="https://scard.tv/static/images/lmon8-logo.jpg",
+        item_url="http://m.me/lmon8?ref=/",
+        buttons=[
+            build_button(Const.CARD_BTN_URL, caption="View Bot", url="http://m.me/lmon8?ref=/"),
+            build_button(Const.CARD_BTN_INVITE)
+        ],
+        quick_replies=main_menu_quick_replies(recipient_id)
+    )
+
+    send_message(json.dumps(data))
+
 
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
@@ -2346,7 +2385,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif re.search('^VIEW_PRODUCT\-(\d+)$', payload) is not None:
-        # send_tracker(fb_psid=recipient_id, category="button-featured-shop")
         product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
         product = Product.query.filter(Product.id == product_id).first()
         view_product(recipient_id, product)
@@ -2624,6 +2662,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         clear_entry_sequences(recipient_id)
         send_home_content(recipient_id)
 
+    elif payload == Const.PB_PAYLOAD_SHARE_APP:
+        # send_tracker(fb_psid=recipient_id, category="button-say-thanks")
+        send_app_card(recipient_id)
+
     elif re.search(r'^SAY_THANKS\-(\d+)$', payload) is not None:
         # send_tracker(fb_psid=recipient_id, category="button-say-thanks")
         send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>\d+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
@@ -2763,6 +2805,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 ] + cancel_entry_quick_reply()
         )
 
+
     elif payload == Const.PB_PAYLOAD_PRODUCT_TAG_SKIP:
         # send_tracker(fb_psid=recipient_id, category="button-skip-tags")
 
@@ -2803,6 +2846,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 if conn:
                     conn.close()
 
+
+
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
             send_admin_carousel(recipient_id)
 
@@ -2821,6 +2866,37 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 message_text="*{fb_name}* just created a {product_type} product named _{product_name}_ for the shop _{storefront_name}_.\n{physical_url}".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, product_type="virtual" if product.type_id == Const.PRODUCT_TYPE_VIRTUAL else "physical", product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, physical_url=product.physical_url or ""),
                 image_url=product.image_url
             )
+
+
+            prev_subscribers = []
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `user_id` FROM `subscriptions` WHERE `storefront_id` = %s;', (storefront.id))
+                    for row in cur.fetchall():
+                        customer = Customer.query.filter(Customer.id == row['user_id']).first()
+                        if customer is not None:
+                            prev_subscribers.append(customer.fb_psid)
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+            # for fb_psid in prev_subscribers:
+            #     send_text(
+            #         recipient_id=fb_psid,
+            #         message_text="{storefront_name} just added {product_name} to their shop!".format(storefront_name=storefront.display_name_utf8, product_name=product.display_name_utf8),
+            #         quick_replies=[
+            #             build_quick_reply(Const.KWIK_BTN_TEXT, "View Product", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
+            #         ] + cancel_entry_quick_reply()
+            #     )
+
+
 
     elif payload == Const.PB_PAYLOAD_REDO_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-redo-product")
@@ -3761,15 +3837,15 @@ def handle_wrong_reply(recipient_id):
 def fbbot():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
-        # return "OK", 200
+    # return "OK", 200
 
     data = request.get_json()
 
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info(data)
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info(data)
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
     if data['object'] == "page":
         for entry in data['entry']:
@@ -3796,7 +3872,7 @@ def fbbot():
 
                 if 'read' in messaging_event:
                     # logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
-                    # send_tracker(fb_psid=sender_id, category="read-receipt")
+                    send_tracker(fb_psid=sender_id, category="read-receipt")
                     return "OK", 200
 
                 if 'optin' in messaging_event:
@@ -3884,12 +3960,12 @@ def fbbot():
 
 
                     if 'attachments' in message:
-                        for attachment in message['attachments']:
-                            if attachment['type'] == "fallback" and 'text' in message:
-                                received_text_response(customer.fb_psid, message['text'])
-
-                            else:
-                                recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
+                        # for attachment in message['attachments']:
+                            # if attachment['type'] == "fallback" and 'text' in message:
+                            #     received_text_response(customer.fb_psid, message['text'])
+                            #
+                            # else:
+                            #     recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
                         return "OK", 200
 
 
