@@ -13,6 +13,7 @@ import sys
 import time
 
 from StringIO import StringIO
+from urllib import urlencode
 
 import MySQLdb as mdb
 import pycurl
@@ -39,20 +40,43 @@ logger.setLevel(logging.INFO)
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
 
-def send_tracker(category, action, label):
-    logger.info("send_tracker(category=%s, action=%s, label=%s)" % (category, action, label))
+def send_tracker(fb_psid, category, action=None, label=None, value=None):
+    logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
+
+    action = action or category
+    label = label or fb_psid
+    value = value or "0"
+
+    payload = {
+        'v'   : 1,
+        't'   : "event",
+        'tid' : Const.GA_TRACKING_ID,
+        'cid' : hashlib.md5(fb_psid.encode()).hexdigest(),
+        'ec'  : category,
+        'ea'  : action,
+        'el'  : label,
+        'ev'  : value
+    }
 
     c = pycurl.Curl()
-    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={category}&label={label}&value=&cid={cid}".format(category=category, action=category, label=action, cid=hashlib.md5(action.encode()).hexdigest()))
+    c.setopt(c.URL, Const.GA_TRACKING_URL)
+    c.setopt(c.POSTFIELDS, urlencode(payload))
     c.setopt(c.WRITEDATA, StringIO())
     c.perform()
     c.close()
 
-    c = pycurl.Curl()
-    c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value=&cid={cid}".format(label=action, cid=hashlib.md5(action.encode()).hexdigest()))
-    c.setopt(c.WRITEDATA, StringIO())
-    c.perform()
-    c.close()
+
+    # c = pycurl.Curl()
+    # c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={category}&label={label}&value=&cid={cid}".format(category=category, action=category, label=action, cid=hashlib.md5(action.encode()).hexdigest()))
+    # c.setopt(c.WRITEDATA, StringIO())
+    # c.perform()
+    # c.close()
+    #
+    # c = pycurl.Curl()
+    # c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value=&cid={cid}".format(label=action, cid=hashlib.md5(action.encode()).hexdigest()))
+    # c.setopt(c.WRITEDATA, StringIO())
+    # c.perform()
+    # c.close()
 
     return True
 
@@ -376,6 +400,8 @@ def coin_flip_results(sender_id, item_id=None):
 
 
     if sender_id == Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= ((1 / float(5)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
+        send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
+
         total_wins += 1
         payload = {
             'channel'     : "#bot-alerts",
@@ -443,6 +469,7 @@ def coin_flip_results(sender_id, item_id=None):
             send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8")
 
     else:
+        send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
         send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
             recipient_id=sender_id,
@@ -829,6 +856,7 @@ def clear_session_dub(sender_id):
 
 def purchase_item(sender_id, payment):
     logger.info("purchase_item(sender_id=%s, payment=%s)" % (sender_id, payment))
+    send_tracker(fb_psid=sender_id, category="purchase")
 
     purchase_id = 0
     item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
@@ -931,7 +959,7 @@ def webook():
 
                 if 'read' in messaging_event:  # read confirmation
                     logger.info("-=- READ CONFIRM -=- %s" % (messaging_event))
-                    send_tracker("read-receipt", messaging_event['sender']['id'], "")
+                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
@@ -959,7 +987,7 @@ def webook():
                 #-- new entry
                 if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
                     logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-                    send_tracker("signup-fb", sender_id, "")
+                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
 
                     set_session_state(sender_id)
                     send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
@@ -1016,7 +1044,7 @@ def webook():
 def recieved_quick_reply(sender_id, quick_reply):
     logger.info("recieved_quick_reply(sender_id=%s, quick_reply=%s)" % (sender_id, quick_reply))
 
-    send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()), sender_id, "")
+    # send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()), sender_id, "")
     logger.info("QR --> %s" % (quick_reply,))
 
     handle_payload(sender_id, Const.PAYLOAD_TYPE_OTHER, quick_reply)
@@ -1041,24 +1069,24 @@ def handle_payload(sender_id, payload_type, payload):
     logger.info("handle_payload(sender_id=%s, payload_type=%s, payload=%s)" % (sender_id, payload_type, payload))
 
     if payload == "MAIN_MENU":
-        send_tracker("todays-item", sender_id, "")
+        # send_tracker("todays-item", sender_id, "")
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
 
     elif payload == "WELCOME_MESSAGE":
         logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-        send_tracker("signup-fb", sender_id, "")
+        # send_tracker("signup-fb", sender_id, "")
         default_carousel(sender_id)
 
 
     elif payload == "NEXT_ITEM":
-        send_tracker("next-item", sender_id, "")
+        send_tracker(fb_psid=sender_id, category="next-item")
         default_carousel(sender_id)
 
 
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
-        send_tracker("flip-item", sender_id, "")
+        send_tracker(fb_psid=sender_id, category="flip-coin", label=re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id'))
 
         if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >=5 and has_paid_flip(sender_id, 16)):
             item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
@@ -1067,11 +1095,12 @@ def handle_payload(sender_id, payload_type, payload):
                 coin_flip_results(sender_id, item_id)
 
         else:
+            send_tracker(fb_psid=sender_id, category="pay-wall")
             send_text(sender_id, "You have won 5 items today!\n\nYou must deposit $1.00 to continue playing Flip Coin.\n\nDaily deposit players have access to higher priced items.")
             flip_pay_wall(sender_id)
 
     elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
-        send_tracker("flip-item", sender_id, "")
+        send_tracker(fb_psid=sender_id, category="flip-coin")
 
         if wins_last_day(sender_id) < 5 or (wins_last_day(sender_id) >= 5 and has_paid_flip(sender_id, 16)):
             item_id = None
@@ -1103,11 +1132,14 @@ def handle_payload(sender_id, payload_type, payload):
                 default_carousel(sender_id)
 
         else:
+            send_tracker(fb_psid=sender_id, category="pay-wall")
             send_text(sender_id, "You need to deposit $1.00 in order to keep winning at flip coin today")
             flip_pay_wall(sender_id)
 
 
     elif payload == "INVITE":
+        send_tracker(fb_psid=sender_id, category="invite-friends")
+
         send_card(
             recipient_id =sender_id,
             title="Share",
@@ -1118,6 +1150,8 @@ def handle_payload(sender_id, payload_type, payload):
         )
 
     elif payload == "SUPPORT":
+        send_tracker(fb_psid=sender_id, category="support")
+
         send_text(sender_id, "If you need help visit facebook.com/gamebotsc")
         default_carousel(sender_id)
 
@@ -1130,12 +1164,13 @@ def handle_payload(sender_id, payload_type, payload):
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
     elif payload == "NO_THANKS":
-        send_tracker("no-thanks", sender_id, "")
+        send_tracker(fb_psid=sender_id, category="no-thanks")
         default_carousel(sender_id)
 
     elif payload == "SUBMIT_YES":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             trade_url = get_session_trade_url(sender_id)
+            send_tracker(fb_psid=sender_id, category="trade-url-set")
             send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
 
             try:
@@ -1163,6 +1198,7 @@ def handle_payload(sender_id, payload_type, payload):
 
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
+            send_tracker(fb_psid=sender_id, category="lmon-name-entered")
             send_text(sender_id, "Great! Please wait up to 6 hours for your Trade to clear.")
 
             clear_session_dub(sender_id)
@@ -1230,7 +1266,7 @@ def handle_payload(sender_id, payload_type, payload):
         default_carousel(sender_id)
 
     elif payload == "NO_THANKS":
-        send_tracker("no-thanks", sender_id, "")
+        # send_tracker("no-thanks", sender_id, "")
         default_carousel(sender_id)
 
     else:

@@ -24,6 +24,9 @@ class Const(Constants):
     FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
     FLIP_COIN_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
 
+    GA_TRACKING_ID = "UA-79705534-3"
+    GA_TRACKING_URL = "http://www.google-analytics.com/collect"
+
     SESSION_STATE_UNKNOWN                 = -1
     SESSION_STATE_NEW_USER                = 0
     SESSION_STATE_HOME                    = 1
