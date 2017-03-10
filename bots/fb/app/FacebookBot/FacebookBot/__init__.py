@@ -1278,6 +1278,8 @@ def main_menu_quick_replies(fb_psid):
     product = Product.query.filter(Product.fb_psid == fb_psid).first()
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Feature Shop $1.99", payload=Const.PB_PAYLOAD_FEATURE_SHOP),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Custom URL $0.99", payload=Const.PB_PAYLOAD_FEATURE_URL),
     ]
 
     if product is not None:
@@ -2655,6 +2657,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_HOME_CONTENT:
         # send_tracker(fb_psid=recipient_id, category="button-ok")
         send_home_content(recipient_id)
+
+    elif payload == Const.PB_PAYLOAD_FEATURE_SHOP:
+        send_tracker(fb_psid=recipient_id, category="feature-shop")
+        send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/1.99", main_menu_quick_replies(recipient_id))
+
+    elif payload == Const.PB_PAYLOAD_FEATURE_URL:
+        send_tracker(fb_psid=recipient_id, category="feature-url")
+        send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/0.99", main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
         # send_tracker(fb_psid=recipient_id, category="button-cancel-entry-sequence")
