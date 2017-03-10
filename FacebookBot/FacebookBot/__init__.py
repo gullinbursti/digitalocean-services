@@ -1098,7 +1098,7 @@ def handle_payload(sender_id, payload_type, payload):
             send_tracker(fb_psid=sender_id, category="pay-wall")
             send_text(sender_id, "You have won 5 items today!\n\nYou must deposit $1.00 to continue playing Flip Coin.\n\nDaily deposit players have access to higher priced items.")
             flip_pay_wall(sender_id)
-            send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes:\nhttps://www.paypal.me/gamebotsc/1")
+            send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes:\nhttps://www.paypal.me/gamebotsc/1\n\nAlternatively, ask twitter.com/gamebotsc for a access code.")
 
     elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
         send_tracker(fb_psid=sender_id, category="flip-coin")
@@ -1136,6 +1136,7 @@ def handle_payload(sender_id, payload_type, payload):
             send_tracker(fb_psid=sender_id, category="pay-wall")
             send_text(sender_id, "You need to deposit $1.00 in order to keep winning at flip coin today")
             flip_pay_wall(sender_id)
+            send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes:\nhttps://www.paypal.me/gamebotsc/1\n\nAlternatively, ask twitter.com/gamebotsc for a access code.")
 
 
     elif payload == "INVITE":
