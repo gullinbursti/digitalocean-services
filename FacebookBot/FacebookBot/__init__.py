@@ -308,7 +308,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (2 if has_paid_flip(sender_id, 16) else 1,))
             row = cur.fetchone()
 
             if row is not None:
@@ -1098,6 +1098,7 @@ def handle_payload(sender_id, payload_type, payload):
             send_tracker(fb_psid=sender_id, category="pay-wall")
             send_text(sender_id, "You have won 5 items today!\n\nYou must deposit $1.00 to continue playing Flip Coin.\n\nDaily deposit players have access to higher priced items.")
             flip_pay_wall(sender_id)
+            send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes:\nhttps://www.paypal.me/gamebotsc/1")
 
     elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
         send_tracker(fb_psid=sender_id, category="flip-coin")
@@ -1108,7 +1109,7 @@ def handle_payload(sender_id, payload_type, payload):
             try:
                 with conn:
                     cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                    cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (2 if has_paid_flip(sender_id, 16) else 1,))
                     row = cur.fetchone()
 
                     if row is not None:
@@ -1290,7 +1291,7 @@ def recieved_text_reply(sender_id, message_text):
         # if get_session_trade_url(sender_id) == "_{PENDING}_":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
             #if re.search(r'[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$', message_text) is not None:
-            if re.search(r'.*steamcommunity\.com\/tradeoffer\/([-a-zA-Z0-9@:%_\+.~#?&\/=]*)$$', message_text) is not None:
+            if re.search(r'.*steamcommunity\.com\/tradeoffer\/.*$', message_text) is not None:
                 set_session_trade_url(sender_id, message_text)
                 recieved_trade_url(sender_id, message_text, Const.TRADE_URL_FLIP_ITEM)
 
