@@ -954,6 +954,22 @@ class KikBot(tornado.web.RequestHandler):
                 response = requests.get("http://beta.modd.live/api/bot_tracker.php?src=botlandia&category=kikbot&action=start-chat&label={username}&value=0&cid={cid}".format(username=message.from_user, cid=message.chat_id))
                 response = requests.get("http://beta.modd.live/api/user_tracker.php?username={username}&chat_id={chat_id}".format(username=message.from_user, chat_id=message.chat_id))
 
+                try:
+                    kik.send_messages([
+                        TextMessage(
+                            to=message.from_user,
+                            chat_id=message.chat_id,
+                            body="Gamebots on Kik is experiencing some technical issues! Please use our Messenger bot m.me/gamebotsc",
+                            type_time=250,
+                            keyboards=default_keyboard()
+                        )
+                    ])
+                except KikError as err:
+                    print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+
+                self.set_status(200)
+                return
+
 
                 welcome_intro_seq(message)
 
@@ -1003,6 +1019,22 @@ class KikBot(tornado.web.RequestHandler):
             # -=-=-=-=-=-=-=-=- TEXT MESSAGE -=-=-=-=-=-=-=-=-
             elif isinstance(message, TextMessage):
                 print("=-= TextMessage =-= ")
+
+                try:
+                    kik.send_messages([
+                        TextMessage(
+                            to=message.from_user,
+                            chat_id=message.chat_id,
+                            body="Gamebots on Kik is experiencing some technical issues! Please use our Messenger bot m.me/gamebotsc",
+                            type_time=250,
+                            keyboards=default_keyboard()
+                        )
+                    ])
+                except KikError as err:
+                    print("::::::[kik.send_messages] kik.KikError - {message}".format(message=err))
+
+                self.set_status(200)
+                return
 
                 # -=-=-=-=-=-=-=-=-=- MENTIONS -=-=-=-=-=-=-=-=-
                 if message.mention is not None:
