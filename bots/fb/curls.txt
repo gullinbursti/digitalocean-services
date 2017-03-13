@@ -106,3 +106,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "sender_action":"typing_on"
 }' "https://graph.facebook.com/v2.6/me/messages?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+
+
+
+while true ; do head -c $(( $RANDOM % 100 )) /dev/urandom | printf "%s\t\t" $(hexdump -e '"%x"') ; done

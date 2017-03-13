@@ -857,12 +857,14 @@ def view_product(recipient_id, product):
 
         add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
 
-        # if product.video_url is not None and product.video_url != "":
-        #     send_video(recipient_id, product.video_url, product.attachment_id)
-        #
-        # else:
-        #     if storefront.landscape_logo_url is not None:
-        #         send_image(recipient_id, storefront.landscape_logo_url)
+        if product.video_url is not None and product.video_url != "":
+            send_video(recipient_id, product.video_url, product.attachment_id)
+
+        else:
+            if storefront.landscape_logo_url is not None:
+                send_image(recipient_id, storefront.landscape_logo_url)
+
+
 
         purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
         if purchase is not None:
@@ -875,7 +877,7 @@ def view_product(recipient_id, product):
                 send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have {points} and are now subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
+                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have {points} points and are now subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
                 )
 
                 send_image(
@@ -889,12 +891,10 @@ def view_product(recipient_id, product):
             else:
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You {points} and are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, point=customer.points)
+                    message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You {points} points and are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
                 )
 
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-
 
 
 def purchase_product(recipient_id, source):
@@ -903,125 +903,128 @@ def purchase_product(recipient_id, source):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
         product = Product.query.filter(Product.id == customer.product_id).first()
-        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        if product is not None:
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+            if storefront is not None:
+                if source == Const.PAYMENT_SOURCE_BITCOIN:
+                    purchase = Purchase(customer.id, storefront.id, product.id, 2)
+                    purchase.claim_state = 1
 
-        if source == Const.PAYMENT_SOURCE_BITCOIN:
-            purchase = Purchase(customer.id, storefront.id, product.id, 2)
-            purchase.claim_state = 1
+                    try:
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('UPDATE `users` SET `bitcoin_addr` = %s WHERE `id` = %s AND `bitcoin_addr` != %s LIMIT 1;', (customer.bitcoin_addr, customer.id, customer.bitcoin_addr))
+                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 2))
+                            conn.commit()
 
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `users` SET `bitcoin_addr` = %s WHERE `id` = %s AND `bitcoin_addr` != %s LIMIT 1;', (customer.bitcoin_addr, customer.id, customer.bitcoin_addr))
-                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 2))
-                    conn.commit()
+                            cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                            row = cur.fetchone()
+                            purchase.id = row['id']
+                            customer.purchase_id = row['id']
 
-                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
-                    row = cur.fetchone()
-                    purchase.id = row['id']
-                    customer.purchase_id = row['id']
+                    except mysql.Error as e:
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-            except mysql.Error as e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                    finally:
+                        if conn:
+                            conn.close()
 
-            finally:
-                if conn:
-                    conn.close()
+                    db.session.add(purchase)
+                    db.session.commit()
+                    send_tracker(fb_psid=recipient_id, category="purchase-complete-bitcoin")
 
-            db.session.add(purchase)
-            db.session.commit()
-            send_tracker(fb_psid=recipient_id, category="purchase-complete-bitcoin")
+                    send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
-            send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+                    send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
+                    route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr))
+                    return True
 
-            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer w/ your bitcoin address {bitcoin_addr}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), bitcoin_addr=customer.bitcoin_addr))
-            return True
+                elif source == Const.PAYMENT_SOURCE_CREDIT_CARD:
+                    stripe_charge = stripe.Charge.create(
+                        amount = int(product.price * 100),
+                        currency = "usd",
+                        customer = customer.stripe_id,
+                        source = customer.card_id,
+                        description = "Charge for {fb_psid} - {storefront_name} / {product_name}".format(fb_psid=customer.fb_psid, storefront_name=storefront.display_name_utf8, product_name=product.display_name_utf8)
+                    )
 
-        elif source == Const.PAYMENT_SOURCE_CREDIT_CARD:
-            stripe_charge = stripe.Charge.create(
-                amount = int(product.price * 100),
-                currency = "usd",
-                customer = customer.stripe_id,
-                source = customer.card_id,
-                description = "Charge for {fb_psid} - {storefront_name} / {product_name}".format(fb_psid=customer.fb_psid, storefront_name=storefront.display_name_utf8, product_name=product.display_name_utf8)
-            )
+                    #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
 
-            #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
+                    if stripe_charge['status'] == "succeeded":
+                        send_tracker(fb_psid=recipient_id, category="purchase-complete-stripe")
 
-            if stripe_charge['status'] == "succeeded":
-                send_tracker(fb_psid=recipient_id, category="purchase-complete-stripe")
-
-                purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
-                db.session.add(purchase)
-                db.session.commit()
-
-                try:
-                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 1, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
-                        conn.commit()
-                        cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
-                        purchase.id = cur.fetchone()['id']
-                        customer.purchase_id = purchase.id
+                        purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
+                        db.session.add(purchase)
                         db.session.commit()
 
-                except mysql.Error, e:
-                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                        try:
+                            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                            with conn:
+                                cur = conn.cursor(mysql.cursors.DictCursor)
+                                cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `refund_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 1, purchase.charge_id, stripe_charge['balance_transaction'], stripe_charge['refunds']['url']))
+                                conn.commit()
+                                cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                                purchase.id = cur.fetchone()['id']
+                                customer.purchase_id = purchase.id
+                                db.session.commit()
 
-                finally:
-                    if conn:
-                        conn.close()
+                        except mysql.Error, e:
+                            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-                send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.email))
-                return True
+                        finally:
+                            if conn:
+                                conn.close()
 
-            else:
-                send_text(recipient_id, "Error making payment:\n{reason}".format(reason=stripe_charge['outcome']['reason']))
-                return False
+                        send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
+                        route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) a the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.email))
+                        return True
 
-        elif source == Const.PAYMENT_SOURCE_PAYPAL:
-            purchase = Purchase(customer.id, storefront.id, product.id, 3)
-            purchase.claim_state = 1
+                    else:
+                        send_text(recipient_id, "Error making payment:\n{reason}".format(reason=stripe_charge['outcome']['reason']))
+                        return False
 
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
-                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 3))
-                    conn.commit()
+                elif source == Const.PAYMENT_SOURCE_PAYPAL:
+                    purchase = Purchase(customer.id, storefront.id, product.id, 3)
+                    purchase.claim_state = 1
 
-                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
-                    row = cur.fetchone()
-                    purchase.id = row['id']
-                    customer.purchase_id = row['id']
+                    try:
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
+                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 3))
+                            conn.commit()
 
-            except mysql.Error as e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                            cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                            row = cur.fetchone()
+                            purchase.id = row['id']
+                            customer.purchase_id = row['id']
 
-            finally:
-                if conn:
-                    conn.close()
+                    except mysql.Error as e:
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-            db.session.add(purchase)
-            db.session.commit()
+                    finally:
+                        if conn:
+                            conn.close()
 
-            send_tracker(fb_psid=recipient_id, category="purchase-complete-paypal")
+                    db.session.add(purchase)
+                    db.session.commit()
 
-            storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
-            if storefront_owner.paypal_name is not None:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+                    send_tracker(fb_psid=recipient_id, category="purchase-complete-paypal")
 
-            else:
-                send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+                    storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
+                    if storefront_owner is not None:
+                        send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
+                        if storefront_owner.paypal_name is not None:
+                            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+                            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
 
-            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
-            return True
+                        else:
+                            send_text(recipient_id, "Notifying the shop owner for your invoice url.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+                            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
+
+                        return True
 
     return False
 
@@ -1226,7 +1229,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
                     send_text(
                         recipient_id=recipient_id,
-                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have {points} points and have been subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
                     )
 
                     send_image(
@@ -1240,7 +1243,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                 else:
                     send_text(
                         recipient_id=recipient_id,
-                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8)
+                        message_text="Welcome to {storefront_name}'s Shop Bot on Lemonade. You have {points} points and are already subscribed to {storefront_name} updates.".format(storefront_name=storefront.display_name_utf8, points=customer.points)
                     )
 
                 send_home_content(recipient_id)
@@ -1278,7 +1281,8 @@ def main_menu_quick_replies(fb_psid):
     product = Product.query.filter(Product.fb_psid == fb_psid).first()
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Feature Shop $1.99", payload=Const.PB_PAYLOAD_FEATURE_SHOP),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Next Shop", payload=Const.PB_PAYLOAD_NEXT_STOREFRONT),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Feature Shop $1.99", payload=Const.PB_PAYLOAD_FEATURE_STOREFRONT),
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Custom URL $0.99", payload=Const.PB_PAYLOAD_FEATURE_URL),
     ]
 
@@ -1473,7 +1477,7 @@ def build_featured_storefront_elements(recipient_id, amt=3):
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(max(amt, 0), 3),))
+            cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(max(amt, 0), 10),))
 
             for row in cur.fetchall():
                 product = Product.query.filter(Product.id == row['id']).first()
@@ -1864,6 +1868,18 @@ def send_customer_carousel(recipient_id, product_id):
         recipient_id = recipient_id,
         cards = elements,
         quick_replies = main_menu_quick_replies(recipient_id)
+    )
+
+    send_message(json.dumps(data))
+
+
+def send_featured_carousel(recipient_id):
+    logger.info("send_featured_carousel(recipient_id=%s)" % (recipient_id,))
+
+    data = build_carousel(
+        recipient_id=recipient_id,
+        cards=build_featured_storefront_elements(recipient_id, 10),
+        quick_replies=main_menu_quick_replies(recipient_id)
     )
 
     send_message(json.dumps(data))
@@ -2658,7 +2674,30 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-ok")
         send_home_content(recipient_id)
 
-    elif payload == Const.PB_PAYLOAD_FEATURE_SHOP:
+    elif payload == Const.PB_PAYLOAD_NEXT_STOREFRONT:
+        send_tracker(fb_psid=recipient_id, category="next-shop")
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                row = cur.fetchone()
+                if row is not None:
+                    product = Product.query.filter(Product.id == row['id']).first()
+                    if product is not None:
+                        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+                        if storefront is not None:
+                            view_product(recipient_id, product)
+
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    elif payload == Const.PB_PAYLOAD_FEATURE_STOREFRONT:
         send_tracker(fb_psid=recipient_id, category="feature-shop")
         send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/1.99", main_menu_quick_replies(recipient_id))
 
@@ -2838,16 +2877,20 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             db.session.commit()
 
             add_points(recipient_id, Const.POINT_AMOUNT_SUBMIT_PRODUCT)
+            logger.info("INSERT -------->")
 
             try:
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
-                    conn.commit()
-                    cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
-                    product.id = cur.fetchone()['id']
-                    db.session.commit()
+                    cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
+                    logger.info("cur.fetchone() is None (%s)", (cur.fetchone() is None,))
+                    if cur.fetchone() is None:
+                        cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+                        conn.commit()
+                        cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
+                        product.id = cur.fetchone()['id']
+                        db.session.commit()
 
             except mysql.Error, e:
                 logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
@@ -2856,18 +2899,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 if conn:
                     conn.close()
 
-
-
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-            send_admin_carousel(recipient_id)
-
-            send_image(recipient_id, Const.IMAGE_URL_ADD_PRODUCT_CARD)
-            send_text(
-                recipient_id=recipient_id,
-                message_text="You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, product_url=product.messenger_url),
-                quick_replies=main_menu_quick_replies(recipient_id)
-            )
-
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
                 channel_name=Const.SLACK_ORTHODOX_CHANNEL,
@@ -2877,26 +2909,34 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 image_url=product.image_url
             )
 
+            send_admin_carousel(recipient_id)
 
-            prev_subscribers = []
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('SELECT `user_id` FROM `subscriptions` WHERE `storefront_id` = %s;', (storefront.id))
-                    for row in cur.fetchall():
-                        customer = Customer.query.filter(Customer.id == row['user_id']).first()
-                        if customer is not None:
-                            prev_subscribers.append(customer.fb_psid)
-
-            except mysql.Error, e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
+            send_image(recipient_id, Const.IMAGE_URL_ADD_PRODUCT_CARD)
+            send_text(
+                recipient_id=recipient_id,
+                message_text="You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, product_url=product.messenger_url),
+                quick_replies=main_menu_quick_replies(recipient_id)
+            )
 
 
+            # prev_subscribers = []
+            # try:
+            #     conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            #     with conn:
+            #         cur = conn.cursor(mysql.cursors.DictCursor)
+            #         cur.execute('SELECT `user_id` FROM `subscriptions` WHERE `storefront_id` = %s;', (storefront.id))
+            #         for row in cur.fetchall():
+            #             customer = Customer.query.filter(Customer.id == row['user_id']).first()
+            #             if customer is not None:
+            #                 prev_subscribers.append(customer.fb_psid)
+            #
+            # except mysql.Error, e:
+            #     logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+            #
+            # finally:
+            #     if conn:
+            #         conn.close()
+            #
             # for fb_psid in prev_subscribers:
             #     send_text(
             #         recipient_id=fb_psid,
@@ -3355,30 +3395,13 @@ def received_text_response(recipient_id, message_text):
             message_text = "{message_text}\n/{deeplink}".format(message_text=message_text, deeplink=product.name)
         send_text(recipient_id, message_text)
 
-    elif message_text == "/drop_payment":
-        customer.stripe_id = None
-        customer.card_id = None
-        try:
-            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
+    elif message_text == "/featured":
+        send_featured_carousel(recipient_id)
 
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `users` SET `email` = "", `stripe_id` = "", `card_id` = "" WHERE `id` = %s LIMIT 1;', (customer.id,))
-                conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-        send_text(recipient_id, "Removed payment details")
+    #-- gamebots referral code
+    elif message_text.startswith(":"):
+        pass
 
 
     #-- force referral
@@ -3390,6 +3413,11 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_COMMAND_REPLIES:
         clear_entry_sequences(recipient_id)
         send_admin_carousel(recipient_id)
+
+
+    #-- appnext reply
+    elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES:
+        send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
 
 
     #-- quit message
@@ -3482,95 +3510,95 @@ def received_text_response(recipient_id, message_text):
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
         if payment is not None:
             product = Product.query.filter(Product.id == customer.product_id).first()
+            if product is not None:
+                if payment.source == Const.PAYMENT_SOURCE_BITCOIN:
+                    if re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', message_text) is None:
+                        send_text(recipient_id, "Invalid bitcoin address, it needs to start w/ 1 or 3, and be between 26 & 35 characters long.", quick_replies=cancel_entry_quick_reply())
 
-            if payment.source == Const.PAYMENT_SOURCE_BITCOIN:
-                if re.match(r'^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$', message_text) is None:
-                    send_text(recipient_id, "Invalid bitcoin address, it needs to start w/ 1 or 3, and be between 26 & 35 characters long.", quick_replies=cancel_entry_quick_reply())
+                    else:
+                        customer.bitcoin_addr = message_text
+                        db.session.commit()
 
-                else:
-                    customer.bitcoin_addr = message_text
+                        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_BITCOIN):
+                            try:
+                                Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+                                db.session.commit()
+                            except:
+                                db.session.rollback()
+                                # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
+                        else:
+                            pass
+
+                        send_customer_carousel(recipient_id, product.id)
+
+                elif payment.source == Const.PAYMENT_SOURCE_CREDIT_CARD:
+                    if payment.creation_state == 0:
+                        if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
+                            send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
+
+                        else:
+                            customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+                            customer.email = message_text
+                            payment.email = message_text
+                            payment.creation_state = 1
+                            send_text(recipient_id, "Enter the card holder's name", cancel_entry_quick_reply())
+
+                    elif payment.creation_state == 1:
+                        payment.full_name = message_text
+                        payment.creation_state = 2
+                        send_text(recipient_id, "Enter the card's account number", cancel_entry_quick_reply())
+
+                    elif payment.creation_state == 2:
+                        if message_text.isdigit():
+                            payment.acct_number = message_text
+                            payment.creation_state = 3
+                            send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", cancel_entry_quick_reply())
+
+                        else:
+                            send_text(recipient_id, "Card account numbers need to be only digits", cancel_entry_quick_reply())
+
+                    elif payment.creation_state == 3:
+                        if re.match(r'^(1[0-2]|0[1-9])\/([1-9]\d)$', message_text) is None:
+                            send_text(recipient_id, "Expiration date needs to be in the format MM/YY", cancel_entry_quick_reply())
+
+                        else:
+                            payment.expiration = datetime.strptime(message_text, '%m/%y').date()
+                            payment.creation_state = 4
+                            send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_entry_quick_reply())
+
+                    elif payment.creation_state == 4:
+                        if re.match(r'^(\d{3,})$', message_text) is None:
+                            send_text(recipient_id, "CVC / CVV2 codes need to be at least 3 digits", cancel_entry_quick_reply())
+
+                        else:
+                            payment.cvc = message_text
+                            payment.creation_state = 5
+
+                            send_text(
+                                recipient_id = recipient_id,
+                                message_text= "Are these details correct?\nEmail: {email}\nName: {full_name}\nCard #: {acct_number}\nExpiration: {expiration:%m/%Y}\nCVC / CVV2: {cvc}".format(email=payment.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
+                                quick_replies = [
+                                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
+                                    build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
+                                ] + cancel_entry_quick_reply()
+                            )
+
+
+                elif payment.source == Const.PAYMENT_SOURCE_PAYPAL:
+                    customer.paypal_name = message_text
                     db.session.commit()
 
-                    if purchase_product(recipient_id, Const.PAYMENT_SOURCE_BITCOIN):
+                    if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
                         try:
                             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
                             db.session.commit()
                         except:
                             db.session.rollback()
-                            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
+                        # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
                     else:
                         pass
 
                     send_customer_carousel(recipient_id, product.id)
-
-            elif payment.source == Const.PAYMENT_SOURCE_CREDIT_CARD:
-                if payment.creation_state == 0:
-                    if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
-                        send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
-
-                    else:
-                        customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-                        customer.email = message_text
-                        payment.email = message_text
-                        payment.creation_state = 1
-                        send_text(recipient_id, "Enter the card holder's name", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 1:
-                    payment.full_name = message_text
-                    payment.creation_state = 2
-                    send_text(recipient_id, "Enter the card's account number", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 2:
-                    if message_text.isdigit():
-                        payment.acct_number = message_text
-                        payment.creation_state = 3
-                        send_text(recipient_id, "Enter the card's expiration date (example MM/YY)", cancel_entry_quick_reply())
-
-                    else:
-                        send_text(recipient_id, "Card account numbers need to be only digits", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 3:
-                    if re.match(r'^(1[0-2]|0[1-9])\/([1-9]\d)$', message_text) is None:
-                        send_text(recipient_id, "Expiration date needs to be in the format MM/YY", cancel_entry_quick_reply())
-
-                    else:
-                        payment.expiration = datetime.strptime(message_text, '%m/%y').date()
-                        payment.creation_state = 4
-                        send_text(recipient_id, "Enter the CVC or CVV2 code on the card's back", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 4:
-                    if re.match(r'^(\d{3,})$', message_text) is None:
-                        send_text(recipient_id, "CVC / CVV2 codes need to be at least 3 digits", cancel_entry_quick_reply())
-
-                    else:
-                        payment.cvc = message_text
-                        payment.creation_state = 5
-
-                        send_text(
-                            recipient_id = recipient_id,
-                            message_text= "Are these details correct?\nEmail: {email}\nName: {full_name}\nCard #: {acct_number}\nExpiration: {expiration:%m/%Y}\nCVC / CVV2: {cvc}".format(email=payment.email, full_name=payment.full_name, acct_number=(re.sub(r'\d', "*", payment.acct_number)[:-4] + payment.acct_number[-4:]), expiration=payment.expiration, cvc=payment.cvc),
-                            quick_replies = [
-                                build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_PAYMENT_YES),
-                                build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_PAYMENT_NO),
-                            ] + cancel_entry_quick_reply()
-                        )
-
-
-            elif payment.source == Const.PAYMENT_SOURCE_PAYPAL:
-                customer.paypal_name = message_text
-                db.session.commit()
-
-                if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
-                    try:
-                        Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-                        db.session.commit()
-                    except:
-                        db.session.rollback()
-                    # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
-                else:
-                    pass
-
-                send_customer_carousel(recipient_id, product.id)
 
             return "OK", 200
 
@@ -3847,7 +3875,7 @@ def handle_wrong_reply(recipient_id):
 def fbbot():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
-    # return "OK", 200
+    #return "OK", 200
 
     data = request.get_json()
 
@@ -3925,18 +3953,18 @@ def fbbot():
 
 
 
-                #-- lockout if subscriber count > max
-                if storefront is not None and product is not None:
-                    subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
-                    if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
-                        product = Product.query.filter(Product.id == 1).first()
-                        if product is not None:
-                            customer.product_id = product.id
-                            db.session.commit()
-
-                            send_text(customer.fb_psid, "You have reached {max_subscriptions} subscribers and your shop is locked. Please select a payment method. taps.io/lmon8".format(max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER))
-                            send_storefront_card(customer.fb_psid, product.storefront_id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
-                        return "OK", 200
+                # #-- lockout if subscriber count > max
+                # if storefront is not None and product is not None:
+                #     subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
+                #     if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
+                #         product = Product.query.filter(Product.id == 1).first()
+                #         if product is not None:
+                #             customer.product_id = product.id
+                #             db.session.commit()
+                #
+                #             send_text(customer.fb_psid, "You have reached {max_subscriptions} subscribers and your shop is locked. Please select a payment method. taps.io/lmon8".format(max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER))
+                #             send_storefront_card(customer.fb_psid, product.storefront_id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
+                #         return "OK", 200
 
 
 
@@ -3970,12 +3998,12 @@ def fbbot():
 
 
                     if 'attachments' in message:
-                        # for attachment in message['attachments']:
-                            # if attachment['type'] == "fallback" and 'text' in message:
-                            #     received_text_response(customer.fb_psid, message['text'])
-                            #
-                            # else:
-                            #     recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
+                        for attachment in message['attachments']:
+                            if attachment['type'] == "fallback" and 'text' in message:
+                                received_text_response(customer.fb_psid, message['text'])
+
+                            else:
+                                recieved_attachment(customer.fb_psid, attachment['type'], attachment['payload'])
                         return "OK", 200
 
 
