@@ -308,7 +308,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (2 if has_paid_flip(sender_id, 16) else 1,))
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND (`type` = 1 OR `type` = 3) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
             row = cur.fetchone()
 
             if row is not None:
@@ -355,7 +355,7 @@ def coin_flip_results(sender_id, item_id=None):
 
     total_wins = 1
     flip_item = None
-    win_boost = 5
+    win_boost = 1
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
@@ -369,6 +369,9 @@ def coin_flip_results(sender_id, item_id=None):
             row = cur.fetchone()
             if row is not None:
                 total_wins = row['tot']
+
+            if has_paid_flip(sender_id, 16):
+                win_boost = 0.5
 
             cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -1092,7 +1095,29 @@ def handle_payload(sender_id, payload_type, payload):
             item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
             if item_id is not None:
                 set_session_item(sender_id, item_id)
-                coin_flip_results(sender_id, item_id)
+                if not has_paid_flip(sender_id, 16):
+                    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                    try:
+                        with conn:
+                            cur = conn.cursor(mdb.cursors.DictCursor)
+                            cur.execute('SELECT `type` FROM `flip_inventory` WHERE `id` = %s AND `type` = 3 LIMIT 1;', (item_id,))
+                            row = cur.fetchone()
+
+                            if row is not None:
+                                send_text(sender_id, "You must deposit $1.00 to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr use PayPal, and enter the PIN in the buyer's notes:\nhttps://www.paypal.me/gamebotsc/1\n\nAlternatively, ask twitter.com/gamebotsc for a access code.")
+                                flip_pay_wall(sender_id)
+
+                            else:
+                                coin_flip_results(sender_id, item_id)
+
+                    except mdb.Error, e:
+                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+                else:
+                    coin_flip_results(sender_id, item_id)
 
         else:
             send_tracker(fb_psid=sender_id, category="pay-wall")
@@ -1154,7 +1179,7 @@ def handle_payload(sender_id, payload_type, payload):
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
 
-        send_text(sender_id, "If you need help visit facebook.com/gamebotsc")
+        send_text(sender_id, "If you need help, DM twitter.com/gamebotsc")
         default_carousel(sender_id)
 
         payload = {
@@ -1279,14 +1304,17 @@ def handle_payload(sender_id, payload_type, payload):
 def recieved_text_reply(sender_id, message_text):
     logger.info("recieved_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
 
-    if message_text.lower() in Const.MAIN_MENU_REPLIES:
+
+    if message_text.lower() in Const.OPT_OUT_REPLIES:
+        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        toggle_opt_out(sender_id, True)
+
+    elif message_text.lower() in Const.MAIN_MENU_REPLIES:
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
-
-    elif message_text.lower() in Const.OPT_OUT_REPLIES:
-        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
-        toggle_opt_out(sender_id, True)
+    elif message_text.lower() in Const.APPNEXT_REPLIES:
+        send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     else:
         # if get_session_trade_url(sender_id) == "_{PENDING}_":

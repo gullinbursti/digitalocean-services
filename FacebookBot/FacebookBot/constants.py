@@ -53,6 +53,6 @@ class Const(Constants):
     PAYLOAD_ATTACHMENT_FALLBACK = "PAYLOAD_ATTACHMENT-fallback"
     PAYLOAD_ATTACHMENT_OTHER = "PAYLOAD_ATTACHMENT-OTHER"
 
-
+    APPNEXT_REPLIES = "f1xgb"
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
