@@ -75,7 +75,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 
 Persistent Menu:
-curl -X POST -H "Content-Type: application/json" -d '{
+curl --request POST --header "Content-Type: application/json" -data '{
   "persistent_menu":[
     {
       "locale":"default",
@@ -85,7 +85,15 @@ curl -X POST -H "Content-Type: application/json" -d '{
           "title":"Next Shop",
           "type":"postback",
           "payload":"RANDOM_STOREFRONT"
-        },
+        }, {
+          "title":"My Sales",
+          "type":"postback",
+          "payload":"PRODUCT_PURCHASES"
+        }, {
+          "title":"My Orders",
+          "type":"postback",
+          "payload":"PRODUCTS_PURCHASED"
+        }
       ]
     }
   ]

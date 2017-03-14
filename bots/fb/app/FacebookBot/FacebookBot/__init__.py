@@ -139,7 +139,10 @@ class FBUser(db.Model):
 
     @property
     def profile_image(self):
-        return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
+        try:
+            return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
+        except IOError:
+            return None
 
 
     def __init__(self, fb_psid, graph):
@@ -885,8 +888,7 @@ def view_product(recipient_id, product):
                     url=Const.IMAGE_URL_NEW_SUBSCRIBER,
                     quick_replies=new_sub_quick_replies(recipient_id)
                 )
-                fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-                send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
+                send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id,))
 
             else:
                 send_text(
@@ -1020,6 +1022,14 @@ def purchase_product(recipient_id, source):
                             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
                             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
 
+                            send_text(
+                                recipient_id=customer.fb_psid,
+                                message_text="After completing the PayPal checkout, tap OK",
+                                quick_replies=[
+                                    build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
+                                ] + cancel_entry_quick_reply()
+                            )
+
                         else:
                             send_text(recipient_id, "Notifying the shop owner for your invoice url.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
                             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
@@ -1126,8 +1136,25 @@ def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE
                 send_text(customer.fb_psid, "Seller closed the DM...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
 
+def purchase_timeout(purchase):
+    logger.info("purchase_timeout(purchase=%s)" % (purchase,))
+
+    customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
+    # storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+    # product = Product.query.filter(Product.id == purchase.product_id).first()
+
+    send_text(
+        recipient_id=customer.fb_psid,
+        message_text="Have you completed the PayPal checkout yet?",
+        quick_replies=[
+            build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_YES, purchase_id=purchase.id)),
+            build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_NO, purchase_id=purchase.id))
+        ] + cancel_entry_quick_reply()
+    )
+
+
 def clear_entry_sequences(recipient_id):
-    logger.info("clear_entry_sequences(recipient_id=%s)" % (recipient_id))
+    logger.info("clear_entry_sequences(recipient_id=%s)" % (recipient_id,))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
@@ -1238,7 +1265,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                         quick_replies=new_sub_quick_replies(recipient_id)
                     )
                     fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-                    send_text(storefront.fb_psid, "{customer_name} just subscribed to your shop!".format(customer_name=fb_user.full_name_utf8 or "Someone"))
+                    send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id,))
 
                 else:
                     send_text(
@@ -2112,7 +2139,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                     subtitle="${price:.2f}".format(price=product.price),
                     image_url=product.image_url,
                     buttons=[
-                        build_button(Const.CARD_BTN_URL_TALL, caption="PayPal.me URL", url="https://paypal.me/{paypal_name}/{price:.2f}".format(paypal_name=storefront_owner.paypal_name, price=product.price))
+                        build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/{paypal_name}/{price:.2f}".format(paypal_name=storefront_owner.paypal_name, price=product.price))
                     ],
                     quick_replies=cancel_entry_quick_reply()
                 )
@@ -2196,17 +2223,32 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
 
                 elements.append(
                     build_card_element(
-                        title = "{product_name} - ${price:.2f}".format(product_name=product.display_name_utf8, price=product.price),
-                        subtitle = subtitle,
-                        image_url = product.image_url,
-                        buttons = [
+                        title="{product_name} - ${price:.2f}".format(product_name=product.display_name_utf8, price=product.price),
+                        subtitle=subtitle,
+                        image_url=product.image_url,
+                        buttons=[
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
                         ]
                     )
                 )
 
-    elif card_type == Const.CARD_TYPE_CUSTOMER_PURCHASES:
-        pass
+    elif card_type == Const.CARD_TYPE_PRODUCTS_PURCHASED:
+        customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+        for purchase in Purchase.query.filter(Purchase.customer_id == customer.id).order_by(Purchase.added.desc()):
+            if len(elements) < 4:
+                storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+                product = Product.query.filter(Product.id == purchase.product_id).first()
+
+                elements.append(
+                    build_card_element(
+                        title="{product_name} - ${price:.2f}".format(product_name=product.display_name_utf8, price=product.price),
+                        subtitle=storefront.display_name_utf8,
+                        image_url=product.image_url,
+                        buttons=[
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
+                        ]
+                    )
+                )
 
     else:
         pass
@@ -2271,6 +2313,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         product = random.choice(Product.query.filter(Product.creation_state == 7).filter(Product.type_id == 1).all())
         send_image(recipient_id, Const.IMAGE_URL_NEXT_SHOP)
         view_product(recipient_id, product)
+
+    elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
+        send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCT_PURCHASES)
+
+    elif payload == Const.PB_PAYLOAD_PRODUCTS_PURCHASED:
+        send_purchases_list_card(recipient_id, Const.CARD_TYPE_PRODUCTS_PURCHASED)
 
     elif payload == Const.PB_PAYLOAD_GREETING:
         logger.info("----------=BOT GREETING @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
@@ -2504,16 +2552,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         db.session.commit()
 
         product = Product.query.filter(Product.id == customer.product_id).first()
-        if customer.paypal_name is not None:
-            send_text(recipient_id, "Using your saved PayPal.Me name ({paypal_name}) for this purchase...".format(paypal_name=customer.paypal_name))
-            if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
-                Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-                # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
-            else:
-                pass
-
+        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
+            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
+            # send_customer_carousel(recipient_id, product.id)
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
-            send_customer_carousel(recipient_id, product.id)
 
         else:
             send_text(recipient_id, "Enter your PayPal.Me name", cancel_entry_quick_reply())
@@ -2715,9 +2758,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-say-thanks")
         send_app_card(recipient_id)
 
-    elif re.search(r'^SAY_THANKS\-(\d+)$', payload) is not None:
+    elif re.search(r'^SAY_THANKS\-(.+)$', payload) is not None:
         # send_tracker(fb_psid=recipient_id, category="button-say-thanks")
-        send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>\d+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
+        send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>.+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
 
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
@@ -3088,6 +3131,17 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         customer.bitcoin_addr = "_{PENDING}_"
         db.session.commit()
         send_text(recipient_id, "Post your Bitcoin wallet's QR code or type in the address", cancel_entry_quick_reply())
+
+
+    elif re.search(r'^PAYPAL_PURCHASE_COMPLETE\-(\d+)$', payload) is not None:
+        purchase = Purchase.query.filter(Purchase.id == re.match(r'^PAYPAL_PURCHASE_COMPLETE\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
+        if purchase is not None:
+            product = Product.query.filter(Product.id == purchase.product_id).first()
+            storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
+
+            send_text(storefront.fb_psid, "Purchase has been completed for {product_name}".format(product_name=product.display_name_utf8))
+            send_customer_carousel(recipient_id, product.id)
+
 
     elif re.search(r'^PRODUCT_RATE_(\d+)_STAR$', payload) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', payload)
