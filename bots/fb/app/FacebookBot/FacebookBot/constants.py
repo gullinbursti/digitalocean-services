@@ -217,4 +217,5 @@ class Const(Constants):
 
     RESERVED_COMMAND_REPLIES = "lemonade|lmon8|admin|main|main menu|menu|support|help|subs"
     RESERVED_APPNEXT_REPLIES = "f1xgb"
+    RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"

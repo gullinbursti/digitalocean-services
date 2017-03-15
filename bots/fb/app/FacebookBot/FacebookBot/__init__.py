@@ -888,7 +888,7 @@ def view_product(recipient_id, product):
                     url=Const.IMAGE_URL_NEW_SUBSCRIBER,
                     quick_replies=new_sub_quick_replies(recipient_id)
                 )
-                send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id,))
+                send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:],))
 
             else:
                 send_text(
@@ -1031,6 +1031,19 @@ def purchase_product(recipient_id, source):
                             )
 
                         else:
+                            product = Product.query.filter(Product.id == purchase.product_id).first()
+                            send_message(json.dumps(build_standard_card(
+                                recipient_id=recipient_id,
+                                title=product.display_name_utf8,
+                                subtitle="${price:.2f}".format(price=product.price),
+                                image_url=product.image_url,
+                                buttons=[
+                                    build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/gamebotsc/{price:.2f}".format(price=product.price))
+                                ],
+                                quick_replies=cancel_entry_quick_reply()
+                            )))
+
+
                             send_text(recipient_id, "Notifying the shop owner for your invoice url.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
                             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
 
@@ -1216,18 +1229,13 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_text(recipient_id, Const.ORTHODOX_GREETING)
 
 
-    elif entry_type == Const.STOREFRONT_AUTO_GEN and re.search(r'^\/([A-Za-z0-9\.\_\-]+)\/(\d+)\/$', deeplink) is not None:
-        storefront_id = re.match(r'^\/([A-Za-z0-9\.\_\-]+)\/(?P<storefront_id>\d+)\/$', deeplink).group('storefront_id')
+    elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1] in Const.RESERVED_AUTO_GEN_STOREFRONTS:
+        storefront, product = auto_gen_storefront(recipient_id, deeplink.split("/")[-1])
 
         send_image(recipient_id, Const.IMAGE_URL_GREETING)
-        if storefront_id is not None:
-            storefront = Storefront.query.filter(Storefront.id == storefront_id).first()
-            send_text(recipient_id, "{greeting}\n\nLets continue w/ your {storefront_name} setup!".format(greeting=Const.ORTHODOX_GREETING, storefront_name=storefront.display_name_utf8))
-            send_text(recipient_id, "Explain what you are making or selling.", cancel_entry_quick_reply())
-
-        else:
-            send_text(recipient_id, Const.ORTHODOX_GREETING)
-            send_admin_carousel(recipient_id)
+        send_text(recipient_id, Const.ORTHODOX_GREETING)
+        send_text(recipient_id, "Auto generated your shop {storefront_name}!\n Your referral url is {prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
+        send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
         if re.search(r'^\/?createshop$', deeplink) is not None:
@@ -1265,7 +1273,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                         quick_replies=new_sub_quick_replies(recipient_id)
                     )
                     fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-                    send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id,))
+                    send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:],))
 
                 else:
                     send_text(
@@ -1282,6 +1290,109 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
     else:
         send_admin_carousel(recipient_id)
+
+
+def auto_gen_storefront(recipient_id, name_prefix):
+    logger.info("auto_gen_storefront(recipient_id=%s, name_prefix=%s)" % (recipient_id, name_prefix))
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    details = {
+        'AK47MistyShop' : {
+            'description' : "Selling the cheapest Misty.",
+            'price'       : 4.25,
+            'image_url'   : "http://i.imgur.com/TQOAnps.jpg"
+        },
+        'AK47VulcanShop'  : {
+            'description' : "Selling the cheapest Vulcan.",
+            'price'       : 9.25,
+            'image_url'   : "http://i.imgur.com/CnYFbzD.png"
+        },
+        'MAC10NeonShop' : {
+            'description' : "Selling the cheapest Neon.",
+            'price'       : 0.95,
+            'image_url'   : "http://i.imgur.com/mLDaoyA.png"
+        },
+        'SteamCardShop' : {
+            'description' : "Selling the cheapest Steam card.",
+            'price'       : 18.00,
+            'image_url'   : "http://i.imgur.com/iKexmpe.png"
+        },
+        'PrivateSnapchat' : {
+            'description' : "Selling access to Death By Candys Snapchat",
+            'price'       : 5.00,
+            'image_url'   : "http://i.imgur.com/mFm9Nlk.png"
+        },
+        'GamebotsCrate' : {
+            'description' : "Gamebots daily crate. Items up to 15.00.",
+            'price'       : 5.00,
+            'image_url'   : "http://i.imgur.com/J4pzcki.png"
+        }
+    }
+
+    storefront_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
+    product_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
+
+    storefront = Storefront(recipient_id)
+    storefront.name = storefront_name
+    storefront.display_name = storefront_name
+    storefront.description = details[name_prefix]['description']
+    storefront.logo_url = details[name_prefix]['image_url']
+    storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_name)
+    storefront.creation_state = 4
+    db.session.add(storefront)
+    db.session.commit()
+
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
+            conn.commit()
+            cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+            storefront.id = cur.fetchone()['id']
+            db.session.commit()
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    product = Product(recipient_id, storefront.id)
+    product.name = product_name
+    product.display_name = product_name
+    product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(0 / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+    product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
+    product.type_id = Const.PRODUCT_TYPE_VIRTUAL
+    product.image_url = details[name_prefix]['image_url']
+    product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_name)
+    product.price = details[name_prefix]['price']
+    product.tags = "gamebotsmods"
+    product.creation_state = 7
+    db.session.add(product)
+    db.session.commit()
+
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
+            if cur.fetchone() is None:
+                cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+                conn.commit()
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
+                product.id = cur.fetchone()['id']
+                db.session.commit()
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return (storefront, product)
 
 
 def write_message_log(recipient_id, message_id, message_txt):
@@ -1309,8 +1420,7 @@ def main_menu_quick_replies(fb_psid):
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Next Shop", payload=Const.PB_PAYLOAD_NEXT_STOREFRONT),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Feature Shop $1.99", payload=Const.PB_PAYLOAD_FEATURE_STOREFRONT),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Custom URL $0.99", payload=Const.PB_PAYLOAD_FEATURE_URL),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Feature Shop $1.99", payload=Const.PB_PAYLOAD_FEATURE_STOREFRONT)
     ]
 
     if product is not None:
@@ -1515,7 +1625,7 @@ def build_featured_storefront_elements(recipient_id, amt=3):
                             # title = "{storefront_name} {flag}".format(storefront_name=storefront.display_name_utf8, flag=emoji.emojize(random.choice(flags), use_aliases=True)),
                             title = storefront.display_name_utf8,
                             subtitle = product.display_name_utf8,
-                            image_url = product.landscape_image_url,
+                            image_url = product.image_url,
                             item_url = product.messenger_url,
                             buttons = [
                                 build_button(Const.CARD_BTN_POSTBACK, caption="View Shop", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
@@ -3981,7 +4091,7 @@ def fbbot():
 
                 #-- entered via url referral
                 if referral is not None:
-                    welcome_message(customer.fb_psid, Const.CUSTOMER_REFERRAL, referral)
+                    welcome_message(customer.fb_psid, Const.CUSTOMER_REFERRAL if referral[1:] not in Const.RESERVED_AUTO_GEN_STOREFRONTS else Const.STOREFRONT_AUTO_GEN, referral)
                     return "OK", 200
 
 
