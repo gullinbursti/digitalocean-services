@@ -308,7 +308,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND (`type` = 1 OR `type` = 3) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
             row = cur.fetchone()
 
             if row is not None:
@@ -446,7 +446,7 @@ def coin_flip_results(sender_id, item_id=None):
             }]
         )
 
-        send_text(sender_id, Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL, sender_id=sender_id))
+        send_text(sender_id, Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL, sender_id=sender_id), main_menu_quick_reply())
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -469,7 +469,7 @@ def coin_flip_results(sender_id, item_id=None):
                     conn.close()
 
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8")
+            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8", main_menu_quick_reply())
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
@@ -692,13 +692,13 @@ def get_session_purchase(sender_id):
             cur.execute('SELECT item_id FROM payments WHERE id = ? ORDER BY added DESC LIMIT 1;', (purchase_id,))
             row = cur.fetchone()
             if row is not None:
-                item = get_item_details(row['item_id'])
+                item = row
 
 
-        logger.info("purchase_id=%s" % (purchase_id))
+        logger.info("purchase_id=%s" % (purchase_id,))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -733,7 +733,7 @@ def get_item_details(item_id):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `id` IN (SELECT `item_id` FROM  `fb_purchases` WHERE `id` = %s) LIMIT 1;', (item_id,))
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `quantity`, `max_buy`, `min_sell` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
             if row is not None:
                 item = row
@@ -774,21 +774,21 @@ def wins_last_day(sender_id):
 def deposit_amount_for_price(price):
     logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
-    amount = 1
+    amount = 0
     if price < 1.00:
-        amount = 1
+        amount = 0
 
     elif price < 1.20:
         amount = 1
 
     elif price < 6.50:
-        amount = 5
+        amount = 2
 
     elif price < 14.50:
-        amount = 10
+        amount = 3
 
     elif price < 30.00:
-        amount = 20
+        amount = 5
 
     return amount
 
@@ -1112,108 +1112,36 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
         send_tracker(fb_psid=sender_id, category="flip-coin", label=re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id'))
+        item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
+        if item_id is not None:
+            set_session_item(sender_id, item_id)
+            item = get_item_details(item_id)
+            logger.info("ITEM --> %s", item)
 
-        if wins_last_day(sender_id) < 3 or (wins_last_day(sender_id) >=3 and has_paid_flip(sender_id, 16)):
-            item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
-            if item_id is not None:
-                set_session_item(sender_id, item_id)
-                if not has_paid_flip(sender_id, 16):
-                    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                    try:
-                        with conn:
-                            cur = conn.cursor(mdb.cursors.DictCursor)
-                            cur.execute('SELECT `max_buy` FROM `flip_inventory` WHERE `id` = %s AND `type` = 3 LIMIT 1;', (item_id,))
-                            row = cur.fetchone()
-
-                            if row is not None:
-                                send_text(sender_id, "You must add a ${price:.2f} credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.".format(price=deposit_amount_for_price(row['max_buy'])))
-                                flip_pay_wall(sender_id, deposit_amount_for_price(row['max_buy']))
-                                send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes")
-                                send_text(sender_id, "https://www.paypal.me/gamebotsc/{price:.2f}".format(price=deposit_amount_for_price(row['max_buy'])), main_menu_quick_reply())
-
-                    except mdb.Error, e:
-                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                    finally:
-                        if conn:
-                            conn.close()
-                else:
+            if deposit_amount_for_price(item['max_buy']) < 1:
+                if wins_last_day(sender_id) < 3 or has_paid_flip(sender_id, 16):
                     coin_flip_results(sender_id, item_id)
 
-        else:
-            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-            try:
-                with conn:
-                    cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('SELECT `max_buy` FROM `flip_inventory` WHERE `id` = %s AND `type` = 3 LIMIT 1;', (item_id,))
-                    row = cur.fetchone()
-
-                    if row is not None:
-                        send_text(sender_id, "You must add a ${price:.2f} credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.".format(price=deposit_amount_for_price(row['max_buy'])))
-                        flip_pay_wall(sender_id, deposit_amount_for_price(row['max_buy']))
-                        send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes")
-                        send_text(sender_id, "https://www.paypal.me/gamebotsc/{price:.2f}".format(price=deposit_amount_for_price(row['max_buy'])), main_menu_quick_reply())
-
-            except mdb.Error, e:
-                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
-
-    elif payload == "FLIP_COIN" and get_session_item(sender_id) is not None:
-        send_tracker(fb_psid=sender_id, category="flip-coin")
-
-        if wins_last_day(sender_id) < 3 or (wins_last_day(sender_id) >= 3 and has_paid_flip(sender_id, 16)):
-            item_id = None
-            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-            try:
-                with conn:
-                    cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (2 if has_paid_flip(sender_id, 16) else 1,))
-                    row = cur.fetchone()
-
-                    if row is not None:
-                        item_id = row['id']
-                        set_session_item(sender_id, item_id)
-
-            except mdb.Error, e:
-                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
-
-            if item_id is not None:
-                coin_flip_results(sender_id, item_id)
+                else:
+                    send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
+                    send_text(sender_id, "You must add a $1.00 credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.")
+                    flip_pay_wall(sender_id, 1)
+                    send_text(sender_id, "Or use PayPal, and enter {fb_psid} in the buyer's notes".format(fb_psid=sender_id[-4:]))
+                    send_text(sender_id, "https://www.paypal.me/gamebotsc/1", main_menu_quick_reply())
 
             else:
-                send_text(sender_id, "Can't find that item anymore! Try flipping again")
-                clear_session_dub(sender_id)
-                default_carousel(sender_id)
+                if has_paid_flip(sender_id, 16) and item['type'] == 1:
+                    coin_flip_results(sender_id, item_id)
 
+                else:
+                    send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
+                    send_text(sender_id, "You must add a ${price:.2f} credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.".format(price=deposit_amount_for_price(item['max_buy'])))
+                    flip_pay_wall(sender_id, deposit_amount_for_price(item['max_buy']))
+                    send_text(sender_id, "Or use PayPal, and enter {fb_psid} in the buyer's notes".format(fb_psid=sender_id[-4:]))
+                    send_text(sender_id, "https://www.paypal.me/gamebotsc/{price:.2f}".format(price=deposit_amount_for_price(item['max_buy'])), main_menu_quick_reply())
         else:
-            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-            try:
-                with conn:
-                    cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `max_buy` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (2 if has_paid_flip(sender_id, 16) else 1,))
-                    row = cur.fetchone()
-
-                    if row is not None:
-                        send_text(sender_id, "You must add a ${price:.2f} credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.".format(price=deposit_amount_for_price(row['max_buy'])))
-                        flip_pay_wall(sender_id, deposit_amount_for_price(row['max_buy']))
-                        send_text(sender_id, "Or use PayPal, and enter the PIN in the buyer's notes")
-                        send_text(sender_id, "https://www.paypal.me/gamebotsc/{price:.2f}".format(price=deposit_amount_for_price(row['max_buy'])), main_menu_quick_reply())
-
-            except mdb.Error, e:
-                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
+            send_text(sender_id, "Can't find that item! Try flipping again")
+            return "OK", 200
 
 
     elif payload == "INVITE":
@@ -1273,7 +1201,7 @@ def handle_payload(sender_id, payload_type, payload):
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8")
+            send_text(sender_id, "Instructions to complete trade.\n\n1. MAKE a shop on Lemonade: taps.io/makeshop\n2. SHARE Shop with 3 friends on Messenger.", main_menu_quick_reply())
 
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
@@ -1323,17 +1251,17 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUBMIT_NO":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
-            send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)))
+            send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
             purchase_id = get_session_purchase(sender_id)
 
             set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
-            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_session_purchase(sender_id)))
+            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_session_purchase(sender_id)), main_menu_quick_reply())
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
-            send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_session_item(sender_id)))
+            send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
 
         else:
             clear_session_dub(sender_id)

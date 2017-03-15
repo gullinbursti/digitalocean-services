@@ -15,7 +15,7 @@ class Const(Constants):
     # FLIP_CLAIM_URL = "www.gamebots.chat/giveaway.html"
     FLIP_CLAIM_URL = "taps.io/gamebotsc"
     # FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\n1. Enter your Steam Trade URL\n\n2. Follow instructions: {claim_url}\n\n3. Wait 6 hours."
-    FLIP_WIN_TEXT = "WINNER! You won {item_name} for {game_name}.\n\nEnter your Steam Trade URL now."
+    FLIP_WIN_TEXT = "WINNER!\nYou won {item_name}.\n\nEnter your Steam Trade URL now."
 
     TRADE_URL_PURCHASE = "TRADE_URL_PURCHASE"
     TRADE_URL_FLIP_ITEM = "TRADE_URL_FLIP_ITEM"
