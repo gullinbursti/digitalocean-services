@@ -56,15 +56,8 @@ def fetch(profile_id=76561198277603515):
                     'item_nameid' : market_id
                 }
                 r = requests.get("http://steamcommunity.com/market/itemordershistogram", params=params)
-                if r.json()['highest_buy_order'] is None:
-                    max_buy = 0.00
-                else:
-                    max_buy = int(r.json()['highest_buy_order']) * 0.01
-
-                if r.json()['lowest_sell_order'] is None:
-                    min_sell = 0.0
-                else:
-                    min_sell = int(r.json()['lowest_sell_order']) * 0.01
+                max_buy = int(r.json()['highest_buy_order'] or 0.00) * 0.01
+                min_sell = int(r.json()['lowest_sell_order'] or 0.00) * 0.01
 
         #-- copy prev
         else:
@@ -134,8 +127,10 @@ def update_db(inventory):
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = %s, `max_buy` = %s, `min_sell` = %s, `tradable` = %s, `updated` = UTC_TIMESTAMP() WHERE `asset_id` = %s LIMIT 1;', (value['quantity'], value['max_buy'], value['min_sell'], value['tradable'], value['asset_id']))
                     conn.commit()
 
-                cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `name` LIKE "AK%Frontside%";')
-                cur.execute('UPDATE `flip_inventory` SET `type` = 3, `tradable` = 0 WHERE `min_sell` > 50;')
+                #-- update types for certain criteria
+                #cur.execute('UPDATE `flip_inventory` SET `type` = 3, `tradable` = 0 WHERE `name` LIKE "AK%Frontside%" AND `type` = 1;')
+                cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `min_sell` >= 3.50 AND `type` = 1;')
+                cur.execute('UPDATE `flip_inventory` SET `type` = 10, `tradable` = 0 WHERE `min_sell` > 50.00 AND `type` = 1;')
                 conn.commit()
 
     except mdb.Error, e:

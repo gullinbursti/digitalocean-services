@@ -1,3 +1,3 @@
 #!/bin/bash
 
-/usr/bin/node /opt/modd/node/index.js
+/usr/bin/node /opt/modd/node/trader.js

@@ -9,7 +9,6 @@ var SteamCommunity = require('steamcommunity');
 var SteamTotp = require('steam-totp');
 var TradeOfferManager = require('../lib/index.js'); // use require('steam-tradeoffer-manager') in production
 var fs = require('fs');
-var SteamID = require('steamid')
 
 var steam = new SteamCommunity();
 var manager = new TradeOfferManager({
@@ -20,9 +19,9 @@ var manager = new TradeOfferManager({
 
 // Steam logon options
 var logOnOptions = {
-	"accountName": "teammodd",
-	"password": "gkY!z}[H0u7",
-	"twoFactorCode": SteamTotp.getAuthCode("uJ4IvbWUg9RdMG5m/OqtYfTKE6w=")
+	"accountName": "username",
+	"password": "password",
+	"twoFactorCode": SteamTotp.getAuthCode("sharedSecret")
 };
 
 if (fs.existsSync('steamguard.txt')) {
@@ -57,7 +56,7 @@ steam.login(logOnOptions, function(err, sessionID, cookies, steamguard) {
 });
 
 manager.on('newOffer', function(offer) {
-	console.log("New offer #" + offer.id + " from " + offer.partner.getSteam3RenderedID() + " (" +  new SteamID(offer.partner.getSteam3RenderedID()) + ")");
+	console.log("New offer #" + offer.id + " from " + offer.partner.getSteam3RenderedID());
 	offer.accept(function(err) {
 		if (err) {
 			console.log("Unable to accept offer: " + err.message);
@@ -87,7 +86,7 @@ manager.on('receivedOfferChanged', function(offer, oldState) {
 });
 
 manager.on('pollData', function(pollData) {
-	fs.writeFile('polldata.json', JSON.stringify(pollData));
+	fs.writeFile('polldata.json', JSON.stringify(pollData), function() {});
 });
 
 /*
