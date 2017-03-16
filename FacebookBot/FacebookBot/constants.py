@@ -23,6 +23,7 @@ class Const(Constants):
     FLIP_COIN_START_GIF_URL = "http://i.imgur.com/C6Pgtf4.gif"
     FLIP_COIN_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
     FLIP_COIN_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
+    SHARE_IMAGE_URL = "https://pbs.twimg.com/profile_images/840610720563642368/p5TfHdUP_400x400.jpg"
 
     GA_TRACKING_ID = "UA-79705534-3"
     GA_TRACKING_URL = "http://www.google-analytics.com/collect"

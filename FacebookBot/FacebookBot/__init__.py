@@ -251,6 +251,26 @@ def daily_item_element(sender_id, standalone=False):
     return element
 
 
+def send_paypal_card(sender_id, price):
+    logger.info("send_paypal_card(sender_id=%s, price=%s)" % (sender_id, price))
+
+    send_card(
+        recipient_id=sender_id,
+        title="GameBots Deposit",
+        subtitle="${price:.2f}".format(price=price),
+        image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606",
+        card_url="https://paypal.me/gamebotsc/{price}".format(price=price),
+        buttons=[{
+            'type'                : "web_url",
+            'url'                 : "https://paypal.me/gamebotsc/{price}".format(price=price),
+            'title'               : "${price:.2f} Confirm".format(price=price),
+            'webview_height_ratio': "tall"
+        }],
+        quick_replies=main_menu_quick_reply()
+    )
+
+
+
 def flip_pay_wall(sender_id, price):
     logger.info("flip_pay_wall(sender_id=%s, price=%s)" % (sender_id, price))
 
@@ -267,7 +287,6 @@ def flip_pay_wall(sender_id, price):
                     title=row['name'],
                     subtitle=row['info'],
                     image_url=row['image_url'],
-                    card_url=None,
                     buttons=[{
                         'type'           : "payment",
                         'title'          : "Buy Now",
@@ -440,7 +459,6 @@ def coin_flip_results(sender_id, item_id=None):
             recipient_id = sender_id,
             title = "{item_name}".format(item_name=flip_item['name']),
             image_url = flip_item['image_url'],
-            card_url = Const.FLIP_CLAIM_URL,
             buttons = [{
                 'type' : "element_share"
             }]
@@ -476,11 +494,10 @@ def coin_flip_results(sender_id, item_id=None):
         send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
             recipient_id=sender_id,
-            message_text="TRY AGAIN! You lost {item_name} from {game_name}.".format(item_name=flip_item['name'], game_name=flip_item['game_name']),
+            message_text="TRY AGAIN! You lost {item_name}.".format(item_name=flip_item['name']),
             quick_replies=coin_flip_quick_replies()
         )
         clear_session_dub(sender_id)
-
 
 
 
@@ -625,6 +642,50 @@ def set_session_item(sender_id, item_id=0):
 
     except sqlite3.Error as er:
         logger.info("::::::set_session_item[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_session_payments(sender_id):
+    logger.info("get_session_payments(sender_id=%s)" % (sender_id))
+
+    enabled = False
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT payments FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            enabled = row['payments']
+
+        logger.info("payments=%s" % (enabled,))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_payments[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return enabled == 1
+
+
+def set_session_payments(sender_id, enabled):
+    logger.info("set_session_payments(sender_id=%s, enabled=%s)" % (sender_id, enabled))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET payments = ? WHERE fb_psid = ?;', (1 if enabled == True else 0, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_payments[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -1023,7 +1084,9 @@ def webook():
                 elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_CHECKOUT_ITEM:
                     if get_session_name(sender_id) is None:
                         graph = fb_graph_user(sender_id)
-                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+                        if graph is not None:
+                            set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+                            set_session_payments(sender_id, 1 if graph['is_payment_enabled'] else 0)
                         set_session_state(sender_id, Const.SESSION_STATE_HOME)
                         default_carousel(sender_id)
 
@@ -1124,10 +1187,10 @@ def handle_payload(sender_id, payload_type, payload):
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    send_text(sender_id, "You must add a $1.00 credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.")
+                    send_text(sender_id, "You must add a $1.00 Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.")
                     flip_pay_wall(sender_id, 1)
-                    send_text(sender_id, "Or use PayPal, and enter {fb_psid} in the buyer's notes".format(fb_psid=sender_id[-4:]))
-                    send_text(sender_id, "https://www.paypal.me/gamebotsc/1", main_menu_quick_reply())
+                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id[-4:]))
+                    send_paypal_card(sender_id, 1.00)
 
             else:
                 if has_paid_flip(sender_id, 16) and item['type'] == 1:
@@ -1135,10 +1198,11 @@ def handle_payload(sender_id, payload_type, payload):
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    send_text(sender_id, "You must add a ${price:.2f} credit to win this item.\n\nDaily deposit players have access to this and higher priced items.\n\nOr ask twitter.com/gamebotsc for a access code.".format(price=deposit_amount_for_price(item['max_buy'])))
+                    send_text(sender_id, "You must add a ${price:.2f} Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.".format(price=deposit_amount_for_price(item['max_buy'])))
                     flip_pay_wall(sender_id, deposit_amount_for_price(item['max_buy']))
-                    send_text(sender_id, "Or use PayPal, and enter {fb_psid} in the buyer's notes".format(fb_psid=sender_id[-4:]))
-                    send_text(sender_id, "https://www.paypal.me/gamebotsc/{price:.2f}".format(price=deposit_amount_for_price(item['max_buy'])), main_menu_quick_reply())
+                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id[-4:]))
+                    send_paypal_card(sender_id, deposit_amount_for_price(item['max_buy']))
+
         else:
             send_text(sender_id, "Can't find that item! Try flipping again")
             return "OK", 200
@@ -1149,10 +1213,10 @@ def handle_payload(sender_id, payload_type, payload):
 
         send_card(
             recipient_id =sender_id,
-            title="Share",
-            image_url=Const.FLIP_COIN_START_GIF_URL,
+            title="Share Gamebots",
+            image_url=Const.SHARE_IMAGE_URL,
             card_url="http://m.me/gamebotsc",
-            buttons=[{ 'type'  : "element_share" }],
+            buttons=[{ 'type' : "element_share" }],
             quick_replies=main_menu_quick_reply()
         )
 
@@ -1201,7 +1265,7 @@ def handle_payload(sender_id, payload_type, payload):
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Instructions to complete trade.\n\n1. MAKE a shop on Lemonade: taps.io/makeshop\n2. SHARE Shop with 3 friends on Messenger.", main_menu_quick_reply())
+            send_text(sender_id, "Instructions to complete trade.\n\n1. MAKE a shop on Lemonade: taps.io/makeshop\n2. SHARE Shop with 3 friends on Messenger.\n3.Enter your Lemonade shop url now.", main_menu_quick_reply())
 
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
@@ -1370,7 +1434,7 @@ def send_text(recipient_id, message_text, quick_replies=None):
     send_typing_indicator(recipient_id, False)
 
 
-def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=None, quick_replies=None):
+def send_card(recipient_id, title, image_url, card_url=None, subtitle=None, buttons=None, quick_replies=None):
     logger.info("send_card(recipient_id=%s, title=%s, image_url=%s, card_url=%s, subtitle=%s, buttons=%s, quick_replies=%s)" % (recipient_id, title, image_url, card_url, subtitle, buttons, quick_replies))
     send_typing_indicator(recipient_id, True)
 
@@ -1387,7 +1451,7 @@ def send_card(recipient_id, title, image_url, card_url, subtitle="", buttons=Non
                         'title'     : title,
                         'item_url'  : card_url,
                         'image_url' : image_url,
-                        'subtitle'  : subtitle,
+                        'subtitle'  : subtitle or "",
                         'buttons'   : buttons
                     }]
                 }
