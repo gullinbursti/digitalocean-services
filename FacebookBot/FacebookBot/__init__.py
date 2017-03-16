@@ -1189,7 +1189,8 @@ def handle_payload(sender_id, payload_type, payload):
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
                     send_text(sender_id, "You must add a $1.00 Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.")
                     flip_pay_wall(sender_id, 1)
-                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id[-4:]))
+                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
+                    send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, 1.00)
 
             else:
@@ -1200,7 +1201,8 @@ def handle_payload(sender_id, payload_type, payload):
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
                     send_text(sender_id, "You must add a ${price:.2f} Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.".format(price=deposit_amount_for_price(item['max_buy'])))
                     flip_pay_wall(sender_id, deposit_amount_for_price(item['max_buy']))
-                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id[-4:]))
+                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
+                    send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, deposit_amount_for_price(item['max_buy']))
 
         else:
