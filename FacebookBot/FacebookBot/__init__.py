@@ -487,7 +487,7 @@ def coin_flip_results(sender_id, item_id=None):
                     conn.close()
 
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: m.me/lmon8", main_menu_quick_reply())
+            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
@@ -836,10 +836,10 @@ def deposit_amount_for_price(price):
     logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
     amount = 0
-    if price < 1.00:
+    if price < 3.50:
         amount = 0
 
-    elif price < 1.20:
+    elif price < 5.20:
         amount = 1
 
     elif price < 6.50:
@@ -1182,7 +1182,7 @@ def handle_payload(sender_id, payload_type, payload):
             logger.info("ITEM --> %s", item)
 
             if deposit_amount_for_price(item['max_buy']) < 1:
-                if wins_last_day(sender_id) < 3 or has_paid_flip(sender_id, 16):
+                if wins_last_day(sender_id) < 8 or has_paid_flip(sender_id, 16):
                     coin_flip_results(sender_id, item_id)
 
                 else:
