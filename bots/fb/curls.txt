@@ -75,7 +75,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 
 Persistent Menu:
-curl --request POST --header "Content-Type: application/json" -data '{
+curl -X POST -H "Content-Type: application/json" -d '{
   "persistent_menu":[
     {
       "locale":"default",
@@ -98,6 +98,8 @@ curl --request POST --header "Content-Type: application/json" -data '{
     }
   ]
 }' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
+
+curl -X GET "https://graph.facebook.com/v2.6/me/messenger_profile?fields=persistent_menu&access_token=EAADzAMIzYPEBAJGk5P18ibMeEBhhdvUzZBsMoItnuB19PEzUGnNZALX5MN1rK0HKEfSG4YsmyVM2NmeK3m9wcmDvmwoB97aqfn1U0KOdvNtv6ZCgPLvqPFr2YbnlinuUUSrPtnphqafj6ad73wIPVBCOhCaiLGfvEZCUr7CxcAZDZD"
 
 curl -X DELETE -H "Content-Type: application/json" -d '{
   "fields":[
