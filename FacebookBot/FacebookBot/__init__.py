@@ -170,7 +170,7 @@ def opt_out_quick_replies():
 
 
 def default_carousel(sender_id):
-    logger.info("default_carousel(sender_id=%s)" % (sender_id))
+    logger.info("default_carousel(sender_id=%s)" % (sender_id,))
 
     elements = [
         coin_flip_element(sender_id)
@@ -327,7 +327,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (1 if random.uniform(1, 100) < 33 else 2,))
             row = cur.fetchone()
 
             if row is not None:
@@ -380,10 +380,6 @@ def coin_flip_results(sender_id, item_id=None):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `kik_name` FROM `item_winners` WHERE `fb_id` = %s LIMIT 1;', (sender_id,))
-            if cur.fetchone() is not None:
-                win_boost = 0.5
-
             cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 36 HOUR);', (sender_id,))
             row = cur.fetchone()
             if row is not None:
@@ -392,7 +388,7 @@ def coin_flip_results(sender_id, item_id=None):
             if has_paid_flip(sender_id, 16):
                 win_boost = 0.5
 
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
 
             if row is not None:
@@ -452,7 +448,7 @@ def coin_flip_results(sender_id, item_id=None):
 
         finally:
             if conn:
-                cur.close()
+                conn.close()
 
         send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
         send_card(
@@ -472,22 +468,23 @@ def coin_flip_results(sender_id, item_id=None):
 
         else:
             trade_url = get_session_trade_url(sender_id)
-            send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
-
-            try:
-                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (trade_url, sender_id))
-                    conn.commit()
-            except mdb.Error, e:
-                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-            finally:
-                if conn:
-                    conn.close()
-
-            set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
+            send_text(
+                recipient_id=sender_id,
+                message_text="Trade URL set to {trade_url}".format(trade_url=trade_url),
+                quick_replies=[{
+                    'content_type': "text",
+                    'title'       : "OK",
+                    'payload'     : "TRADE_URL_OK"
+                }, {
+                    'content_type': "text",
+                    'title'       : "Change",
+                    'payload'     : "TRADE_URL_CHANGE"
+                }, {
+                    'content_type': "text",
+                    'title'       : "Cancel",
+                    'payload'     : "MAIN_MENU"
+                }]
+            )
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
@@ -521,10 +518,10 @@ def get_session_state(sender_id):
         if row is not None:
             state = row['state']
 
-        logger.info("state=%s" % (state))
+        logger.info("state=%s" % (state,))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_state[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::get_session_state[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -556,7 +553,7 @@ def set_session_state(sender_id, state=Const.SESSION_STATE_HOME):
 
 
 def get_session_name(sender_id):
-    logger.info("get_session_name(sender_id=%s)" % (sender_id))
+    logger.info("get_session_name(sender_id=%s)" % (sender_id,))
     full_name = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -571,10 +568,10 @@ def get_session_name(sender_id):
             if len(full_name) == 1:
                 full_name = None
 
-        logger.info("full_name=%s" % (full_name))
+        logger.info("full_name=%s" % (full_name,))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_name[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::get_session_name[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -601,11 +598,11 @@ def set_session_name(sender_id, first_name=None, last_name=None):
             conn.close()
 
 
-def get_session_item(sender_id, type="flip"):
-    logger.info("get_session_item(sender_id=%s)" % (sender_id))
+def get_session_item(sender_id, item_type="flip"):
+    logger.info("get_session_item(sender_id=%s, item_type=%s)" % (sender_id, item_type))
     item_id = None
 
-    if type == "flip":
+    if item_type == "flip":
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         try:
             conn.row_factory = sqlite3.Row
@@ -616,10 +613,10 @@ def get_session_item(sender_id, type="flip"):
             if row is not None:
                 item_id = row['flip_id']
 
-            logger.info("item_id=%s" % (item_id))
+            logger.info("item_id=%s" % (item_id,))
 
         except sqlite3.Error as er:
-            logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+            logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
         finally:
             if conn:
@@ -649,7 +646,7 @@ def set_session_item(sender_id, item_id=0):
 
 
 def get_session_payments(sender_id):
-    logger.info("get_session_payments(sender_id=%s)" % (sender_id))
+    logger.info("get_session_payments(sender_id=%s)" % (sender_id,))
 
     enabled = False
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -665,7 +662,7 @@ def get_session_payments(sender_id):
         logger.info("payments=%s" % (enabled,))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_payments[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::get_session_payments[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -693,7 +690,7 @@ def set_session_payments(sender_id, enabled):
 
 
 def get_session_trade_url(sender_id):
-    logger.info("get_session_trade_url(sender_id=%s)" % (sender_id))
+    logger.info("get_session_trade_url(sender_id=%s)" % (sender_id,))
     trade_url = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -709,7 +706,7 @@ def get_session_trade_url(sender_id):
         logger.info("trade_url=%s" % (trade_url))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_trade_url[sqlite3.connect] sqlite3.Error - %s" % (er.message))
+        logger.info("::::::get_session_trade_url[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -737,7 +734,7 @@ def set_session_trade_url(sender_id, trade_url=None):
 
 
 def get_session_purchase(sender_id):
-    logger.info("get_session_purchase(sender_id=%s)" % (sender_id))
+    logger.info("get_session_purchase(sender_id=%s)" % (sender_id,))
     purchase_id = None
     item = None
 
@@ -787,7 +784,7 @@ def set_session_purchase(sender_id, purchase_id=0):
 
 
 def get_item_details(item_id):
-    logger.info("get_item_details(item_id=%s)" % (item_id))
+    logger.info("get_item_details(item_id=%s)" % (item_id,))
 
     item = None
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -880,8 +877,8 @@ def toggle_opt_out(sender_id, is_optout=True):
     logger.info("toggle_opt_out(sender_id=%s, is_optout=%s)" % (sender_id, is_optout))
 
     is_prev_oo = False
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('SELECT id FROM blacklisted_users WHERE `fb_psid` = ?;', (sender_id,))
@@ -999,7 +996,7 @@ def purchase_item(sender_id, payment):
                 conn.close()
 
     # -- state 8 means purchased, but no trade url yet…
-    set_session_state(sender_id, Const.SESSION_STATE_HOME)
+    set_session_state(sender_id)
 
     payload = {
         'channel'  : "#gamebots-purchases",
@@ -1044,7 +1041,7 @@ def webook():
                     return "OK", 200
 
                 if 'read' in messaging_event:  # read confirmation
-                    logger.info("-=- READ CONFIRM -=- %s" % (messaging_event))
+                    logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
                     send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
                     return "OK", 200
 
@@ -1087,7 +1084,7 @@ def webook():
                         if graph is not None:
                             set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
                             set_session_payments(sender_id, 1 if graph['is_payment_enabled'] else 0)
-                        set_session_state(sender_id, Const.SESSION_STATE_HOME)
+                        set_session_state(sender_id)
                         default_carousel(sender_id)
 
                     else:
@@ -1122,7 +1119,7 @@ def webook():
                                 return "OK", 200
 
                 else:
-                    set_session_state(sender_id, Const.SESSION_STATE_HOME)
+                    set_session_state(sender_id)
                     default_carousel(sender_id)
 
     return "OK", 200
@@ -1224,9 +1221,9 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
-
-        send_text(sender_id, "If you need help, DM twitter.com/gamebotsc")
-        default_carousel(sender_id)
+        send_text(sender_id, "Because of high support volume you must purchase credits to access direct message support.")
+        send_text(sender_id, "www.paypal.me/gamebotsc/2\n\nEnter {fb_psid}-support in the buyer's notes.".format(fb_psid=sender_id))
+        send_text(sender_id, "After payment DM: twitter.com/bryantapawan24", main_menu_quick_reply())
 
         payload = {
             'channel'  : "#pre",
@@ -1240,14 +1237,35 @@ def handle_payload(sender_id, payload_type, payload):
         send_tracker(fb_psid=sender_id, category="no-thanks")
         default_carousel(sender_id)
 
+    elif payload == "TRADE_URL_OK":
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (get_session_trade_url(sender_id), sender_id))
+                conn.commit()
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+        finally:
+            if conn:
+                conn.close()
+
+        set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
+        send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
+
+    elif payload == "TRADE_URL_CHANGE":
+        set_session_trade_url(sender_id, "_{PENDING}_")
+        set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
+        send_text(sender_id, "Enter your Steam Trade URL now.")
+
     elif payload == "SUBMIT_YES":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             trade_url = get_session_trade_url(sender_id)
             send_tracker(fb_psid=sender_id, category="trade-url-set")
             send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
 
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
             try:
-                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mdb.cursors.DictCursor)
                     cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (trade_url, sender_id))
@@ -1269,10 +1287,9 @@ def handle_payload(sender_id, payload_type, payload):
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
             send_text(sender_id, "Instructions to complete trade.\n\n1. MAKE a shop on Lemonade: taps.io/makeshop\n2. SHARE Shop with 3 friends on Messenger.\n3.Enter your Lemonade shop url now.", main_menu_quick_reply())
 
-
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
             send_tracker(fb_psid=sender_id, category="lmon-name-entered")
-            send_text(sender_id, "Great! Please wait up to 6 hours for your Trade to clear.")
+            send_text(sender_id, "Great! Please wait up to 24 hours for your Trade to clear. Credit winners have priority.")
 
             clear_session_dub(sender_id)
             default_carousel(sender_id)
@@ -1282,8 +1299,8 @@ def handle_payload(sender_id, payload_type, payload):
             trade_url = get_session_trade_url(sender_id)
             send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
 
+            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
             try:
-                conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute('UPDATE payments SET `trade_url` = ? WHERE `id` = ? LIMIT 1;', (trade_url, purchase_id))
@@ -1314,7 +1331,6 @@ def handle_payload(sender_id, payload_type, payload):
             clear_session_dub(sender_id)
             default_carousel(sender_id)
 
-
     elif payload == "SUBMIT_NO":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
@@ -1332,7 +1348,6 @@ def handle_payload(sender_id, payload_type, payload):
         else:
             clear_session_dub(sender_id)
             default_carousel(sender_id)
-
 
     elif payload == "SUBMIT_CANCEL":
         clear_session_dub(sender_id)
@@ -1359,16 +1374,17 @@ def recieved_text_reply(sender_id, message_text):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
+    elif message_text.lower() in Const.UPLOAD_REPLIES:
+        send_text(sender_id, "Complete giveaway entry:\n\n1. Install a free game: taps.io/skins\n2. Open game & screenshot it.\n3. Upload screenshot here.", main_menu_quick_reply())
+
     elif message_text.lower() in Const.APPNEXT_REPLIES:
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     else:
-        # if get_session_trade_url(sender_id) == "_{PENDING}_":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
-            #if re.search(r'[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$', message_text) is not None:
             if re.search(r'.*steamcommunity\.com\/tradeoffer\/.*$', message_text) is not None:
                 set_session_trade_url(sender_id, message_text)
-                recieved_trade_url(sender_id, message_text, Const.TRADE_URL_FLIP_ITEM)
+                recieved_trade_url(sender_id, message_text)
 
             else:
                 send_text(
@@ -1381,8 +1397,8 @@ def recieved_text_reply(sender_id, message_text):
             url = "http://m.me/lmon8?ref={deeplink}".format(deeplink=re.sub(r'[\,\'\"\`\~\ \:\;\^\%\#\&\*\$\@\!\/\?\=\+\-\|\(\)\[\]\{\}\\\<\>]', "", message_text.encode('ascii', 'ignore')))
             send_text(sender_id, "Set your lmon8 shop link to {url}?".format(url=url), quick_replies=submit_quick_replies())
 
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
             try:
-                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mdb.cursors.DictCursor)
                     cur.execute('UPDATE `item_winners` SET `prebot_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (url, sender_id))
@@ -1401,7 +1417,21 @@ def recieved_text_reply(sender_id, message_text):
 def recieved_attachment(sender_id, attachment_type, attachment):
     logger.info("recieved_attachment(sender_id=%s, attachment_type=%s, attachment=%s)" % (sender_id, attachment_type, attachment))
 
-    if attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
+    if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1]:
+        payload = {
+            'channel'     : "#bot-alerts",
+            'username '   : "gamebotsc",
+            'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+            'text'        : "Image upload from *{user}* _{fb_psid}_:\n{image_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), fb_psid=sender_id, image_url=attachment['url']),
+            'attachments' : [{
+                'image_url' : attachment['url']
+            }]
+        }
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+
+        send_text(sender_id, "Screenshot uploded for approval. Upload another to increase your odds.", main_menu_quick_reply())
+
+    elif attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
         send_text(sender_id, "I'm sorry, I cannot understand that type of message.", home_quick_replies())
 
 
@@ -1548,7 +1578,7 @@ def send_video(recipient_id, url, quick_replies=None):
 
 
 def send_message(payload):
-    logger.info("send_message(payload=%s)" % (payload))
+    logger.info("send_message(payload=%s)" % (payload,))
 
     response = requests.post(
         url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
@@ -1561,7 +1591,7 @@ def send_message(payload):
 
 
 def fb_graph_user(recipient_id):
-    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id))
+    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id,))
 
     params = {
         'fields'      : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
@@ -1575,4 +1605,3 @@ if __name__ == '__main__':
 
 
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
-
