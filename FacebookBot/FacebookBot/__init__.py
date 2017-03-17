@@ -385,8 +385,8 @@ def coin_flip_results(sender_id, item_id=None):
             if row is not None:
                 total_wins = row['tot']
 
-            if has_paid_flip(sender_id, 16):
-                win_boost = 0.5
+            # if has_paid_flip(sender_id, 16):
+            #     win_boost = 0.875
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -836,7 +836,7 @@ def deposit_amount_for_price(price):
     if price < 3.50:
         amount = 0
 
-    elif price < 5.20:
+    elif price < 4.20:
         amount = 1
 
     elif price < 6.50:
@@ -1191,7 +1191,8 @@ def handle_payload(sender_id, payload_type, payload):
                     send_paypal_card(sender_id, 1.00)
 
             else:
-                if has_paid_flip(sender_id, 16) and item['type'] == 1:
+                #if has_paid_flip(sender_id, 16) and item['type'] == 1:
+                if has_paid_flip(sender_id, 16):
                     coin_flip_results(sender_id, item_id)
 
                 else:
