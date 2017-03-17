@@ -7,7 +7,7 @@ define('DB_PASS', "f4zeHUga.age");
 
 define('BROADCASTER_ADDR', "162.243.150.21");
 define('BROADCASTER_USER_AGENT', "GameBots-Broadcaster-v3");
-define('FB_MESSAGE_TEMPLATE_PATH', "/opt/cron/etc/". basename(__FILE__, ".php") .".conf2");
+define('FB_MESSAGE_TEMPLATE_PATH', "/opt/cron/etc/". basename(__FILE__, ".php") .".conf");
 
 
 function send_tracker($fb_psid) {
@@ -73,7 +73,7 @@ mysqli_set_charset($db_conn, 'utf8');
 $config_arr = array(
   'FB_GRAPH_API'        => "https://graph.facebook.com/v2.6/me/messages",
   'FB_ACCESS_TOKEN'     => "EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD",
-  'BODY_TEMPLATE'       => "AK-47 Blue Laminate Flash!\n\n1. Send @gamebotsc to 3 friends\n2. Play Flip Coin for 30 minutes\n3. Wait 8 hours"
+  'BODY_TEMPLATE'       => "Items are re-loaded! come flip."
 );
 
 $handle = @fopen(FB_MESSAGE_TEMPLATE_PATH, 'r');
@@ -122,15 +122,22 @@ while ($user_obj = mysqli_fetch_object($result)) {
   
   // build json array
   $payload_arr = array(
-		'recipient' => array(
-			'id' => $user_obj->chat_id
-		),
-		'message' => array(
-		  'text' => $body_txt
+    'recipient' => array(
+      'id' => $user_obj->chat_id
+    ),
+    'message' => array(
+      'text' => $body_txt,
+      'quick_replies' => array(
+        array(
+          'content_type' => "text",
+          'title'        => "Main Menu",
+          'payload'      => "MAIN_MENU"
+        )
+      )
     )
-	);
+  );
 
-	post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
+  post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
   send_tracker($user_obj->chat_id);
 }
 

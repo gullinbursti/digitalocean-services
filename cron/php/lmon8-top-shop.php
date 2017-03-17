@@ -147,8 +147,32 @@ while ($fb_user_obj = mysqli_fetch_object($result)) {
 
   // output status
   echo(sprintf("FB (%05s/%05s)--> [%-16s]\n", number_format(++$cnt), number_format(mysqli_num_rows($result)), $fb_user_obj->fb_psid));
-
-
+  
+  $element_arr = array();
+  $query = 'SELECT `id`, `storefront_id`, `display_name`, `image_url`, `prebot_url` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 10;';
+  $res = mysqli_query($db_conn, $query);
+  while ($product_obj = mysqli_fetch_object($res)) {
+    $query = 'SELECT `display_name` FROM `storefronts` WHERE `id` = '. $product_obj->storefront_id .' LIMIT 1;';
+    $r = mysqli_query($db_conn, $query);
+    $storefront_obj = mysqli_fetch_object($r);
+    array_push($element_arr, array(
+      'title'     => $storefront_obj->display_name, 
+      'subtitle'  => $product_obj->display_name, 
+      'image_url' => $product_obj->image_url, 
+      'item_url'  => preg_replace('/^.*\/(.*)$/', 'm.me/lmon8?ref=/$1', $product_obj->prebot_url), 
+      'buttons'   => array(
+        array(
+          'type'    => "postback",
+          'payload' => sprintf("VIEW_PRODUCT-%d", $product_obj->id),
+          'title'   => "View Shop"
+        ),
+        array(
+          'type' => "element_share"
+        )
+      )
+    ));
+  }
+  
   // build json array
   $payload_arr = array(
     'recipient' => array(
@@ -171,17 +195,48 @@ while ($fb_user_obj = mysqli_fetch_object($result)) {
       'id' => $fb_user_obj->fb_psid
      ),
     'message'   => array(
-      'text'          => sprintf($body_txt, $product_obj->display_name, $storefront_obj->cnt, preg_replace('/^.*\/(.*)$/', 'm.me/lmon8?ref=/$1', $product_obj->prebot_url)),
+      'text' => $body_txt
+    )
+  );
+  post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
+  
+  // build json array
+  $payload_arr = array(
+    'recipient' => array(
+      'id' => $fb_user_obj->fb_psid
+     ),
+    'message'   => array(
+      'attachment'    => array(
+        'type'    => "template",
+        'payload' => array(
+          'template_type' => "generic",
+          'elements'      => $element_arr
+        )
+      ),
       'quick_replies' => array(
         array(
           'content_type' => "text",
           'title'        => "Main Menu",
           'payload'      => "MAIN_MENU"
+        ),
+        array(
+          'content_type' => "text",
+          'title'        => "Next Shop",
+          'payload'      => "NEXT_STOREFRONT"
+        ),
+        array(
+          'content_type' => "text",
+          'title'        => "Feature Shop $1.99",
+          'payload'      => "FEATURE_STOREFRONT"
+        ),
+        array(
+          'content_type' => "text",
+          'title'        => "Custom URL $0.99",
+          'payload'      => "FEATURE_URL"
         )
       )
     )
   );
-
   post_message($config_arr['FB_GRAPH_API'] ."?access_token=". $config_arr['FB_ACCESS_TOKEN'], $payload_arr);
   send_tracker($fb_user_obj->fb_psid);
 }
