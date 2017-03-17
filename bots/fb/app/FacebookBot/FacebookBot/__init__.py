@@ -2612,7 +2612,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 pass
 
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
-            if "gamebotsmods" in product.tags:
+            if "gamebotsmods" in product.tags_list:
                 send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
             send_customer_carousel(recipient_id, product.id)
 
@@ -2675,7 +2675,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             # send_customer_carousel(recipient_id, product.id)
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
 
-            if "gamebotsmods" in product.tags or "":
+            if "gamebotsmods" in product.tags:
                 send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
 
         else:
@@ -2836,7 +2836,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 recipient_id=recipient_id,
                 message_text="Did you complete your purchase?",
                 quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES, purchase_id=customer.purchase_id)),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_NO, purchase_id=customer.purchase_id))
                 ] + cancel_entry_quick_reply()
             )
@@ -3261,6 +3261,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
             send_text(storefront.fb_psid, "Purchase has been completed for {product_name}".format(product_name=product.display_name_utf8))
             send_customer_carousel(recipient_id, product.id)
+
+    elif payload == Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES:
+        customer.purchase_id = None
+        db.session.commit()
+        send_admin_carousel(recipient_id)
 
     elif re.search(r'^PURCHASE_COMPLETED_NO\-(\d+)$', payload) is not None:
         purchase = Purchase.query.filter(Purchase.id == re.match(r'^PURCHASE_COMPLETED_NO\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
