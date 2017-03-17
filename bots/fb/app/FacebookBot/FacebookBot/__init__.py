@@ -1229,7 +1229,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_text(recipient_id, Const.ORTHODOX_GREETING)
 
 
-    elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1] in Const.RESERVED_AUTO_GEN_STOREFRONTS:
+    elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1].lower() in Const.RESERVED_AUTO_GEN_STOREFRONTS.lower():
         storefront, product = auto_gen_storefront(recipient_id, deeplink.split("/")[-1])
 
         send_image(recipient_id, Const.IMAGE_URL_GREETING)
@@ -1243,7 +1243,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_tracker(fb_psid=recipient_id, category="adref", action=deeplink)
 
 
-        product = Product.query.filter(Product.name == deeplink.split("/")[-1]).filter(Product.creation_state == 7).first()
+        product = Product.query.filter(Product.name.ilike(deeplink.split("/")[-1].lower())).filter(Product.creation_state == 7).first()
         if product is not None:
             customer.product_id = product.id
             db.session.commit()
