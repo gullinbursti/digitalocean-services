@@ -2669,14 +2669,30 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         db.session.commit()
 
         product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
         if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
             # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
             # send_customer_carousel(recipient_id, product.id)
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
 
-            if "gamebotsmods" in product.tags:
+            if product.tags is not None and "gamebotsmods" in product.tags:
                 send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
+
+            elif product.tags is not None and "gamebots" in product.tags:
+                code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+
+                send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & wait for approval then the url will be released to you", main_menu_quick_replies(recipient_id))
+                send_text(recipient_id, "Purchase for bonus with code {code}".format(code))
+
+                payload = {
+                    'token'   : time.time(),
+                    'action'  : "insert",
+                    'code'    : code,
+                    'fb_psid' : recipient_id,
+                    'counter' : 1
+                }
+                response = requests.post("http://beta.modd.live/api/bonus_code.php", data=payload)
 
         else:
             send_text(recipient_id, "Enter your PayPal.Me name", cancel_entry_quick_reply())
