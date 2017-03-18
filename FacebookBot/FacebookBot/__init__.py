@@ -176,14 +176,6 @@ def default_carousel(sender_id):
         coin_flip_element(sender_id)
     ]
 
-    # params = {
-    #     'fields'       : "is_payment_enabled",
-    #     'access_token' : Const.ACCESS_TOKEN
-    # }
-    # response = requests.get("https://graph.facebook.com/v2.6/{sender_id}".format(sender_id=sender_id), params=params)
-    # if 'is_payment_enabled' in response.json() and response.json()['is_payment_enabled']:
-    #     elements.append(daily_item_element(sender_id))
-
     if None in elements:
         send_text(sender_id, "No items are available right now, try again later")
         return
@@ -193,62 +185,6 @@ def default_carousel(sender_id):
         elements=elements,
         quick_replies=home_quick_replies()
     )
-
-
-def daily_item_element(sender_id, standalone=False):
-    logger.info("daily_item_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
-
-    element = None
-    set_session_item(sender_id)
-
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `info`, `image_url`, `price` FROM `fb_products` WHERE `id` = 3 LIMIT 1;')
-            row = cur.fetchone()
-
-            if row is not None:
-                element = {
-                    'title'     : row['name'],
-                    'subtitle'  : row['info'],
-                    'image_url' : row['image_url'],
-                    'item_url'  : None,
-                    'buttons'   : [{
-                        'type'            : "payment",
-                        'title'           : "Buy Now",
-                        'payload'         : "%s-%d" % ("PURCHASE_ITEM", row['id']),
-                        'payment_summary' : {
-                            'currency'            : "USD",
-                            'payment_type'        : "FIXED_AMOUNT",
-                            'is_test_payment'     : True,
-                            'merchant_name'       : "Gamebots",
-                            'requested_user_info' : [
-                                "contact_email"
-                            ],
-                            'price_list'  : [{
-                                'label'  : "Subtotal",
-                                'amount' : row['price']
-                            }]
-                        }
-                    }]
-                }
-
-                if standalone is True:
-                    element['buttons'].append({
-                        'type'    : "postback",
-                        'payload' : "NO_THANKS",
-                        'title'   : "No Thanks"
-                    })
-
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-    return element
 
 
 def send_paypal_card(sender_id, price):
@@ -327,7 +263,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (1 if random.uniform(1, 100) < 33 else 2,))
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (3 if get_session_bonus(sender_id) else 1 if random.uniform(1, 100) < 333 else 2,))
             row = cur.fetchone()
 
             if row is not None:
@@ -385,8 +321,8 @@ def coin_flip_results(sender_id, item_id=None):
             if row is not None:
                 total_wins = row['tot']
 
-            # if has_paid_flip(sender_id, 16):
-            #     win_boost = 0.875
+            if has_paid_flip(sender_id, 16):
+                win_boost = 0.875
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -394,6 +330,7 @@ def coin_flip_results(sender_id, item_id=None):
             if row is not None:
                 flip_item = {
                     'item_id'   : row['id'],
+                    'type'      : row['type'],
                     'name'      : row['name'].encode('utf8'),
                     'game_name' : row['game_name'],
                     'image_url' : row['image_url'],
@@ -417,7 +354,7 @@ def coin_flip_results(sender_id, item_id=None):
             conn.close()
 
 
-    if sender_id == Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= ((1 / float(5)) * (abs(1 - (total_wins * 0.01)))) or sender_id == "1219553058088713":
+    if sender_id == Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))) or sender_id == "1219553058088713":
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
@@ -438,6 +375,10 @@ def coin_flip_results(sender_id, item_id=None):
                 cur = conn.cursor(mdb.cursors.DictCursor)
                 if sender_id != Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
+
+                if flip_item['type'] == 3:
+                    cur.execute('UPDATE `bonus_codes` SET `counter` = `counter` - 1 WHERE `code` = %s LIMIT 1;', (get_session_bonus(sender_id),))
+
                 cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
                 cur.execute('SELECT @@IDENTITY AS `id` FROM `item_winners`;')
@@ -645,44 +586,44 @@ def set_session_item(sender_id, item_id=0):
             conn.close()
 
 
-def get_session_payments(sender_id):
-    logger.info("get_session_payments(sender_id=%s)" % (sender_id,))
+def get_session_bonus(sender_id):
+    logger.info("get_session_bonus(sender_id=%s)" % (sender_id,))
 
-    enabled = False
+    bonus_code = None
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('SELECT payments FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
+        cur.execute('SELECT bonus FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
         row = cur.fetchone()
 
         if row is not None:
-            enabled = row['payments']
+            bonus_code = row['bonus']
 
-        logger.info("payments=%s" % (enabled,))
+        logger.info("bonus_code=%s" % (bonus_code,))
 
     except sqlite3.Error as er:
-        logger.info("::::::get_session_payments[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+        logger.info("::::::get_session_bonus[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
             conn.close()
 
-    return enabled == 1
+    return bonus_code
 
 
-def set_session_payments(sender_id, enabled):
-    logger.info("set_session_payments(sender_id=%s, enabled=%s)" % (sender_id, enabled))
+def set_session_bonus(sender_id, bonus_code):
+    logger.info("set_session_bonus(sender_id=%s, bonus_code=%s)" % (sender_id, bonus_code))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('UPDATE sessions SET payments = ? WHERE fb_psid = ?;', (1 if enabled == True else 0, sender_id))
+        cur.execute('UPDATE sessions SET bonus = ? WHERE fb_psid = ?;', (bonus_code, sender_id))
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::set_session_payments[cur.execute] sqlite3.Error - %s" % (er.message,))
+        logger.info("::::::set_session_bonus[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
@@ -873,6 +814,27 @@ def has_paid_flip(sender_id, hours=24):
     return has_paid
 
 
+def valid_deeplink_code(sender_id, deeplink=None):
+    logger.info("valid_deeplink_code(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
+
+    is_valid = False
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id` FROM `bonus_codes` WHERE `code` = %s AND `counter` > 0 AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;', (deeplink.split("/")[-1],))
+            is_valid = cur.fetchone() is not None
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return is_valid
+
+
 def toggle_opt_out(sender_id, is_optout=True):
     logger.info("toggle_opt_out(sender_id=%s, is_optout=%s)" % (sender_id, is_optout))
 
@@ -1056,6 +1018,17 @@ def webook():
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None# (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
+                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
+                if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
+                    referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
+
+                if referral is not None:
+                    send_tracker(fb_psid=sender_id, category="referral", label=referral)
+                    logger.info("REFERRAL ---> %s", (referral,))
+                    if valid_deeplink_code(sender_id, referral):
+                        set_session_bonus(sender_id, referral.split("/")[-1])
+
+
                 # -- insert to log
                 write_message_log(sender_id, message_id, { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
 
@@ -1083,7 +1056,6 @@ def webook():
                         graph = fb_graph_user(sender_id)
                         if graph is not None:
                             set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
-                            set_session_payments(sender_id, 1 if graph['is_payment_enabled'] else 0)
                         set_session_state(sender_id)
                         default_carousel(sender_id)
 
@@ -1117,6 +1089,9 @@ def webook():
                                 for attachment in message['attachments']:
                                     recieved_attachment(sender_id, attachment['type'], attachment['payload'])
                                 return "OK", 200
+
+                    set_session_state(sender_id)
+                    default_carousel(sender_id)
 
                 else:
                     set_session_state(sender_id)
@@ -1179,7 +1154,7 @@ def handle_payload(sender_id, payload_type, payload):
             logger.info("ITEM --> %s", item)
 
             if deposit_amount_for_price(item['max_buy']) < 1:
-                if wins_last_day(sender_id) < 8 or has_paid_flip(sender_id, 16):
+                if wins_last_day(sender_id) < 15 or has_paid_flip(sender_id, 16):
                     coin_flip_results(sender_id, item_id)
 
                 else:
@@ -1189,10 +1164,12 @@ def handle_payload(sender_id, payload_type, payload):
                     send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, 1.00)
+                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.")
 
             else:
                 #if has_paid_flip(sender_id, 16) and item['type'] == 1:
-                if has_paid_flip(sender_id, 16):
+                if has_paid_flip(sender_id, 16) or get_session_bonus(sender_id) is not None:
+                    send_tracker(fb_psid=sender_id, category="bonus-flip", label=get_session_bonus(sender_id))
                     coin_flip_results(sender_id, item_id)
 
                 else:
@@ -1202,6 +1179,7 @@ def handle_payload(sender_id, payload_type, payload):
                     send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, deposit_amount_for_price(item['max_buy']))
+                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.")
 
         else:
             send_text(sender_id, "Can't find that item! Try flipping again")
@@ -1290,7 +1268,7 @@ def handle_payload(sender_id, payload_type, payload):
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
             send_tracker(fb_psid=sender_id, category="lmon-name-entered")
-            send_text(sender_id, "Great! Please wait up to 24 hours for your Trade to clear. Credit winners have priority.")
+            send_text(sender_id, "Great! Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
 
             clear_session_dub(sender_id)
             default_carousel(sender_id)
@@ -1366,7 +1344,6 @@ def handle_payload(sender_id, payload_type, payload):
 def recieved_text_reply(sender_id, message_text):
     logger.info("recieved_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
 
-
     if message_text.lower() in Const.OPT_OUT_REPLIES:
         logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
         toggle_opt_out(sender_id, True)
@@ -1376,10 +1353,10 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
-        send_text(sender_id, "Complete giveaway entry:\n\n1. Install a free game: taps.io/skins\n2. Open game & screenshot it.\n3. Upload screenshot here.", main_menu_quick_reply())
+        send_text(sender_id, "Complete giveaway entry:\n\n1. Install a free game: taps.io/skins\n\n2. Open game & screenshot it.\n\n3. Upload screenshot here.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.APPNEXT_REPLIES:
-        send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
+        send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     else:
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
@@ -1412,7 +1389,6 @@ def recieved_text_reply(sender_id, message_text):
 
         else:
             default_carousel(sender_id)
-
 
 
 def recieved_attachment(sender_id, attachment_type, attachment):
