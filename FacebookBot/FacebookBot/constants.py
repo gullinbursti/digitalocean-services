@@ -57,3 +57,5 @@ class Const(Constants):
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
     UPLOAD_REPLIES = "giveaway|mod|upload"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
+
+    BANNED_USERS = ""

@@ -310,7 +310,9 @@ def coin_flip_results(sender_id, item_id=None):
 
     total_wins = 1
     flip_item = None
-    win_boost = 1
+    win_boost = 1.5
+
+    set_session_bonus(sender_id)
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
@@ -322,7 +324,7 @@ def coin_flip_results(sender_id, item_id=None):
                 total_wins = row['tot']
 
             if has_paid_flip(sender_id, 16):
-                win_boost = 0.875
+                win_boost -= 0.125
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -612,7 +614,7 @@ def get_session_bonus(sender_id):
     return bonus_code
 
 
-def set_session_bonus(sender_id, bonus_code):
+def set_session_bonus(sender_id, bonus_code=None):
     logger.info("set_session_bonus(sender_id=%s, bonus_code=%s)" % (sender_id, bonus_code))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -1018,6 +1020,9 @@ def webook():
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None# (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
+                if sender_id in Const.BANNED_USERS:
+                    return "OK", 200
+
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
@@ -1230,7 +1235,7 @@ def handle_payload(sender_id, payload_type, payload):
                 conn.close()
 
         set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-        send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
+        send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
 
     elif payload == "TRADE_URL_CHANGE":
         set_session_trade_url(sender_id, "_{PENDING}_")
@@ -1268,7 +1273,7 @@ def handle_payload(sender_id, payload_type, payload):
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
             send_tracker(fb_psid=sender_id, category="lmon-name-entered")
-            send_text(sender_id, "Great! Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
+            send_text(sender_id, "Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
 
             clear_session_dub(sender_id)
             default_carousel(sender_id)
@@ -1406,7 +1411,7 @@ def recieved_attachment(sender_id, attachment_type, attachment):
         }
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
-        send_text(sender_id, "Screenshot uploded for approval. Upload another to increase your odds.", main_menu_quick_reply())
+        send_text(sender_id, "You have won 100 skin pts! Every 1000 skin pts you get a MAC 10 Neon Rider!\n\nTerms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
 
     elif attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
         send_text(sender_id, "I'm sorry, I cannot understand that type of message.", home_quick_replies())
