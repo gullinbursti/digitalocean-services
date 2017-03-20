@@ -221,3 +221,4 @@ class Const(Constants):
     RESERVED_APPNEXT_REPLIES = "f1xgb"
     RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
+    RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"

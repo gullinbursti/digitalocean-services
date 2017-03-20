@@ -864,8 +864,8 @@ def view_product(recipient_id, product):
             send_video(recipient_id, product.video_url, product.attachment_id)
 
         else:
-            if storefront.landscape_logo_url is not None:
-                send_image(recipient_id, storefront.landscape_logo_url)
+            if storefront.logo_url is not None:
+                send_image(recipient_id, storefront.logo_url)
 
 
 
@@ -1043,8 +1043,6 @@ def purchase_product(recipient_id, source):
                                 quick_replies=cancel_entry_quick_reply()
                             )))
 
-
-                            send_text(recipient_id, "Notifying the shop owner for your invoice url.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
                             route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
 
                         return True
@@ -1256,8 +1254,8 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_video(recipient_id, product.video_url, product.attachment_id)
 
                 else:
-                    if storefront.landscape_logo_url is not None:
-                        send_image(recipient_id, storefront.landscape_logo_url)
+                    if storefront.logo_url is not None:
+                        send_image(recipient_id, storefront.logo_url)
 
                 send_tracker(fb_psid=recipient_id, category="view-shop", label=storefront.display_name_utf8)
                 if add_subscription(recipient_id, storefront.id, product.id, deeplink):
@@ -1298,46 +1296,71 @@ def auto_gen_storefront(recipient_id, name_prefix):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     details = {
-        'AK47MistyShop' : {
+        'ak47mistyshop' : {
             'description' : "Selling the cheapest Misty.",
             'price'       : 4.25,
-            'image_url'   : "http://i.imgur.com/TQOAnps.jpg"
+            'image_url'   : "http://i.imgur.com/TQOAnps.jpg",
+            'tag'         : "gamebotsc"
         },
-        'AK47VulcanShop'  : {
+        'ak47vulcanshop' : {
             'description' : "Selling the cheapest Vulcan.",
             'price'       : 9.25,
-            'image_url'   : "http://i.imgur.com/CnYFbzD.png"
+            'image_url'   : "http://i.imgur.com/CnYFbzD.png",
+            'tag'         : "gamebotsc"
         },
-        'MAC10NeonShop' : {
+        'mac10neonshop' : {
             'description' : "Selling the cheapest Neon.",
             'price'       : 0.95,
-            'image_url'   : "http://i.imgur.com/mLDaoyA.png"
+            'image_url'   : "http://i.imgur.com/mLDaoyA.png",
+            'tag'         : "gamebotsc"
         },
-        'SteamCardShop' : {
+        'steamcardshop' : {
             'description' : "Selling the cheapest Steam card.",
             'price'       : 18.00,
-            'image_url'   : "http://i.imgur.com/iKexmpe.png"
+            'image_url'   : "http://i.imgur.com/iKexmpe.png",
+            'tag'         : "gamebotsc"
         },
-        'PrivateSnapchat' : {
+        'privatesnapchat' : {
             'description' : "Selling access to Death By Candys Snapchat",
             'price'       : 5.00,
-            'image_url'   : "http://i.imgur.com/mFm9Nlk.png"
+            'image_url'   : "http://i.imgur.com/mFm9Nlk.png",
+            'tag'         : "gamebotsc"
         },
-        'GamebotsCrate' : {
+        'gamebotscrate' : {
             'description' : "Gamebots daily crate. Items up to 15.00.",
             'price'       : 5.00,
-            'image_url'   : "http://i.imgur.com/J4pzcki.png"
+            'image_url'   : "http://i.imgur.com/J4pzcki.png",
+            'tag'         : "gamebotsc"
+        },
+        'bonus' : {
+            'description' : "3 bonus flips inside Gamebots!",
+            'price'       : 5.99,
+            'image_url'   : "http://lmon.us/thumbs/1489878300_741.jpg",
+            'tag'         : "gamebots"
         }
     }
 
     storefront_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
     product_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
 
+    try:
+        Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    try:
+        Product.query.filter(Product.fb_psid == recipient_id).delete()
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+
     storefront = Storefront(recipient_id)
     storefront.name = storefront_name
     storefront.display_name = storefront_name
-    storefront.description = details[name_prefix]['description']
-    storefront.logo_url = details[name_prefix]['image_url']
+    storefront.description = details[name_prefix.lower()]['description']
+    storefront.logo_url = details[name_prefix.lower()]['image_url']
     storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_name)
     storefront.creation_state = 4
     db.session.add(storefront)
@@ -1366,10 +1389,10 @@ def auto_gen_storefront(recipient_id, name_prefix):
     product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(0 / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
     product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
     product.type_id = Const.PRODUCT_TYPE_VIRTUAL
-    product.image_url = details[name_prefix]['image_url']
+    product.image_url = details[name_prefix.lower()]['image_url']
     product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_name)
-    product.price = details[name_prefix]['price']
-    product.tags = "gamebotsmods"
+    product.price = details[name_prefix.lower()]['price']
+    product.tags = details[name_prefix.lower()]['tag']
     product.creation_state = 7
     db.session.add(product)
     db.session.commit()
@@ -2095,7 +2118,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                     ],
                     header_element = build_card_element(
                         title = "Your shop is now restricted until you activate a payment plan",
-                        image_url = product.landscape_image_url
+                        image_url = product.image_url
                     ),
                     quick_replies = main_menu_quick_replies(recipient_id)
                 )
@@ -2180,30 +2203,30 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                             build_button(Const.CARD_BTN_POSTBACK, caption="Pay via PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
 
                         ]
-                    ),
-                    build_card_element(
-                        title = product.display_name_utf8,
-                        subtitle = "${price:.2f}".format(price=product.price),
-                        image_url = product.image_url,
-                        item_url = product.messenger_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
-                        ]
-                    ),
-                    build_card_element(
-                        title = product.display_name_utf8,
-                        subtitle = "${price:.2f}".format(price=product.price),
-                        image_url = product.image_url,
-                        item_url = product.messenger_url,
-                        buttons = [
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
-                        ]
+                    # ),
+                    # build_card_element(
+                    #     title = product.display_name_utf8,
+                    #     subtitle = "${price:.2f}".format(price=product.price),
+                    #     image_url = product.image_url,
+                    #     item_url = product.messenger_url,
+                    #     buttons = [
+                    #         build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+                    #     ]
+                    # ),
+                    # build_card_element(
+                    #     title = product.display_name_utf8,
+                    #     subtitle = "${price:.2f}".format(price=product.price),
+                    #     image_url = product.image_url,
+                    #     item_url = product.messenger_url,
+                    #     buttons = [
+                    #         build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
+                    #     ]
                     )
                 ],
                 header_element = build_card_element(
                     title = storefront.display_name_utf8,
                     subtitle = storefront.description,
-                    image_url = storefront.landscape_logo_url,
+                    image_url = storefront.logo_url,
                     item_url = None
                 ),
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2352,16 +2375,17 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
                 storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
                 product = Product.query.filter(Product.id == purchase.product_id).first()
 
-                elements.append(
-                    build_card_element(
-                        title="{product_name} - ${price:.2f}".format(product_name=product.display_name_utf8, price=product.price),
-                        subtitle=storefront.display_name_utf8,
-                        image_url=product.image_url,
-                        buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
-                        ]
+                if storefront is not None and product is not None:
+                    elements.append(
+                        build_card_element(
+                            title="{product_name} - ${price:.2f}".format(product_name=product.display_name_utf8, price=product.price),
+                            subtitle=storefront.display_name_utf8,
+                            image_url=product.image_url,
+                            buttons=[
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
+                            ]
+                        )
                     )
-                )
 
     else:
         pass
@@ -2683,7 +2707,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
 
                 send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & wait for approval then the url will be released to you", main_menu_quick_replies(recipient_id))
-                send_text(recipient_id, "Purchase for bonus with code {code}".format(code))
+                send_text(recipient_id, "Purchase for bonus with code {code}".format(code=code))
 
                 payload = {
                     'token'   : time.time(),
@@ -2852,7 +2876,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 recipient_id=recipient_id,
                 message_text="Did you complete your purchase?",
                 quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES, purchase_id=customer.purchase_id)),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_NO, purchase_id=customer.purchase_id))
                 ] + cancel_entry_quick_reply()
             )
@@ -3278,7 +3302,16 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_text(storefront.fb_psid, "Purchase has been completed for {product_name}".format(product_name=product.display_name_utf8))
             send_customer_carousel(recipient_id, product.id)
 
-    elif payload == Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES:
+    elif re.search(r'^PURCHASE_COMPLETED_YES\-(\d+)$', payload) is not None:
+        purchase = Purchase.query.filter(Purchase.id == re.match(r'^PURCHASE_COMPLETED_YES\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
+        if purchase is not None:
+            product = Product.query.filter(Product.id == purchase.product_id).first()
+            if product is not None and product.type_id == Const.PRODUCT_TYPE_VIRTUAL:
+                customer.fb_name = "_{PENDING}_"
+                db.session.commit()
+
+                send_text(recipient_id, "Type your trade URL here", cancel_entry_quick_reply())
+
         customer.purchase_id = None
         db.session.commit()
         send_admin_carousel(recipient_id)
@@ -3287,7 +3320,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         purchase = Purchase.query.filter(Purchase.id == re.match(r'^PURCHASE_COMPLETED_NO\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
         if purchase is not None:
             product = Product.query.filter(Product.id == purchase.product_id).first()
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+            if product is not None:
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
 
     elif re.search(r'^PRODUCT_RATE_(\d+)_STAR$', payload) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', payload)
@@ -3618,6 +3652,13 @@ def received_text_response(recipient_id, message_text):
     #-- appnext reply
     elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES:
         send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
+
+
+    elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES:
+        storefront, product = auto_gen_storefront(recipient_id, message_text)
+
+        send_text(recipient_id, "Auto generated your shop {storefront_name}!\n Your referral url is {prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
+        send_admin_carousel(recipient_id)
 
 
     #-- quit message
