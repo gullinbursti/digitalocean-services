@@ -491,56 +491,6 @@ def send_tracker(fb_psid, category, action=None, label=None, value=None):
     label = label or fb_psid
     value = value or "0"
 
-    # t1 = threading.Thread(
-    #     target=async_tracker,
-    #     name="user_tracking",
-    #     kwargs={
-    #         'url'     : "http://beta.modd.live/api/user_tracking.php",
-    #         'payload' : {
-    #             'username' : "",
-    #             'chat_id'  : fb_psid
-    #         }
-    #     }
-    # )
-    #
-    # t2 = threading.Thread(
-    #     target=async_tracker,
-    #     name="bot_tracker-1",
-    #     kwargs={
-    #         'url'     : "http://beta.modd.live/api/bot_tracker.php",
-    #         'payload' : {
-    #             'src'      : "prebot",
-    #             'category' : category,
-    #             'action'   : action,
-    #             'label'    : label,
-    #             'value'    : value,
-    #             'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
-    #         }
-    #     }
-    # )
-    #
-    # t3 = threading.Thread(
-    #     target=async_tracker,
-    #     name="bot_tracker-2",
-    #     kwargs={
-    #         'url'     : "http://beta.modd.live/api/bot_tracker.php",
-    #         'payload' : {
-    #             'src'      : "prebot",
-    #             'category' : "user-message",
-    #             'action'   : action,
-    #             'label'    : label,
-    #             'value'    : value,
-    #             'cid'      : hashlib.md5(fb_psid.encode()).hexdigest()
-    #         }
-    #     }
-    # )
-    #
-    # t1.start()
-    # t2.start()
-    # t3.start()
-
-
-
     t1 = threading.Thread(
         target=async_tracker,
         name="ga-tracker",
@@ -568,10 +518,6 @@ def async_tracker(payload):
     response = requests.post(Const.GA_TRACKING_URL, data=payload, headers={ 'User-Agent' : "Lemonade-Tracker-v1" })
     if response.status_code != 200:
         logger.info("TRACKER ERROR:%s" % (response.text))
-
-    # response = requests.get(url, params=payload)
-    # if response.status_code != 200:
-    #     logger.info("TRACKER ERROR:%s" % (response.text))
 
 
 def slack_outbound(channel_name, message_text, image_url=None, username=None, webhook=None):
@@ -1061,90 +1007,90 @@ def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE
             customer.purchase_id = purchase.id
         db.session.commit()
 
-
-        if dm_action == Const.DM_ACTION_PURCHASE:
-            if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                slack_outbound(
-                    channel_name="lemonade-shops",
-                    message_text=message_text,
-                    image_url=product.image_url,
-                    username=storefront.display_name_utf8,
-                    webhook=Const.SLACK_SHOPS_WEBHOOK
-                )
-
-            else:
-                send_text(
-                    recipient_id=storefront.fb_psid,
-                    message_text=message_text,
-                    quick_replies=dm_quick_replies(storefront.fb_psid, purchase.id, Const.DM_ACTION_PURCHASE)
-                )
-
-            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            slack_outbound(
-                channel_name="lemonade-purchases",
-                message_text="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
-                webhook=Const.SLACK_PURCHASES_WEBHOOK
-            )
-
-        elif dm_action == Const.DM_ACTION_SEND:
-            if recipient_id == customer.fb_psid and storefront is not None:
+        if storefront is not None and product is not None:
+            if dm_action == Const.DM_ACTION_PURCHASE:
                 if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
                     slack_outbound(
-                        channel_name = "lemonade-shops",
-                        message_text = "Customer for purchase *#{purchase_id}* says:\n_{message_text}_".format(purchase_id=purchase.id, message_text=message_text),
-                        username = storefront.display_name_utf8,
-                        webhook = Const.SLACK_SHOPS_WEBHOOK
+                        channel_name="lemonade-shops",
+                        message_text=message_text,
+                        image_url=product.image_url,
+                        username=storefront.display_name_utf8,
+                        webhook=Const.SLACK_SHOPS_WEBHOOK
                     )
 
                 else:
                     send_text(
-                        recipient_id = storefront.fb_psid,
-                        message_text = "Customer says:\n{message_text}".format(message_text=message_text),
-                        quick_replies = dm_quick_replies(storefront.fb_psid, purchase.id, dm_action)
+                        recipient_id=storefront.fb_psid,
+                        message_text=message_text,
+                        quick_replies=dm_quick_replies(storefront.fb_psid, purchase.id, Const.DM_ACTION_PURCHASE)
                     )
 
-            else:
-                send_text(
-                    recipient_id = customer.fb_psid,
-                    message_text = "Seller says:\n{message_text}".format(message_text=message_text),
-                    quick_replies = dm_quick_replies(customer.fb_psid, purchase.id, dm_action)
-
+                fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+                slack_outbound(
+                    channel_name="lemonade-purchases",
+                    message_text="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                    webhook=Const.SLACK_PURCHASES_WEBHOOK
                 )
 
-            send_text(
-                recipient_id=recipient_id,
-                message_text="Message sent",
-                quick_replies=return_home_quick_reply())
+            elif dm_action == Const.DM_ACTION_SEND:
+                if recipient_id == customer.fb_psid and storefront is not None:
+                    if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
+                        slack_outbound(
+                            channel_name = "lemonade-shops",
+                            message_text = "Customer for purchase *#{purchase_id}* says:\n_{message_text}_".format(purchase_id=purchase.id, message_text=message_text),
+                            username = storefront.display_name_utf8,
+                            webhook = Const.SLACK_SHOPS_WEBHOOK
+                        )
 
-        elif dm_action == Const.DM_ACTION_CLOSE:
-            purchase.claim_state = 3
-            db.session.commit()
-
-            if recipient_id == customer.fb_psid:
-                if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    slack_outbound(
-                        channel_name = "lemonade-shops",
-                        message_text = "Customer for purchase *#{purchase_id}* closed DM".format(purchase_id=purchase.id),
-                        username = storefront.display_name_utf8,
-                        webhook = Const.SLACK_SHOPS_WEBHOOK
-                    )
-
-                else:
-                    send_text(storefront.fb_psid, "Customer closed the DM...", main_menu_quick_replies(recipient_id))
-                send_text(customer.fb_psid, "Closing out DM with seller...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
-
-            else:
-                if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
-                    slack_outbound(
-                        channel_name = "lemonade-shops",
-                        message_text = "Closing out DM for purchase *#{purchase_id}*".format(purchase_id=purchase.id),
-                        username = storefront.display_name_utf8,
-                        webhook = Const.SLACK_SHOPS_WEBHOOK
-                    )
+                    else:
+                        send_text(
+                            recipient_id = storefront.fb_psid,
+                            message_text = "Customer says:\n{message_text}".format(message_text=message_text),
+                            quick_replies = dm_quick_replies(storefront.fb_psid, purchase.id, dm_action)
+                        )
 
                 else:
-                    send_text(storefront.fb_psid, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
-                send_text(customer.fb_psid, "Seller closed the DM...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+                    send_text(
+                        recipient_id = customer.fb_psid,
+                        message_text = "Seller says:\n{message_text}".format(message_text=message_text),
+                        quick_replies = dm_quick_replies(customer.fb_psid, purchase.id, dm_action)
+
+                    )
+
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Message sent",
+                    quick_replies=return_home_quick_reply())
+
+            elif dm_action == Const.DM_ACTION_CLOSE:
+                purchase.claim_state = 3
+                db.session.commit()
+
+                if recipient_id == customer.fb_psid:
+                    if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
+                        slack_outbound(
+                            channel_name = "lemonade-shops",
+                            message_text = "Customer for purchase *#{purchase_id}* closed DM".format(purchase_id=purchase.id),
+                            username = storefront.display_name_utf8,
+                            webhook = Const.SLACK_SHOPS_WEBHOOK
+                        )
+
+                    else:
+                        send_text(storefront.fb_psid, "Customer closed the DM...", main_menu_quick_replies(recipient_id))
+                    send_text(customer.fb_psid, "Closing out DM with seller...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+
+                else:
+                    if (storefront.id >= 505 and storefront.id <= 509) or re.search(r'^90\d{13}0$', storefront.fb_psid) is not None:
+                        slack_outbound(
+                            channel_name = "lemonade-shops",
+                            message_text = "Closing out DM for purchase *#{purchase_id}*".format(purchase_id=purchase.id),
+                            username = storefront.display_name_utf8,
+                            webhook = Const.SLACK_SHOPS_WEBHOOK
+                        )
+
+                    else:
+                        send_text(storefront.fb_psid, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
+                    send_text(customer.fb_psid, "Seller closed the DM...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
 
 def purchase_timeout(purchase):
@@ -1228,7 +1174,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
 
     elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1].lower() in Const.RESERVED_AUTO_GEN_STOREFRONTS.lower():
-        storefront, product = auto_gen_storefront(recipient_id, deeplink.split("/")[-1])
+        storefront, product = autogen_storefront(recipient_id, deeplink.split("/")[-1])
 
         send_image(recipient_id, Const.IMAGE_URL_GREETING)
         send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1291,30 +1237,30 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_admin_carousel(recipient_id)
 
 
-def auto_gen_storefront(recipient_id, name_prefix):
-    logger.info("auto_gen_storefront(recipient_id=%s, name_prefix=%s)" % (recipient_id, name_prefix))
+def autogen_storefront(recipient_id, name_prefix):
+    logger.info("autogen_storefront(recipient_id=%s, name_prefix=%s)" % (recipient_id, name_prefix))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     details = {
-        'ak47mistyshop' : {
+        'ak47mistyshop'   : {
             'description' : "Selling the cheapest Misty.",
             'price'       : 4.25,
             'image_url'   : "http://i.imgur.com/TQOAnps.jpg",
             'tag'         : "gamebotsc"
         },
-        'ak47vulcanshop' : {
+        'ak47vulcanshop'  : {
             'description' : "Selling the cheapest Vulcan.",
             'price'       : 9.25,
             'image_url'   : "http://i.imgur.com/CnYFbzD.png",
             'tag'         : "gamebotsc"
         },
-        'mac10neonshop' : {
+        'mac10neonshop'   : {
             'description' : "Selling the cheapest Neon.",
             'price'       : 0.95,
             'image_url'   : "http://i.imgur.com/mLDaoyA.png",
             'tag'         : "gamebotsc"
         },
-        'steamcardshop' : {
+        'steamcardshop'   : {
             'description' : "Selling the cheapest Steam card.",
             'price'       : 18.00,
             'image_url'   : "http://i.imgur.com/iKexmpe.png",
@@ -1326,13 +1272,13 @@ def auto_gen_storefront(recipient_id, name_prefix):
             'image_url'   : "http://i.imgur.com/mFm9Nlk.png",
             'tag'         : "gamebotsc"
         },
-        'gamebotscrate' : {
+        'gamebotscrate'   : {
             'description' : "Gamebots daily crate. Items up to 15.00.",
             'price'       : 5.00,
             'image_url'   : "http://i.imgur.com/J4pzcki.png",
             'tag'         : "gamebotsc"
         },
-        'bonus' : {
+        'bonus'           : {
             'description' : "3 bonus flips inside Gamebots!",
             'price'       : 5.99,
             'image_url'   : "http://lmon.us/thumbs/1489878300_741.jpg",
@@ -1417,6 +1363,29 @@ def auto_gen_storefront(recipient_id, name_prefix):
             conn.close()
 
     return (storefront, product)
+
+
+def referral_flip_product(recipient_id, product):
+    logger.info("referral_flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING)
+
+    if random.uniform(0, 100) < 20:
+        code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+        send_text(recipient_id, "YOU WON a {product_name}\n\nSend a screenshot of this code to Gamebots. m.me/gamebotsc".format(product_name=product.display_name_utf8, code=code))
+        send_text(recipient_id, code)
+
+        fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+        slack_outbound(
+            channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+            username=Const.SLACK_ORTHODOX_HANDLE,
+            webhook=Const.SLACK_ORTHODOX_WEBHOOK,
+            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by sharing.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
+            image_url=product.image_url
+        )
+
+    else:
+        send_text(recipient_id, "You lose. Please try again!")
 
 
 def write_message_log(recipient_id, message_id, message_txt):
@@ -1670,6 +1639,43 @@ def build_featured_storefront_elements(recipient_id, amt=3):
     return elements
 
 
+def build_autogen_storefront_elements(recipient_id):
+    logger.info("build_autogen_storefront_elements(recipient_id=%s)" % (recipient_id,))
+    elements = []
+
+    details = [
+        {
+            'key'       : "Bonus",
+            'title'     : "Bonus Shop",
+            'subtitle'  : "3 bonus flips inside Gamebots!",
+            'image_url' : "http://lmon.us/thumbs/1489878300_741.jpg"
+        }, {
+            'key'       : "MAC10NeonShop",
+            'title'     : "MAC-10 Neon Shop",
+            'subtitle'  : "Selling the cheapest Neon.",
+            'image_url' : "http://i.imgur.com/mLDaoyA.png"
+        }, {
+            'key'       : "SteamCardShop",
+            'title'     : "Steam Card Shop",
+            'subtitle'  : "Selling the cheapest Steam card.",
+            'image_url' : "http://i.imgur.com/iKexmpe.png"
+        }
+    ]
+
+    for detail in details:
+        elements.append(build_card_element(
+            title=detail['title'],
+            subtitle=detail['subtitle'],
+            image_url=detail['image_url'],
+            buttons=[
+                build_button(Const.CARD_BTN_POSTBACK, "Create", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=detail['key'])),
+                build_button(Const.CARD_BTN_INVITE)
+            ]
+        ))
+
+    return None if len(elements) == 0 else elements
+
+
 def build_card_element(title, subtitle=None, image_url=None, item_url=None, buttons=None):
     # logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)" % (title, subtitle, image_url, item_url, buttons))
 
@@ -1867,10 +1873,10 @@ def send_admin_carousel(recipient_id):
     if storefront is None:
         cards.append(
             build_card_element(
-                title = "Create Shop",
-                subtitle = "Tap Button Below",
-                image_url = Const.IMAGE_URL_CREATE_STOREFRONT_CARD,
-                buttons = [
+                title="Create Shop",
+                subtitle="Tap Button Below",
+                image_url=Const.IMAGE_URL_CREATE_STOREFRONT_CARD,
+                buttons=[
                     build_button(Const.CARD_BTN_POSTBACK, caption="Create Shop", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT)
                 ]
             )
@@ -1892,10 +1898,10 @@ def send_admin_carousel(recipient_id):
         if product is None:
             cards.append(
                 build_card_element(
-                    title = "Add Item",
-                    subtitle = "Tap Button Below",
-                    image_url = Const.IMAGE_URL_ADD_PRODUCT_CARD,
-                    buttons = [
+                    title="Add Item",
+                    subtitle="Tap Button Below",
+                    image_url=Const.IMAGE_URL_ADD_PRODUCT_CARD,
+                    buttons=[
                         build_button(Const.CARD_BTN_POSTBACK, caption="Add Item", payload=Const.PB_PAYLOAD_ADD_PRODUCT)
                     ]
                 )
@@ -1923,10 +1929,10 @@ def send_admin_carousel(recipient_id):
 
                 cards.append(
                     build_card_element(
-                        title = "Purchases",
-                        subtitle = subtitle,
-                        image_url = Const.IMAGE_URL_PURCHASES_CARD,
-                        buttons = [
+                        title="Purchases",
+                        subtitle=subtitle,
+                        image_url=Const.IMAGE_URL_PURCHASES_CARD,
+                        buttons=[
                             build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
                         ]
                     )
@@ -1934,10 +1940,10 @@ def send_admin_carousel(recipient_id):
 
             cards.append(
                 build_card_element(
-                    title = "Share on Messenger",
-                    subtitle = "Share now with your friends on Messenger",
-                    image_url = Const.IMAGE_URL_SHARE_MESSENGER_CARD,
-                    buttons = [
+                    title="Share on Messenger",
+                    subtitle="Share now with your friends on Messenger",
+                    image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
+                    buttons=[
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
                 )
@@ -1945,11 +1951,11 @@ def send_admin_carousel(recipient_id):
 
             cards.append(
                 build_card_element(
-                    title = product.display_name_utf8,
-                    subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
-                    image_url = product.image_url,
-                    item_url = product.video_url,
-                    buttons = [
+                    title=product.display_name_utf8,
+                    subtitle="{description} — ${price:.2f}".format(description=product.description, price=product.price),
+                    image_url=product.image_url,
+                    item_url=product.video_url,
+                    buttons=[
                         build_button(Const.CARD_BTN_POSTBACK, caption="Replace Item", payload=Const.PB_PAYLOAD_DELETE_PRODUCT)
                     ]
                 )
@@ -1957,20 +1963,19 @@ def send_admin_carousel(recipient_id):
 
         cards.append(
             build_card_element(
-                title = storefront.display_name_utf8,
-                subtitle = storefront.description,
-                image_url = Const.IMAGE_URL_REMOVE_STOREFRONT_CARD,
-                buttons = [
+                title=storefront.display_name_utf8,
+                subtitle=storefront.description,
+                image_url=Const.IMAGE_URL_REMOVE_STOREFRONT_CARD,
+                buttons=[
                     build_button(Const.CARD_BTN_POSTBACK, caption="Remove Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT)
                 ]
             )
         )
 
-
     data = build_carousel(
-        recipient_id = recipient_id,
-        cards = cards + build_featured_storefront_elements(recipient_id),
-        quick_replies = main_menu_quick_replies(recipient_id)
+        recipient_id=recipient_id,
+        cards=cards + build_autogen_storefront_elements(recipient_id),
+        quick_replies=main_menu_quick_replies(recipient_id)
     )
 
     send_message(json.dumps(data))
@@ -2185,6 +2190,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 item_url = product.messenger_url,
                 buttons = [
                     build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
+                    build_button(Const.CARD_BTN_URL, caption="Flip to Win", url=re.sub(r'\/([A-Za-z0-9_\.\-]+)$', r'/flip/\1', product.messenger_url)),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2471,6 +2477,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         logger.info("----------=BOT GREETING @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
         welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
 
+    elif re.search(r'^AUTO_GEN_STOREFRONT-(.+)$', payload) is not None:
+        storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
+        send_text(recipient_id, "Auto generated your shop {storefront_name}!\n Your referral url is {prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
+        send_admin_carousel(recipient_id)
+
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         # send_tracker(fb_psid=recipient_id, category="button-create-shop")
 
@@ -2590,8 +2601,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
         if product is not None:
             add_points(recipient_id, Const.POINT_AMOUNT_SHARE_PRODUCT)
-
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
+
 
     elif re.search('^VIEW_PRODUCT\-(\d+)$', payload) is not None:
         product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
@@ -2841,31 +2852,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         purchase_id = re.match(r'^DM_CLOSE\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_CLOSE)
-
-    elif payload == Const.PB_PAYLOAD_FLIP_COIN_NEXT_ITEM:
-        # send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
-
-        payload = {
-            'action'   : "NEXT_ITEM",
-            'social_id': recipient_id
-        }
-        response = requests.post("{api_url}?token={timestamp}".format(api_url=Const.COIN_FLIP_API, timestamp=int(time.time())), data=payload)
-
-    elif payload == Const.PB_PAYLOAD_FLIP_COIN_DO_FLIP:
-        # send_tracker(fb_psid=recipient_id, category="button-flip-next-item")
-
-        payload = {
-            'action'   : "FLIP_ITEM",
-            'social_id': recipient_id
-        }
-        response = requests.post("{api_url}?token={timestamp}".format(api_url=Const.COIN_FLIP_API, timestamp=int(time.time())), data=payload)
-
-        payload = {
-            'action'   : "FLIP_RESULT",
-            'social_id': recipient_id
-        }
-        response = requests.post("{api_url}?token={timestamp}".format(api_url=Const.COIN_FLIP_API, timestamp=int(time.time())), data=payload)
-
 
     # quick replies
     elif payload == Const.PB_PAYLOAD_MAIN_MENU:
@@ -3655,7 +3641,7 @@ def received_text_response(recipient_id, message_text):
 
 
     elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES:
-        storefront, product = auto_gen_storefront(recipient_id, message_text)
+        storefront, product = autogen_storefront(recipient_id, message_text)
 
         send_text(recipient_id, "Auto generated your shop {storefront_name}!\n Your referral url is {prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
         send_admin_carousel(recipient_id)
@@ -4168,6 +4154,11 @@ def fbbot():
 
                 #-- entered via url referral
                 if referral is not None:
+                    if "/flip/" in referral:
+                        product = Product.query.filter(Product.name.ilike(referral.split("/")[-1].lower())).filter(Product.creation_state == 7).first()
+                        if product is not None:
+                            referral_flip_product(customer.fb_psid, product)
+
                     welcome_message(customer.fb_psid, Const.CUSTOMER_REFERRAL if referral[1:] not in Const.RESERVED_AUTO_GEN_STOREFRONTS else Const.STOREFRONT_AUTO_GEN, referral)
                     return "OK", 200
 
