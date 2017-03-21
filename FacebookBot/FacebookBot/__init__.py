@@ -169,12 +169,30 @@ def opt_out_quick_replies():
     ]
 
 
-def default_carousel(sender_id):
-    logger.info("default_carousel(sender_id=%s)" % (sender_id,))
+def default_carousel(sender_id, amount=1):
+    logger.info("default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
-    elements = [
-        coin_flip_element(sender_id)
-    ]
+    elements = []
+    for i in range(amount):
+        elements.append(coin_flip_element(sender_id))
+
+    if None in elements:
+        send_text(sender_id, "No items are available right now, try again later")
+        return
+
+    send_carousel(
+        recipient_id=sender_id,
+        elements=elements,
+        quick_replies=home_quick_replies()
+    )
+
+
+def pay_wall_carousel(sender_id, amount=5):
+    logger.info("default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
+
+    elements = []
+    for i in range(amount):
+        elements.append(coin_flip_element(sender_id, True))
 
     if None in elements:
         send_text(sender_id, "No items are available right now, try again later")
@@ -252,8 +270,8 @@ def flip_pay_wall(sender_id, price):
             conn.close()
 
 
-def coin_flip_element(sender_id, standalone=False):
-    logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, standalone))
+def coin_flip_element(sender_id, pay_wall=False):
+    logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, pay_wall))
 
     item_id = None
     set_session_item(sender_id)
@@ -263,7 +281,7 @@ def coin_flip_element(sender_id, standalone=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (3 if get_session_bonus(sender_id) else 1 if random.uniform(1, 100) < 333 else 2,))
+            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `max_buy` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (3 if get_session_bonus(sender_id) else 1 if pay_wall == False or random.uniform(1, 100) < 50 else 2,))
             row = cur.fetchone()
 
             if row is not None:
@@ -274,20 +292,35 @@ def coin_flip_element(sender_id, standalone=False):
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
                     'subtitle'  : "",
                     'image_url' : row['image_url'],
-                    'item_url'  : None,
-                    'buttons'   : [{
-                        'type'    : "postback",
-                        'payload' : "FLIP_COIN-{item_id}".format(item_id=item_id),
-                        'title'   : "Flip Coin"
-                    }]
+                    'item_url'  : None
                 }
 
-                if standalone is True:
-                    element['buttons'].append({
-                        'type'    : "postback",
-                        'title'   : "Menu",
-                        'payload' : "MAIN_MENU"
-                    })
+                if pay_wall is False:
+                    element['buttons'] = [{
+                        'type'   : "postback",
+                        'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
+                        'title'  : "Flip Coin"
+                    }]
+
+                else:
+                    element['buttons'] = [{
+                        'type'            : "payment",
+                        'title'           : "Buy Now",
+                        'payload'         : "%s-%d" % ("PURCHASE_ITEM", row['id']),
+                        'payment_summary' : {
+                            'currency'            : "USD",
+                            'payment_type'        : "FIXED_AMOUNT",
+                            'is_test_payment'     : False,
+                            'merchant_name'       : "Gamebots",
+                            'requested_user_info' : [
+                                "contact_email"
+                            ],
+                            'price_list'          : [{
+                                'label'  : "Subtotal",
+                                'amount' : row['max_buy']
+                            }]
+                        }
+                    }]
 
     except mdb.Error, e:
         logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -310,7 +343,7 @@ def coin_flip_results(sender_id, item_id=None):
 
     total_wins = 1
     flip_item = None
-    win_boost = 1.5
+    win_boost = 1
 
     set_session_bonus(sender_id)
 
@@ -356,7 +389,7 @@ def coin_flip_results(sender_id, item_id=None):
             conn.close()
 
 
-    if sender_id == Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))) or sender_id == "1219553058088713":
+    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))) or sender_id == "1219553058088713":
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
@@ -375,7 +408,7 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                if sender_id != Const.ADMIN_FB_PSID:
+                if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
 
                 if flip_item['type'] == 3:
@@ -1065,7 +1098,6 @@ def webook():
                         default_carousel(sender_id)
 
                     else:
-
                         # ------- POSTBACK BUTTON MESSAGE
                         if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                             logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
@@ -1147,7 +1179,7 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "NEXT_ITEM":
         send_tracker(fb_psid=sender_id, category="next-item")
-        default_carousel(sender_id)
+        default_carousel(sender_id, 1)
 
 
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
