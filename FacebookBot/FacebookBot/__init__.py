@@ -205,14 +205,14 @@ def pay_wall_carousel(sender_id, amount=5):
     )
 
 
-def send_paypal_card(sender_id, price):
+def send_paypal_card(sender_id, price, image_url=None):
     logger.info("send_paypal_card(sender_id=%s, price=%s)" % (sender_id, price))
 
     send_card(
         recipient_id=sender_id,
         title="GameBots Deposit",
         subtitle="${price:.2f}".format(price=price),
-        image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606",
+        image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606" if image_url is None else image_url,
         card_url="https://paypal.me/gamebotsc/{price}".format(price=price),
         buttons=[{
             'type'                : "web_url",
@@ -276,12 +276,15 @@ def coin_flip_element(sender_id, pay_wall=False):
     item_id = None
     set_session_item(sender_id)
 
+
+    deposit = get_session_deposit(sender_id)
+
     element = None
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `game_name`, `image_url`, `max_buy` FROM `flip_inventory` WHERE `quantity` > 0 AND `type` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (3 if get_session_bonus(sender_id) else 1 if pay_wall == False or random.uniform(1, 100) < 50 else 2,))
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `max_buy`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND (`type` = 1 OR `type` = 2) AND `min_sell` > %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ((0.5) * deposit if pay_wall is False else (deposit + 1) * 2,))
             row = cur.fetchone()
 
             if row is not None:
@@ -290,7 +293,7 @@ def coin_flip_element(sender_id, pay_wall=False):
 
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
-                    'subtitle'  : "",
+                    'subtitle'  : "" if pay_wall is False else "${price:.2f}".format(price=deposit_amount_for_price(row['min_sell'])),
                     'image_url' : row['image_url'],
                     'item_url'  : None
                 }
@@ -300,26 +303,6 @@ def coin_flip_element(sender_id, pay_wall=False):
                         'type'   : "postback",
                         'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
                         'title'  : "Flip Coin"
-                    }]
-
-                else:
-                    element['buttons'] = [{
-                        'type'            : "payment",
-                        'title'           : "Buy Now",
-                        'payload'         : "%s-%d" % ("PURCHASE_ITEM", row['id']),
-                        'payment_summary' : {
-                            'currency'            : "USD",
-                            'payment_type'        : "FIXED_AMOUNT",
-                            'is_test_payment'     : False,
-                            'merchant_name'       : "Gamebots",
-                            'requested_user_info' : [
-                                "contact_email"
-                            ],
-                            'price_list'          : [{
-                                'label'  : "Subtotal",
-                                'amount' : row['max_buy']
-                            }]
-                        }
                     }]
 
     except mdb.Error, e:
@@ -345,6 +328,9 @@ def coin_flip_results(sender_id, item_id=None):
     flip_item = None
     win_boost = 1
 
+    # if sender_id == "894483894011953":
+    #     win_boost = 0.5
+
     set_session_bonus(sender_id)
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -357,7 +343,7 @@ def coin_flip_results(sender_id, item_id=None):
                 total_wins = row['tot']
 
             if has_paid_flip(sender_id, 16):
-                win_boost -= 0.125
+                win_boost -= 0.25
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -388,8 +374,7 @@ def coin_flip_results(sender_id, item_id=None):
         if conn:
             conn.close()
 
-
-    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))) or sender_id == "1219553058088713":
+    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(3)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
@@ -621,6 +606,50 @@ def set_session_item(sender_id, item_id=0):
             conn.close()
 
 
+def get_session_deposit(sender_id, interval=24):
+    logger.info("get_session_deposit(sender_id=%s, interval=%s)" % (sender_id, interval))
+
+    deposit = 0
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT deposit FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            deposit = row['deposit']
+
+        logger.info("deposit=%s" % (deposit,))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_deposit[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return deposit
+
+
+def inc_session_deposit(sender_id, amount=1):
+    logger.info("inc_session_deposit(sender_id=%s, amount=%s)" % (sender_id, amount))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET deposit = deposit + ? WHERE fb_psid = ?;', (amount, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::inc_session_deposit[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+
 def get_session_bonus(sender_id):
     logger.info("get_session_bonus(sender_id=%s)" % (sender_id,))
 
@@ -809,19 +838,19 @@ def deposit_amount_for_price(price):
     logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
     amount = 0
-    if price < 3.50:
+    if price < 1.50:
         amount = 0
 
-    elif price < 4.20:
+    elif price < 4.50:
         amount = 1
 
     elif price < 6.50:
         amount = 2
 
-    elif price < 14.50:
+    elif price < 9.50:
         amount = 3
 
-    elif price < 30.00:
+    elif price < 15.00:
         amount = 5
 
     return amount
@@ -1190,33 +1219,32 @@ def handle_payload(sender_id, payload_type, payload):
             item = get_item_details(item_id)
             logger.info("ITEM --> %s", item)
 
-            if deposit_amount_for_price(item['max_buy']) < 1:
-                if wins_last_day(sender_id) < 15 or has_paid_flip(sender_id, 16):
+            if deposit_amount_for_price(item['min_sell']) < 1:
+                if wins_last_day(sender_id) < 5 or has_paid_flip(sender_id, 24):
                     coin_flip_results(sender_id, item_id)
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
                     send_text(sender_id, "You must add a $1.00 Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.")
-                    flip_pay_wall(sender_id, 1)
+                    pay_wall_carousel(sender_id, 4)
                     send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, 1.00)
-                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.")
+                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
 
             else:
-                #if has_paid_flip(sender_id, 16) and item['type'] == 1:
-                if has_paid_flip(sender_id, 16) or get_session_bonus(sender_id) is not None:
+                if has_paid_flip(sender_id, 24) and get_session_deposit(sender_id) >= deposit_amount_for_price(item['min_sell']):
                     send_tracker(fb_psid=sender_id, category="bonus-flip", label=get_session_bonus(sender_id))
                     coin_flip_results(sender_id, item_id)
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    send_text(sender_id, "You must add a ${price:.2f} Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.".format(price=deposit_amount_for_price(item['max_buy'])))
-                    flip_pay_wall(sender_id, deposit_amount_for_price(item['max_buy']))
+                    send_text(sender_id, "You must add a ${price:.2f} Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.".format(price=deposit_amount_for_price(item['min_sell']) - get_session_deposit(sender_id)))
+                    pay_wall_carousel(sender_id, 4)
                     send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
-                    send_paypal_card(sender_id, deposit_amount_for_price(item['max_buy']))
-                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.")
+                    send_paypal_card(sender_id, deposit_amount_for_price(item['min_sell']) - get_session_deposit(sender_id), item['image_url'])
+                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
 
         else:
             send_text(sender_id, "Can't find that item! Try flipping again")
@@ -1390,7 +1418,9 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
-        send_text(sender_id, "Complete giveaway entry:\n\n1. Install a free game: taps.io/skins\n\n2. Open game & screenshot it.\n\n3. Upload screenshot here.", main_menu_quick_reply())
+        send_text(sender_id, "You are entry #{queue} into today's flash giveaway.\n\nTo increase your chances you can install & upload free apps or buy a Gamebots credit.".format(queue=int(random.uniform(100, 900))))
+        send_text(sender_id, "Instructions:\n1. Install game: Taps.io/skin\n\n2. Open & screenshot game\n\n3. Upload screenshot here")
+        send_text(sender_id, "Purchase credits: paypal.me/gamebotsc/1", main_menu_quick_reply())
 
     elif message_text.lower() in Const.APPNEXT_REPLIES:
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
