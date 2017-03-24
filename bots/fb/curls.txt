@@ -64,9 +64,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "message":{
     "attachment":{
-      "type":"image",
+      "type":"video",
       "payload":{
-        "url":"https://trello-attachments.s3.amazonaws.com/58b4a9c076898492726f0168/58b664c2a3cfad09e123fdf0/2167bd3b324a2ff8718df64628f2e0f8/welcome.gif",
+        "url":"http://lmon.us/videos/misty.mp4",
         "is_reusable":true
       }
     }
@@ -82,7 +82,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
       "composer_input_disabled":true,
       "call_to_actions":[
         {
-          "title":"Next Shop",
+          "title":"Flip Shop",
           "type":"postback",
           "payload":"RANDOM_STOREFRONT"
         }, {
