@@ -343,7 +343,7 @@ def coin_flip_results(sender_id, item_id=None):
                 total_wins = row['tot']
 
             if has_paid_flip(sender_id, 16):
-                win_boost -= 0.25
+                win_boost -= 0.875
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
