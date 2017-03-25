@@ -18,6 +18,7 @@ class Const(Constants):
     STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
 
     SLACK_TOKEN = "DdWzzWFEAqAnK9loyaIFvaFK"
+    PAYPAL_TOKEN = "882499ef6be6c2575a7a8b2be032e42f"
 
     SLACK_ORTHODOX_CHANNEL = "pre"
     SLACK_ORTHODOX_HANDLE = "lemon8-fb"

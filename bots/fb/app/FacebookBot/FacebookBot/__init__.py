@@ -4339,17 +4339,52 @@ def slack():
 
 
 
-@app.route('/paypal-ipn/', methods=['POST'])
-def paypal_ipn():
-    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    # logger.info("=-=-=-=-=-= POST --\»  '/paypal-ipn/'")
-    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+@app.route('/paypal', methods=['POST'])
+def paypal():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/paypal'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
-    data = request.get_json()
-    # logger.info("request=%s" % (request=request))
-    # logger.info("request.form=%s" % (", ".join(request.form)))
-    # logger.info("data=%s" % (data))
-    # logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    if request.form['token'] == Const.PAYPAL_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        customer_id = request.form['user_id']
+        product_id = request.form['product_id']
+
+        logger.info("product_id=%s, customer_id=%s" % (product_id, customer_id))
+
+        purchase = Purchase.query.filter(Purchase.customer_id == customer_id).filter(Purchase.product_id == product_id).order_by(Purchase.added.desc()).first()
+        if purchase is not None:
+            logger.info("purchase=%s", (purchase,))
+            purchase.claim_state = 5
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `purchases` SET `claim_state` = 5 WHERE `id` = %s LIMIT 1;', (purchase.id,))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            customer = Customer.query.filter(Customer.id == customer_id).first()
+            fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
+            product = Product.query.filter(Product.id == product_id).first()
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
+            slack_outbound(
+                channel_name="lemonade-purchases",
+                message_text="*{customer}* just paid ${price:.2f} for _{product_name}_ from _{storefront_name}_ via PayPal.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, price=product.price, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                webhook=Const.SLACK_PURCHASES_WEBHOOK
+            )
 
     return "OK", 200
 
