@@ -10,6 +10,8 @@ class Const(Constants):
     VERIFY_TOKEN = "d41d8cd98f00b204e9800998ecf8427e"
     ACCESS_TOKEN = "EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
 
+    PAYPAL_TOKEN = "882499ef6be6c2575a7a8b2be032e42f"
+
     ADMIN_FB_PSID = "1298454546880273|1219553058088713"#894483894011953
 
     # FLIP_CLAIM_URL = "www.gamebots.chat/giveaway.html"
@@ -54,8 +56,10 @@ class Const(Constants):
     PAYLOAD_ATTACHMENT_OTHER = "PAYLOAD_ATTACHMENT-OTHER"
 
     APPNEXT_REPLIES = "f1xgb"
+    MODERATOR_REPLIES = "mod"
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
-    UPLOAD_REPLIES = "giveaway|mod|upload"
+    UPLOAD_REPLIES = "upload"
+    GIVEAWAY_REPLIES = "giveaway"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
 
     BANNED_USERS = ""

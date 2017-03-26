@@ -215,10 +215,11 @@ def send_paypal_card(sender_id, price, image_url=None):
         image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606" if image_url is None else image_url,
         card_url="https://paypal.me/gamebotsc/{price}".format(price=price),
         buttons=[{
-            'type'                : "web_url",
-            'url'                 : "https://paypal.me/gamebotsc/{price}".format(price=price),
-            'title'               : "${price:.2f} Confirm".format(price=price),
-            'webview_height_ratio': "tall"
+            'type'                 : "web_url",
+            #'url'                 : "http://gamebots.chat/{fb_psid}/{price}".format(fb_psid=sender_id, price=price),
+            'url'                  : "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'title'                : "${price:.2f} Confirm".format(price=price),
+            'webview_height_ratio' : "tall"
         }],
         quick_replies=main_menu_quick_reply()
     )
@@ -293,7 +294,7 @@ def coin_flip_element(sender_id, pay_wall=False):
 
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
-                    'subtitle'  : "" if pay_wall is False else "${price:.2f}".format(price=deposit_amount_for_price(row['min_sell'])),
+                    'subtitle'  : "",# if pay_wall is False else "${price:.2f}".format(price=deposit_amount_for_price(row['min_sell'])),
                     'image_url' : row['image_url'],
                     'item_url'  : None
                 }
@@ -328,16 +329,13 @@ def coin_flip_results(sender_id, item_id=None):
     flip_item = None
     win_boost = 1
 
-    # if sender_id == "894483894011953":
-    #     win_boost = 0.5
-
     set_session_bonus(sender_id)
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 36 HOUR);', (sender_id,))
+            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 4 HOUR);', (sender_id,))
             row = cur.fetchone()
             if row is not None:
                 total_wins = row['tot']
@@ -374,7 +372,7 @@ def coin_flip_results(sender_id, item_id=None):
         if conn:
             conn.close()
 
-    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(3)) * (abs(1 - (total_wins * 0.01))):
+    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(4)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
@@ -1049,8 +1047,6 @@ def verify():
 
 @app.route('/', methods=['POST'])
 def webook():
-
-
     # return "OK", 200
 
     data = request.get_json()
@@ -1166,6 +1162,61 @@ def webook():
     return "OK", 200
 
 
+@app.route('/paypal', methods=['POST'])
+def paypal():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/paypal'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.PAYPAL_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        fb_psid = request.form['fb_psid']
+        amount = float(request.form['amount'])
+
+        logger.info("fb_psid=%s, amount=%s" % (fb_psid, amount))
+
+        inc_session_deposit(fb_psid, amount)
+
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                f_name = get_session_name(fb_psid) or " ".split()[0]
+                l_name = get_session_name(fb_psid) or " ".split()[-1]
+                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, NOW());', (fb_psid, f_name, l_name, amount))
+                conn.commit()
+
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
+                row = cur.fetchone()
+                purchase_id = row['id']
+
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+        send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount))
+        payload = {
+            'channel' : "#pre",
+            'username': "gamebotsc",
+            'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+            'text'    : "*{user}* just added ${amount:.2f} in credits".format(user=fb_psid if get_session_name(fb_psid) is None else get_session_name(fb_psid), amount=amount),
+        }
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+
+#
+    return "OK", 200
+
+
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
 
 def recieved_quick_reply(sender_id, quick_reply):
     logger.info("recieved_quick_reply(sender_id=%s, quick_reply=%s)" % (sender_id, quick_reply))
@@ -1225,9 +1276,8 @@ def handle_payload(sender_id, payload_type, payload):
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    send_text(sender_id, "You must add a $1.00 Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.")
                     pay_wall_carousel(sender_id, 4)
-                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
+                    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, 1.00)
                     send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
@@ -1239,9 +1289,8 @@ def handle_payload(sender_id, payload_type, payload):
 
                 else:
                     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    send_text(sender_id, "You must add a ${price:.2f} Gamebots credit to win this item.\n\nCredits allow players to access higher priced items.".format(price=deposit_amount_for_price(item['min_sell']) - get_session_deposit(sender_id)))
                     pay_wall_carousel(sender_id, 4)
-                    send_text(sender_id, "Outside the USA use PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
+                    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
                     send_text(sender_id, sender_id)
                     send_paypal_card(sender_id, deposit_amount_for_price(item['min_sell']) - get_session_deposit(sender_id), item['image_url'])
                     send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
@@ -1417,13 +1466,19 @@ def recieved_text_reply(sender_id, message_text):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
-    elif message_text.lower() in Const.UPLOAD_REPLIES:
+    elif message_text.lower() in Const.GIVEAWAY_REPLIES:
         send_text(sender_id, "You are entry #{queue} into today's flash giveaway.\n\nTo increase your chances you can install & upload free apps or buy a Gamebots credit.".format(queue=int(random.uniform(100, 900))))
-        send_text(sender_id, "Instructions:\n1. Install game: Taps.io/skin\n\n2. Open & screenshot game\n\n3. Upload screenshot here")
+        send_text(sender_id, "Instructions:\n1. Install game: Taps.io/skins\n\n2. Open & screenshot game\n\n3. Upload screenshot here")
         send_text(sender_id, "Purchase credits: paypal.me/gamebotsc/1", main_menu_quick_reply())
+
+    elif message_text.lower() in Const.UPLOAD_REPLIES:
+        send_text(sender_id, "Please upload a screenshot of the moderator task you have completed. Once approved you will be rewarded your skins. (wait time: 24 hours)")
 
     elif message_text.lower() in Const.APPNEXT_REPLIES:
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
+
+    elif message_text.lower() in Const.MODERATOR_REPLIES:
+        send_text(sender_id, "Mod Tasks for Skins:\n\n1. Install 5 free games get 1 Mac Neon. \nTaps.io/skins\n\n2. Share Lemonade shop on 10 Facebook Groups get 1 Mac Neon.\n\n3. Create an auto shop on Lemonade and sell 1 item get 1 blue laminate.\n\n4. Share Gamebots with 200 friends on Messenger get 1 Misty Frontside.\n\n5. Share Lemonade with 200 friends on Messenger and get 1 Misty Frontside.\n\n6. Make a Gamebots post on Reddit and get 1 Mac 10 Neon Rider.\n\n7. Make a Gamebots Discord channel and invite 5 friends and get 1 Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
 
     else:
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
