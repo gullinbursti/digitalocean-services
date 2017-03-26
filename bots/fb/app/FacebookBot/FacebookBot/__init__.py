@@ -1300,7 +1300,7 @@ def autogen_storefront(recipient_id, name_prefix):
         },
         'neonrider'       : {
             'description'   : "Get a MAC-10 Neon Rider for $1.20",
-            'price'         : 1.20,
+            'price'         : 1.15,
             'image_url'     : "http://i.imgur.com/PiKJ7k7.jpg",
             'video_url'     : "http://lmon.us/videos/neon.mp4",
             'attachment_id' : "226330947842742",
@@ -1308,7 +1308,7 @@ def autogen_storefront(recipient_id, name_prefix):
         },
         'ak47redline'     : {
             'description'   : "Get an AK47 Redline for $4.25",
-            'price'         : 4.25,
+            'price'         : 3.50,
             'image_url'     : "http://i.imgur.com/pcgbhwv.jpg",
             'video_url'     : "http://lmon.us/videos/redline.mp4",
             'attachment_id' : "226331167842720",
@@ -1316,7 +1316,7 @@ def autogen_storefront(recipient_id, name_prefix):
         },
         'frontsidemisty'  : {
             'description'   : "Get a Frontside Misty for $4.50",
-            'price'         : 4.50,
+            'price'         : 3.50,
             'image_url'     : "http://i.imgur.com/LUrC7P1.jpg",
             'video_url'     : "http://lmon.us/videos/misty.mp4",
             'attachment_id' : "226331344509369",
@@ -1982,7 +1982,7 @@ def send_admin_carousel(recipient_id):
                 build_card_element(
                     title="Share {product_name} on Messenger".format(product_name=product.display_name_utf8),
                     subtitle="Share now with your friends on Messenger",
-                    image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
+                    image_url=storefront.logo_url,
                     buttons=[
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger".format(product_name=product.display_name_utf8), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
@@ -2037,19 +2037,6 @@ def send_customer_carousel(recipient_id, product_id):
                     ]
                 )
             )
-
-        elements.append(
-            build_card_element(
-                title = product.display_name_utf8,
-                subtitle = "View my shop now",
-                image_url = product.image_url,
-                item_url = product.messenger_url,
-                buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
-                    build_button(Const.CARD_BTN_INVITE)
-                ]
-            )
-        )
 
     data = build_carousel(
         recipient_id = recipient_id,
@@ -2798,7 +2785,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
         customer.paypal_email = "_{PENDING}_"
         db.session.commit()
-        send_text(recipient_id, "Enter your PayPal.Me name", cancel_entry_quick_reply())
+        send_text(recipient_id, "Enter your PayPal email address", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
         # send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
@@ -2887,23 +2874,24 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_MAIN_MENU:
         # send_tracker(fb_psid=recipient_id, category="button-menu")
 
-        if customer.purchase_id is not None:
-            send_text(
-                recipient_id=recipient_id,
-                message_text="Did you complete your purchase?",
-                quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES, purchase_id=customer.purchase_id)),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_NO, purchase_id=customer.purchase_id))
-                ] + cancel_entry_quick_reply()
-            )
-
-        else:
-            send_admin_carousel(recipient_id)
-
+        # if customer.purchase_id is not None:
+        #     send_text(
+        #         recipient_id=recipient_id,
+        #         message_text="Did you complete your purchase?",
+        #         quick_replies=[
+        #             build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES, purchase_id=customer.purchase_id)),
+        #             build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_NO, purchase_id=customer.purchase_id))
+        #         ] + cancel_entry_quick_reply()
+        #     )
+        #
+        # else:
         customer.storefront_id = None
         customer.product_id = None
         customer.purchase_id = None
         db.session.commit()
+
+        send_admin_carousel(recipient_id)
+
 
     elif payload == Const.PB_PAYLOAD_HOME_CONTENT:
         # send_tracker(fb_psid=recipient_id, category="button-ok")
@@ -2994,7 +2982,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 message_text="Great! You have created {storefront_name}. Do you want to add your PayPal or Bitcoin to receive payment?".format(storefront_name=storefront.display_name_utf8),
                 quick_replies=[
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Add PayPal", Const.PB_PAYLOAD_PAYOUT_PAYPAL),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Add Bitcoin", Const.PB_PAYLOAD_PAYOUT_BITCOIN),
+                    # build_quick_reply(Const.KWIK_BTN_TEXT, "Add Bitcoin", Const.PB_PAYLOAD_PAYOUT_BITCOIN),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Not Now", Const.PB_PAYLOAD_MAIN_MENU)
                 ]
             )
@@ -3294,13 +3282,13 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         # send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
 
-        customer.paypal_name = "_{PENDING}_"
-        db.session.commit()
-        send_text(recipient_id, "Enter your PayPal.Me handle", cancel_entry_quick_reply())
-
-        # customer.paypal_email = "_{PENDING}_"
+        # customer.paypal_name = "_{PENDING}_"
         # db.session.commit()
-        # send_text(recipient_id, "Enter your PayPal email address", cancel_entry_quick_reply())
+        # send_text(recipient_id, "Enter your PayPal.Me handle", cancel_entry_quick_reply())
+
+        customer.paypal_email = "_{PENDING}_"
+        db.session.commit()
+        send_text(recipient_id, "Enter your PayPal email address", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_BITCOIN:
         # send_tracker(fb_psid=recipient_id, category="button-bitcoin-payout")
@@ -3686,11 +3674,14 @@ def received_text_response(recipient_id, message_text):
     else:
         #-- entering paypal payout info
         if customer.paypal_name == "_{PENDING}_":
-            if re.match(r'^[a-zA-Z0-9_.+-]+$', message_text) is None:
-                send_text(recipient_id, "Invalid PayPal.Me handle, try again", cancel_entry_quick_reply())
+            if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
+                send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
+
+            # if re.match(r'^[a-zA-Z0-9_.+-]+$', message_text) is None:
+            #     send_text(recipient_id, "Invalid PayPal.Me handle, try again", cancel_entry_quick_reply())
 
             else:
-                customer.paypal_name = message_text
+                customer.paypal_email = message_text
                 db.session.commit()
 
                 try:
@@ -3700,9 +3691,9 @@ def received_text_response(recipient_id, message_text):
                         cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = %s LIMIT 1;', (customer.id,))
                         row = cur.fetchone()
                         if row is None:
-                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal_name`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (customer.id, message_text))
+                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal_email`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (customer.id, message_text))
                         else:
-                            cur.execute('UPDATE `payout` SET `paypal_name` = %s, `updated` = UTC_TIMESTAMP() WHERE `id` = %s LIMIT 1;', (message_text, row['id']))
+                            cur.execute('UPDATE `payout` SET `paypal_email` = %s, `updated` = UTC_TIMESTAMP() WHERE `id` = %s LIMIT 1;', (message_text, row['id']))
                         conn.commit()
 
                 except mysql.Error, e:
@@ -3712,7 +3703,7 @@ def received_text_response(recipient_id, message_text):
                     if conn:
                         conn.close()
 
-                send_text(recipient_id, "PayPal.Me handle set", main_menu_quick_replies(recipient_id))
+                send_text(recipient_id, "PayPal email set", main_menu_quick_replies(recipient_id))
 
                 storefront_query = db.session.query(Storefront.id).filter(Storefront.fb_psid == recipient_id).subquery('storefront_query')
                 purchase = Purchase.query.filter(Purchase.storefront_id.in_(storefront_query)).filter(Purchase.claim_state == 1).first()
