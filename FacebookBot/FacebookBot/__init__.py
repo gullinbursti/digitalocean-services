@@ -216,7 +216,7 @@ def send_paypal_card(sender_id, price, image_url=None):
         card_url="http://paypal.me/gamebotsc/{price}".format(price=price),
         buttons=[{
             'type'                 : "web_url",
-            'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=price) if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=price), # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
             'title'                : "${price:.2f} Confirm".format(price=price),
             'webview_height_ratio' : "tall"
         }],
@@ -1438,7 +1438,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Mod Tasks for Skins:\n\n1. Install 5 free games get 1 Mac Neon. \nTaps.io/skins\n\n2. Share Lemonade shop on 10 Facebook Groups get 1 Mac Neon.\n\n3. Create an auto shop on Lemonade and sell 1 item get 1 blue laminate.\n\n4. Share Gamebots with 200 friends on Messenger get 1 Misty Frontside.\n\n5. Share Lemonade with 200 friends on Messenger and get 1 Misty Frontside.\n\n6. Make a Gamebots post on Reddit and get 1 Mac 10 Neon Rider.\n\n7. Make a Gamebots Discord channel and invite 5 friends and get 1 Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
+        send_text(sender_id, "Mod Tasks for Skins:\n\n1. Install and open 10 free games get 1 Aug Chameleon. (screenshot the game or apps main menu)\nTaps.io/skins\n\n2. Create an auto shop on Lemonade and sell 1 item and you get 1 Aug Chameleon.\n\n3. Get 2 friends to do both of the above tasks you get one Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
