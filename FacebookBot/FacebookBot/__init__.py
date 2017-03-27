@@ -213,11 +213,10 @@ def send_paypal_card(sender_id, price, image_url=None):
         title="GameBots Deposit",
         subtitle="${price:.2f}".format(price=price),
         image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606" if image_url is None else image_url,
-        card_url="https://paypal.me/gamebotsc/{price}".format(price=price),
+        card_url="http://paypal.me/gamebotsc/{price}".format(price=price),
         buttons=[{
             'type'                 : "web_url",
-            #'url'                 : "http://gamebots.chat/{fb_psid}/{price}".format(fb_psid=sender_id, price=price),
-            'url'                  : "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=price) if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
             'title'                : "${price:.2f} Confirm".format(price=price),
             'webview_height_ratio' : "tall"
         }],
@@ -225,50 +224,15 @@ def send_paypal_card(sender_id, price, image_url=None):
     )
 
 
+def send_pay_wall(sender_id, item):
+    logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
-def flip_pay_wall(sender_id, price):
-    logger.info("flip_pay_wall(sender_id=%s, price=%s)" % (sender_id, price))
-
-    conn = mdb.connect(Const.DB_HOST, Const.DB_USER, Const.DB_PASS, Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `name`, `info`, `image_url`, `price` FROM `fb_products` WHERE `id` = 3 LIMIT 1;')
-            row = cur.fetchone()
-
-            if row is not None:
-                send_card(
-                    recipient_id=sender_id,
-                    title=row['name'],
-                    subtitle=row['info'],
-                    image_url=row['image_url'],
-                    buttons=[{
-                        'type'           : "payment",
-                        'title'          : "Buy Now",
-                        'payload'        : "%s-%d" % ("PURCHASE_ITEM", row['id']),
-                        'payment_summary': {
-                            'currency'           : "USD",
-                            'payment_type'       : "FIXED_AMOUNT",
-                            'is_test_payment'    : False,
-                            'merchant_name'      : "Gamebots",
-                            'requested_user_info': [
-                                "contact_email"
-                            ],
-                            'price_list'         : [{
-                                'label' : "Subtotal",
-                                'amount': price
-                            }]
-                        }
-                    }],
-                    quick_replies=main_menu_quick_reply()
-                )
-
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
+    send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
+    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
+    send_text(sender_id, sender_id)
+    pay_wall_carousel(sender_id, 3)
+    send_paypal_card(sender_id, 1.00, item['image_url'])
+    # send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
 
 
 def coin_flip_element(sender_id, pay_wall=False):
@@ -276,7 +240,6 @@ def coin_flip_element(sender_id, pay_wall=False):
 
     item_id = None
     set_session_item(sender_id)
-
 
     deposit = get_session_deposit(sender_id)
 
@@ -299,11 +262,19 @@ def coin_flip_element(sender_id, pay_wall=False):
                     'item_url'  : None
                 }
 
-                if pay_wall is False:
+                if pay_wall is True:
                     element['buttons'] = [{
-                        'type'   : "postback",
-                        'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
-                        'title'  : "Flip Coin"
+                        'type'                 : "web_url",
+                        'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=deposit_amount_for_price(row['min_sell'])) if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=deposit_amount_for_price(row['min_sell'])),
+                        'title'                : "${price:.2f} Confirm".format(price=deposit_amount_for_price(row['min_sell'])),
+                        'webview_height_ratio' : "tall"
+                    }]
+
+                else:
+                    element['buttons'] = [{
+                        'type'    : "postback",
+                        'payload' : "FLIP_COIN-{item_id}".format(item_id=item_id),
+                        'title'   : "Flip Coin"
                     }]
 
     except mdb.Error, e:
@@ -320,6 +291,7 @@ def coin_flip_results(sender_id, item_id=None):
     logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
     send_image(sender_id, Const.FLIP_COIN_START_GIF_URL)
+    time.sleep(3)
 
     if item_id is None:
         send_text(sender_id, "Can't find your item! Try flipping for it again")
@@ -341,7 +313,7 @@ def coin_flip_results(sender_id, item_id=None):
                 total_wins = row['tot']
 
             if has_paid_flip(sender_id, 16):
-                win_boost -= 0.875
+                win_boost -= 0.5
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -372,7 +344,7 @@ def coin_flip_results(sender_id, item_id=None):
         if conn:
             conn.close()
 
-    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(4)) * (abs(1 - (total_wins * 0.01))):
+    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
@@ -393,11 +365,11 @@ def coin_flip_results(sender_id, item_id=None):
                 cur = conn.cursor(mdb.cursors.DictCursor)
                 if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
+                    cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
 
                 if flip_item['type'] == 3:
                     cur.execute('UPDATE `bonus_codes` SET `counter` = `counter` - 1 WHERE `code` = %s LIMIT 1;', (get_session_bonus(sender_id),))
 
-                cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
                 conn.commit()
                 cur.execute('SELECT @@IDENTITY AS `id` FROM `item_winners`;')
                 flip_item['claim_id'] = cur.fetchone()['id']
@@ -1175,10 +1147,8 @@ def paypal():
 
         fb_psid = request.form['fb_psid']
         amount = float(request.form['amount'])
-
         logger.info("fb_psid=%s, amount=%s" % (fb_psid, amount))
-
-        inc_session_deposit(fb_psid, amount)
+        inc_session_deposit(fb_psid, int(round(amount)))
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
@@ -1202,7 +1172,7 @@ def paypal():
                 conn.close()
 
 
-        send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount))
+        send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount), main_menu_quick_reply())
         payload = {
             'channel' : "#pre",
             'username': "gamebotsc",
@@ -1275,12 +1245,7 @@ def handle_payload(sender_id, payload_type, payload):
                     coin_flip_results(sender_id, item_id)
 
                 else:
-                    send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    pay_wall_carousel(sender_id, 4)
-                    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
-                    send_text(sender_id, sender_id)
-                    send_paypal_card(sender_id, 1.00)
-                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
+                    send_pay_wall(sender_id, item)
 
             else:
                 if has_paid_flip(sender_id, 24) and get_session_deposit(sender_id) >= deposit_amount_for_price(item['min_sell']):
@@ -1288,12 +1253,7 @@ def handle_payload(sender_id, payload_type, payload):
                     coin_flip_results(sender_id, item_id)
 
                 else:
-                    send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-                    pay_wall_carousel(sender_id, 4)
-                    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
-                    send_text(sender_id, sender_id)
-                    send_paypal_card(sender_id, deposit_amount_for_price(item['min_sell']) - get_session_deposit(sender_id), item['image_url'])
-                    send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
+                    send_pay_wall(sender_id, item)
 
         else:
             send_text(sender_id, "Can't find that item! Try flipping again")
@@ -1480,6 +1440,27 @@ def recieved_text_reply(sender_id, message_text):
     elif message_text.lower() in Const.MODERATOR_REPLIES:
         send_text(sender_id, "Mod Tasks for Skins:\n\n1. Install 5 free games get 1 Mac Neon. \nTaps.io/skins\n\n2. Share Lemonade shop on 10 Facebook Groups get 1 Mac Neon.\n\n3. Create an auto shop on Lemonade and sell 1 item get 1 blue laminate.\n\n4. Share Gamebots with 200 friends on Messenger get 1 Misty Frontside.\n\n5. Share Lemonade with 200 friends on Messenger and get 1 Misty Frontside.\n\n6. Make a Gamebots post on Reddit and get 1 Mac 10 Neon Rider.\n\n7. Make a Gamebots Discord channel and invite 5 friends and get 1 Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
 
+    elif message_text.lower() == ":payment":
+        amount = get_session_deposit(sender_id)
+        inc_session_deposit(sender_id, -amount)
+
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('UPDATE `fb_purchases` SET `amount` = 0 WHERE `fb_psid` = %s;', (sender_id,))
+                conn.commit()
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(sender_id, "Cleared payments!")
+
+
     else:
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
             if re.search(r'.*steamcommunity\.com\/tradeoffer\/.*$', message_text) is not None:
@@ -1518,7 +1499,7 @@ def recieved_attachment(sender_id, attachment_type, attachment):
 
     if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1]:
         payload = {
-            'channel'     : "#bot-alerts",
+            'channel'     : "#mods",
             'username '   : "gamebotsc",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
             'text'        : "Image upload from *{user}* _{fb_psid}_:\n{image_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), fb_psid=sender_id, image_url=attachment['url']),
@@ -1526,9 +1507,10 @@ def recieved_attachment(sender_id, attachment_type, attachment):
                 'image_url' : attachment['url']
             }]
         }
-        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
-        send_text(sender_id, "You have won 100 skin pts! Every 1000 skin pts you get a MAC 10 Neon Rider!\n\nTerms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
+        #send_text(sender_id, "You have won 100 skin pts! Every 1000 skin pts you get a MAC 10 Neon Rider!\n\nTerms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
+        send_text(sender_id, "Terms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
 
     elif attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
         send_text(sender_id, "I'm sorry, I cannot understand that type of message.", home_quick_replies())
