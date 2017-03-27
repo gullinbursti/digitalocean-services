@@ -964,32 +964,40 @@ def purchase_product(recipient_id, source):
                     storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
                     if storefront_owner is not None:
                         send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-                        if storefront_owner.paypal_name is not None:
-                            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
-                            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
+                        # if storefront_owner.paypal_name is not None:
+                        #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+                        #     route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
+                        #
+                        #     send_text(
+                        #         recipient_id=customer.fb_psid,
+                        #         message_text="After completing the PayPal checkout, tap OK",
+                        #         quick_replies=[
+                        #             build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
+                        #         ] + cancel_entry_quick_reply()
+                        #     )
+                        #
+                        # else:
+                        product = Product.query.filter(Product.id == purchase.product_id).first()
+                        send_message(json.dumps(build_standard_card(
+                            recipient_id=recipient_id,
+                            title=product.display_name_utf8,
+                            subtitle="${price:.2f}".format(price=product.price),
+                            image_url=product.image_url,
+                            buttons=[
+                                build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/gamebotsc/{price:.2f}".format(price=product.price))
+                            ],
+                            quick_replies=cancel_entry_quick_reply()
+                        )))
 
-                            send_text(
-                                recipient_id=customer.fb_psid,
-                                message_text="After completing the PayPal checkout, tap OK",
-                                quick_replies=[
-                                    build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
-                                ] + cancel_entry_quick_reply()
-                            )
+                        send_text(
+                            recipient_id=customer.fb_psid,
+                            message_text="After completing the PayPal checkout, tap OK",
+                            quick_replies=[
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
+                            ] + cancel_entry_quick_reply()
+                        )
 
-                        else:
-                            product = Product.query.filter(Product.id == purchase.product_id).first()
-                            send_message(json.dumps(build_standard_card(
-                                recipient_id=recipient_id,
-                                title=product.display_name_utf8,
-                                subtitle="${price:.2f}".format(price=product.price),
-                                image_url=product.image_url,
-                                buttons=[
-                                    build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/gamebotsc/{price:.2f}".format(price=product.price))
-                                ],
-                                quick_replies=cancel_entry_quick_reply()
-                            )))
-
-                            route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
+                        route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
 
                         return True
 
@@ -2447,13 +2455,17 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
-                row = cur.fetchone()
-                if row is not None:
-                    product = Product.query.filter(Product.id == row['id']).first()
-                    if product is not None:
-                        flip_product(customer.fb_psid, product)
-                        view_product(recipient_id, product)
+
+                product = None
+                while product is None:
+                    cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                    row = cur.fetchone()
+                    if row is not None:
+                        product = Product.query.filter(Product.id == row['id']).first()
+                        if product is not None:
+                            flip_product(customer.fb_psid, product)
+                            view_product(recipient_id, product)
+
                 else:
                     send_text(recipient_id, "No shops are available to flip right now, try again later.", main_menu_quick_replies(recipient_id))
 
@@ -2724,30 +2736,27 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
         if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
             # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_RECEIPT)
             # send_customer_carousel(recipient_id, product.id)
-            add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
 
-            if product.tags is not None and "gamebotsmods" in product.tags:
-                send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
-
-            elif product.tags is not None and "gamebots" in product.tags:
-                code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-
-                send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & wait for approval then the url will be released to you", main_menu_quick_replies(recipient_id))
-                send_text(recipient_id, "Purchase for bonus with code {code}".format(code=code), main_menu_quick_replies(recipient_id))
-
-                payload = {
-                    'token'   : time.time(),
-                    'action'  : "insert",
-                    'code'    : code,
-                    'fb_psid' : recipient_id,
-                    'counter' : 1
-                }
-                response = requests.post("http://beta.modd.live/api/bonus_code.php", data=payload)
-
-        else:
-            send_text(recipient_id, "Enter your PayPal.Me name", cancel_entry_quick_reply())
+            # if product.tags is not None and "gamebotsmods" in product.tags:
+            #     send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
+            #
+            # elif product.tags is not None and "gamebots" in product.tags:
+            #     code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+            #
+            #     send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & wait for approval then the url will be released to you", main_menu_quick_replies(recipient_id))
+            #     send_text(recipient_id, "Purchase for bonus with code {code}".format(code=code), main_menu_quick_replies(recipient_id))
+            #
+            #     payload = {
+            #         'token'   : time.time(),
+            #         'action'  : "insert",
+            #         'code'    : code,
+            #         'fb_psid' : recipient_id,
+            #         'counter' : 1
+            #     }
+            #     response = requests.post("http://beta.modd.live/api/bonus_code.php", data=payload)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-purchase")
@@ -3673,7 +3682,7 @@ def received_text_response(recipient_id, message_text):
 
     else:
         #-- entering paypal payout info
-        if customer.paypal_name == "_{PENDING}_":
+        if customer.paypal_email == "_{PENDING}_":
             if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
                 send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
 
