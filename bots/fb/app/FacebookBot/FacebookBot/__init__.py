@@ -964,19 +964,6 @@ def purchase_product(recipient_id, source):
                     storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
                     if storefront_owner is not None:
                         send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-                        # if storefront_owner.paypal_name is not None:
-                        #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
-                        #     route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
-                        #
-                        #     send_text(
-                        #         recipient_id=customer.fb_psid,
-                        #         message_text="After completing the PayPal checkout, tap OK",
-                        #         quick_replies=[
-                        #             build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
-                        #         ] + cancel_entry_quick_reply()
-                        #     )
-                        #
-                        # else:
                         product = Product.query.filter(Product.id == purchase.product_id).first()
                         send_message(json.dumps(build_standard_card(
                             recipient_id=recipient_id,
@@ -1000,7 +987,6 @@ def purchase_product(recipient_id, source):
                         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
 
                         return True
-
     return False
 
 def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE, message_text=None):
@@ -1417,6 +1403,7 @@ def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
 
     send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING)
+    time.sleep(3)
 
     if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
@@ -2039,9 +2026,9 @@ def send_customer_carousel(recipient_id, product_id):
                     subtitle = product.description,
                     image_url = product.image_url,
                     buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Message Shop", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id)),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
                         build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Message Shop", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
                     ]
                 )
             )
@@ -2288,7 +2275,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             storefront_query = db.session.query(Storefront.fb_psid).filter(Storefront.id == product.storefront_id).subquery('storefront_query')
             storefront_owner = Customer.query.filter(Customer.fb_psid.in_(storefront_query)).first()
 
-            if storefront_owner.paypal_name is not None:
+            if storefront_owner.paypal_email is not None:
                 data = build_standard_card(
                     recipient_id=recipient_id,
                     title=product.display_name_utf8,
@@ -2314,8 +2301,9 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 subtitle = product.description,
                 image_url = product.image_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id)),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Message Owner", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
@@ -2822,7 +2810,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif re.search(r'^DM_SEND_URL\-(\d+)$', payload) is not None:
         purchase_id = re.match(r'^DM_SEND_URL\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
-        customer.fb_name = "_{PENDING}_"
+        customer.paypal_name = "_{PENDING}_"
         customer.purchase_id = purchase.id
         db.session.commit()
 
@@ -2841,15 +2829,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         storefront_query = db.session.query(Storefront.fb_psid).filter(Storefront.id == purchase.storefront_id).subquery('storefront_query')
         storefront_owner = Customer.query.filter(Customer.fb_psid.in_(storefront_query)).first()
 
-        if storefront_owner.paypal_name is not None:
-            send_product_card(recipient_id, purchase.product_id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
-
-        else:
-            storefront_owner.paypal_name = "_{PENDING}_"
-            db.session.commit()
-
-            send_text(storefront_owner.fb_psid, "Enter your PayPal.Me handle for payment", cancel_entry_quick_reply())
-            send_text(recipient_id, "Request sent", main_menu_quick_replies(recipient_id))
+        send_product_card(recipient_id, purchase.product_id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
 
     elif re.search(r'^DM_REQUEST_PAYMENT\-(\d+)$', payload) is not None:
         # send_tracker(fb_psid=recipient_id, category="button-dm-request-payment")
@@ -2858,14 +2838,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         purchase.claim_state = 1
         db.session.commit()
 
-        if customer.paypal_name is not None:
-            send_product_card(Customer.query.filter(Customer.id == purchase.customer_id).first().fb_psid, purchase.product_id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
-            send_text(recipient_id, "Request sent", return_home_quick_reply())
-
-        else:
-            customer.paypal_name = "_{PENDING}_"
-            db.session.commit()
-            send_text(recipient_id, "Enter your PayPal.Me handle for payment", cancel_entry_quick_reply())
+        send_product_card(Customer.query.filter(Customer.id == purchase.customer_id).first().fb_psid, purchase.product_id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+        send_text(recipient_id, "Request sent", return_home_quick_reply())
 
     elif re.search(r'^DM_CANCEL_PURCHASE\-(\d+)$', payload) is not None:
         # send_tracker(fb_psid=recipient_id, category="button-dm-cancel-purchase")
@@ -3312,28 +3286,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product = Product.query.filter(Product.id == purchase.product_id).first()
             storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
 
-            send_text(storefront.fb_psid, "Purchase has been completed for {product_name}".format(product_name=product.display_name_utf8))
-            send_customer_carousel(recipient_id, product.id)
-
-    elif re.search(r'^PURCHASE_COMPLETED_YES\-(\d+)$', payload) is not None:
-        # purchase = Purchase.query.filter(Purchase.id == re.match(r'^PURCHASE_COMPLETED_YES\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
-        # if purchase is not None:
-        #     product = Product.query.filter(Product.id == purchase.product_id).first()
-        #     if product is not None and product.type_id == Const.PRODUCT_TYPE_VIRTUAL:
-        #         customer.fb_name = "_{PENDING}_"
-        #         db.session.commit()
-        #         send_text(recipient_id, "Type your trade URL here", cancel_entry_quick_reply())
-
-        customer.purchase_id = None
-        db.session.commit()
-        send_admin_carousel(recipient_id)
-
-    elif re.search(r'^PURCHASE_COMPLETED_NO\-(\d+)$', payload) is not None:
-        purchase = Purchase.query.filter(Purchase.id == re.match(r'^PURCHASE_COMPLETED_NO\-(?P<purchase_id>.+)$', payload).group('purchase_id')).first()
-        if purchase is not None:
-            product = Product.query.filter(Product.id == purchase.product_id).first()
-            if product is not None:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
+            customer.paypal_name = "_{PENDING}_"
+            db.session.commit()
+            send_text(recipient_id, "Type your trade URL here", cancel_entry_quick_reply())
 
     elif re.search(r'^PRODUCT_RATE_(\d+)_STAR$', payload) is not None:
         match = re.match(r'PRODUCT_RATE_(?P<stars>\d+)_STAR', payload)
@@ -3843,7 +3798,7 @@ def received_text_response(recipient_id, message_text):
 
 
                 elif payment.source == Const.PAYMENT_SOURCE_PAYPAL:
-                    customer.paypal_name = message_text
+                    customer.paypal_email = message_text
                     db.session.commit()
 
                     if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
@@ -3862,11 +3817,22 @@ def received_text_response(recipient_id, message_text):
 
         if customer.fb_name == "_{PENDING}_":
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
-
             if purchase is not None:
                 customer.fb_name = message_text
                 db.session.commit()
                 route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "Contact me directly: https://m.me/{fb_name}".format(fb_name=customer.fb_name))
+
+            return "OK", 200
+
+
+        if customer.paypal_name == "_{PENDING}_":
+            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
+
+            if purchase is not None:
+                customer.paypal_name = message_text
+                db.session.commit()
+                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "My trade URL: {paypal_name}".format(paypal_name=customer.paypal_name))
+                send_text(recipient_id, "Trade URL set to: {paypal_name}".format(paypal_name=customer.paypal_name))
 
             return "OK", 200
 
