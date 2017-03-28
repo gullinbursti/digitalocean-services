@@ -213,7 +213,7 @@ def send_paypal_card(sender_id, price, image_url=None):
         title="GameBots Deposit",
         subtitle="${price:.2f}".format(price=price),
         image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606" if image_url is None else image_url,
-        card_url="http://paypal.me/gamebotsc/{price}".format(price=price),
+        card_url=None,
         buttons=[{
             'type'                 : "web_url",
             'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=price), # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
@@ -228,10 +228,9 @@ def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-    send_text(sender_id, "You must add Gamebots Credits to win this item.\n\nCredits allow players to access higher priced items.\n\nUse PayPal and enter {fb_psid} in the buyer's notes.".format(fb_psid=sender_id))
-    send_text(sender_id, sender_id)
+    send_text(sender_id, "You must add Gamebots Credits to win higher priced items. Credits allow players to access higher priced items.")
     pay_wall_carousel(sender_id, 3)
-    send_paypal_card(sender_id, 1.00, item['image_url'])
+    #send_paypal_card(sender_id, 1.00, item['image_url'])
     # send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
 
 
@@ -265,7 +264,7 @@ def coin_flip_element(sender_id, pay_wall=False):
                 if pay_wall is True:
                     element['buttons'] = [{
                         'type'                 : "web_url",
-                        'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=deposit_amount_for_price(row['min_sell'])) if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=deposit_amount_for_price(row['min_sell'])),
+                        'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=deposit_amount_for_price(row['min_sell'])),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
                         'title'                : "${price:.2f} Confirm".format(price=deposit_amount_for_price(row['min_sell'])),
                         'webview_height_ratio' : "tall"
                     }]
@@ -291,7 +290,7 @@ def coin_flip_results(sender_id, item_id=None):
     logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
     send_image(sender_id, Const.FLIP_COIN_START_GIF_URL)
-    time.sleep(3)
+    time.sleep(3.33)
 
     if item_id is None:
         send_text(sender_id, "Can't find your item! Try flipping for it again")
@@ -381,17 +380,17 @@ def coin_flip_results(sender_id, item_id=None):
             if conn:
                 conn.close()
 
-        send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
-        send_card(
-            recipient_id = sender_id,
-            title = "{item_name}".format(item_name=flip_item['name']),
-            image_url = flip_item['image_url'],
-            buttons = [{
-                'type' : "element_share"
-            }]
-        )
+        # send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
+        # send_card(
+        #     recipient_id = sender_id,
+        #     title = "{item_name}".format(item_name=flip_item['name']),
+        #     image_url = flip_item['image_url'],
+        #     buttons = [{
+        #         'type' : "element_share"
+        #     }]
+        # )
 
-        send_text(sender_id, Const.FLIP_WIN_TEXT.format(item_name=flip_item['name'], game_name=flip_item['game_name'], claim_url=Const.FLIP_CLAIM_URL, sender_id=sender_id), main_menu_quick_reply())
+        send_text(sender_id, "WINNER!\nYou won {item_name}.\n\nEnter your Steam Trade URL now.".format(item_name=flip_item['name']), main_menu_quick_reply())
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -419,7 +418,7 @@ def coin_flip_results(sender_id, item_id=None):
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
-        send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
+        # send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
             recipient_id=sender_id,
             message_text="TRY AGAIN! You lost {item_name}.".format(item_name=flip_item['name']),
@@ -1027,6 +1026,8 @@ def webook():
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
     logger.info(data)
 
+    time.sleep(random.uniform(1.5, 3.5))
+
     if data['object'] == "page":
         for entry in data['entry']:
             for messaging_event in entry['messaging']:
@@ -1438,7 +1439,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Mod Tasks for Skins:\n\n1. Install and open 10 free games get 1 Aug Chameleon. (screenshot the game or apps main menu)\nTaps.io/skins\n\n2. Create an auto shop on Lemonade and sell 1 item and you get 1 Aug Chameleon.\n\n3. Get 2 friends to do both of the above tasks you get one Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
+        send_text(sender_id, "Mod Tasks for Skins:\n\nInstall and open 10 free games get 1 Aug Chameleon. (screenshot the game or apps main menu)\nTaps.io/skins\n\nCreate an auto shop on Lemonade and sell 1 item and you get 1 Aug Chameleon. taps.io/lmon8\n\nGet 2 friends to do both of the above tasks you get one Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
