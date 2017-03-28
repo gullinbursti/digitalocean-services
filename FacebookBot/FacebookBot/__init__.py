@@ -228,7 +228,7 @@ def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['name'])
-    send_text(sender_id, "You must add Gamebots Credits to win higher priced items. Credits allow players to access higher priced items.")
+    send_text(sender_id, "You must add Gamebots Credits to win higher tier items.")
     pay_wall_carousel(sender_id, 3)
     #send_paypal_card(sender_id, 1.00, item['image_url'])
     # send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
