@@ -971,20 +971,12 @@ def purchase_product(recipient_id, source):
                             subtitle="${price:.2f}".format(price=product.price),
                             image_url=product.image_url,
                             buttons=[
-                                build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/gamebotsc/{price:.2f}".format(price=product.price))
+                                build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
                             ],
                             quick_replies=cancel_entry_quick_reply()
                         )))
 
-                        send_text(
-                            recipient_id=customer.fb_psid,
-                            message_text="After completing the PayPal checkout, tap OK",
-                            quick_replies=[
-                                build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
-                            ] + cancel_entry_quick_reply()
-                        )
-
-                        route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) your PayPal.Me URL.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.paypal_email))
+                        route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase made for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
 
                         return True
     return False
@@ -1019,12 +1011,12 @@ def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE
                         quick_replies=dm_quick_replies(storefront.fb_psid, purchase.id, Const.DM_ACTION_PURCHASE)
                     )
 
-                fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-                slack_outbound(
-                    channel_name="lemonade-purchases",
-                    message_text="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
-                    webhook=Const.SLACK_PURCHASES_WEBHOOK
-                )
+                # fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+                # slack_outbound(
+                #     channel_name="lemonade-purchases",
+                #     message_text="*{customer}* just purchased {product_name} from _{storefront_name}_.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                #     webhook=Const.SLACK_PURCHASES_WEBHOOK
+                # )
 
             elif dm_action == Const.DM_ACTION_SEND:
                 if recipient_id == customer.fb_psid and storefront is not None:
@@ -1486,9 +1478,10 @@ def dm_quick_replies(fb_psid, purchase_id, dm_action=Const.DM_ACTION_PURCHASE):
         # )
 
     else:
-        quick_replies.append(
-            build_quick_reply(Const.KWIK_BTN_TEXT, caption="Send PayPal.Me URL", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_REQUEST_PAYMENT, purchase_id=purchase.id))
-        )
+        pass
+        # quick_replies.append(
+        #     build_quick_reply(Const.KWIK_BTN_TEXT, caption="Send PayPal.Me URL", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_REQUEST_PAYMENT, purchase_id=purchase.id))
+        # )
 
     quick_replies.extend([
         # build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel Order", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_CANCEL_PURCHASE, purchase_id=purchase.id)),
@@ -2454,8 +2447,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                             flip_product(customer.fb_psid, product)
                             view_product(recipient_id, product)
 
-                else:
-                    send_text(recipient_id, "No shops are available to flip right now, try again later.", main_menu_quick_replies(recipient_id))
+                    else:
+                        send_text(recipient_id, "No shops are available to flip right now, try again later.", main_menu_quick_replies(recipient_id))
 
         except mysql.Error, e:
             logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
@@ -2905,7 +2898,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_FEATURE_STOREFRONT:
         send_tracker(fb_psid=recipient_id, category="feature-shop")
-        send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/1.99", main_menu_quick_replies(recipient_id))
+        # send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/1.99", main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
         # send_tracker(fb_psid=recipient_id, category="button-cancel-entry-sequence")
@@ -3824,7 +3817,6 @@ def received_text_response(recipient_id, message_text):
 
             return "OK", 200
 
-
         if customer.paypal_name == "_{PENDING}_":
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
 
@@ -3832,10 +3824,10 @@ def received_text_response(recipient_id, message_text):
                 customer.paypal_name = message_text
                 db.session.commit()
                 route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "My trade URL: {paypal_name}".format(paypal_name=customer.paypal_name))
-                send_text(recipient_id, "Trade URL set to: {paypal_name}".format(paypal_name=customer.paypal_name))
+                send_text(recipient_id, "Trade URL set to: {paypal_name}".format(paypal_name=customer.paypal_name), main_menu_quick_replies(recipient_id))
+                send_customer_carousel(recipient_id, purchase.product_id)
 
             return "OK", 200
-
 
         #-- has active storefront
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
@@ -4348,9 +4340,21 @@ def paypal():
 
             slack_outbound(
                 channel_name="lemonade-purchases",
-                message_text="*{customer}* just paid ${price:.2f} for _{product_name}_ from _{storefront_name}_ via PayPal.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, price=product.price, product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8),
+                message_text="*{customer}* just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via PayPal.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8),
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
+
+            customer.paypal_name = "_{PENDING}_"
+            db.session.commit()
+            send_text(customer.fb_psid, "Purchase complete!\nType your trade URL here", cancel_entry_quick_reply())
+
+            # send_text(
+            #     recipient_id=customer.fb_psid,
+            #     message_text="After completing the PayPal checkout, tap OK",
+            #     quick_replies=[
+            #         build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PAYPAL_PURCHASE_COMPLETE, purchase_id=purchase.id))
+            #     ] + cancel_entry_quick_reply()
+            # )
 
     return "OK", 200
 
