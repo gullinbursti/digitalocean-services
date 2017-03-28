@@ -520,6 +520,9 @@ def async_tracker(payload):
         logger.info("TRACKER ERROR:%s" % (response.text))
 
 
+def is_vowel(char):
+    return char == "a" or char == "e" or char == "i" or char == "o" or char == "u"
+
 def slack_outbound(channel_name, message_text, image_url=None, username=None, webhook=None):
     logger.info("slack_outbound(channel_name=%s, message_text=%s, image_url=%s, username=%s, webhook=%s" % (channel_name, message_text, image_url, username, webhook))
 
@@ -826,7 +829,7 @@ def view_product(recipient_id, product):
                 send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}!\n{storefront_description}\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, storefront_description=storefront.description_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                    message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
                 )
 
                 send_image(
@@ -839,7 +842,7 @@ def view_product(recipient_id, product):
             else:
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Welcome to {storefront_name}!\n{storefront_description}\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, storefront_description=storefront.description_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                    message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
                 )
 
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
@@ -1195,7 +1198,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
                     send_text(
                         recipient_id=recipient_id,
-                        message_text="Welcome to {storefront_name}!\n{storefront_description}\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, storefront_description=storefront.description_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                        message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
                     )
 
                     send_image(
@@ -1209,7 +1212,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                 else:
                     send_text(
                         recipient_id=recipient_id,
-                        message_text="Welcome to {storefront_name}!\n{storefront_description}\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, storefront_description=storefront.description_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                        message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
                     )
 
                 send_home_content(recipient_id)
@@ -1399,15 +1402,15 @@ def flip_product(recipient_id, product):
 
     if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-        send_image(recipient_id, Const.IMAGE_URL_FLIP_WIN)
-        send_text(recipient_id, "YOU WON a {product_name}!\n\nTo complete your giveaway:\n\n1. Take a screenshot\n\n2. Text \"Giveaway\" to m.me/gamebotsc\n\n3. Upload screenshot".format(product_name=product.display_name_utf8))
+        # send_image(recipient_id, Const.IMAGE_URL_FLIP_WIN)
+        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots. Text \"Giveaway\" to m.me/gamebotsc & follow instructions.")
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
             channel_name=Const.SLACK_ORTHODOX_CHANNEL,
             username=Const.SLACK_ORTHODOX_HANDLE,
             webhook=Const.SLACK_ORTHODOX_WEBHOOK,
-            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by sharing.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
+            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by flipping.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
             image_url=product.image_url
         )
 
@@ -1449,6 +1452,8 @@ def main_menu_quick_replies(fb_psid):
 
     if storefront is not None:
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Replace Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT))
+
+    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_PRODUCT if product is not None else Const.PB_PAYLOAD_SHARE_APP))
 
     if product is not None:
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=product.messenger_url, payload=Const.PB_PAYLOAD_PREBOT_URL))
@@ -1935,17 +1940,6 @@ def send_admin_carousel(recipient_id):
 
             cards += build_autogen_storefront_elements(recipient_id)
 
-            cards.append(
-                build_card_element(
-                    title="Share Bot on Messenger",
-                    subtitle="Share now with your friends on Messenger",
-                    image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
-                    buttons=[
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_APP)
-                    ]
-                )
-            )
-
         else:
             purchases = Purchase.query.filter(Purchase.storefront_id == storefront.id).all()
             if len(purchases) > 0:
@@ -1965,17 +1959,6 @@ def send_admin_carousel(recipient_id):
                         ]
                     )
                 )
-
-            cards.append(
-                build_card_element(
-                    title="Share {product_name} on Messenger".format(product_name=product.display_name_utf8),
-                    subtitle="Share now with your friends on Messenger",
-                    image_url=storefront.logo_url,
-                    buttons=[
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger".format(product_name=product.display_name_utf8), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
-                    ]
-                )
-            )
 
             cards += build_autogen_storefront_elements(recipient_id)
 
@@ -2392,11 +2375,20 @@ def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PUR
     else:
         pass
 
+    header_element = None
+    if len(elements) == 1:
+        header_element = build_card_element(
+            title="{storefront_name}".format(storefront_name=storefront.display_name_utf8),
+            subtitle=storefront.description_utf8,
+            image_url=storefront.logo_url
+        )
+
     send_message(json.dumps(
         build_list_card(
-            recipient_id = recipient_id,
-            body_elements = elements,
-            quick_replies = main_menu_quick_replies(recipient_id)
+            recipient_id=recipient_id,
+            body_elements=elements,
+            header_element=header_element,
+            quick_replies=main_menu_quick_replies(recipient_id)
         )
     ))
 
@@ -2606,13 +2598,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_SHARE_PRODUCT:
         send_tracker(fb_psid=recipient_id, category="share")
-        send_text(recipient_id, "Share your Shopbot with your friends on messenger")
-
         product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
         if product is not None:
             add_points(recipient_id, Const.POINT_AMOUNT_SHARE_PRODUCT)
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
-
 
     elif re.search('^VIEW_PRODUCT\-(\d+)$', payload) is not None:
         product_id = re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')
