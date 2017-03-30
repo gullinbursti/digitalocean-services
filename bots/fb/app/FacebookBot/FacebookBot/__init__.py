@@ -1261,6 +1261,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'attachment_id' : None,
             'tag'           : "gamebotsc"
         },
+
         'privatesnapchat' : {
             'description'   : "Selling access to Death By Candys Snapchat",
             'price'         : 5.00,
@@ -1301,12 +1302,29 @@ def autogen_storefront(recipient_id, name_prefix):
             'attachment_id' : "226331167842720",
             'tag'           : "gamebotsc"
         },
+
         'frontsidemisty'  : {
-            'description'   : "Get a Frontside Misty for $4.50",
-            'price'         : 3.50,
-            'image_url'     : "http://i.imgur.com/LUrC7P1.jpg",
-            'video_url'     : "http://lmon.us/videos/misty.mp4",
-            'attachment_id' : "226331344509369",
+            'description'   : "4 Bucks for 1 AK47 Misty",
+            'price'         : 4.00,
+            'image_url'     : "http://i.imgur.com/QVW28ZJ.jpg",
+            'video_url'     : "http://lmon.us/videos/frontsidemisty.mp4",
+            'attachment_id' : "230853930723777",
+            'tag'           : "gamebotsc"
+        },
+        'linestickers'    : {
+            'description'   : "\"Cute Characters\" Half Off",
+            'price'         : 0.99,
+            'image_url'     : "http://i.imgur.com/Awooxfd.png",
+            'video_url'     : "http://lmon.us/videos/linestickers.mp4",
+            'attachment_id' : "230854087390428",
+            'tag'           : "gamebotsc"
+        },
+        'chameleon'       : {
+            'description'   : "1 Dollar for 1 AUG Chameleon",
+            'price'         : 1.00,
+            'image_url'     : "http://i.imgur.com/woXKAO5.png",
+            'video_url'     : "http://lmon.us/videos/chameleon.mp4",
+            'attachment_id' : "230854230723747",
             'tag'           : "gamebotsc"
         }
     }
@@ -1662,20 +1680,20 @@ def build_autogen_storefront_elements(recipient_id):
 
     details = [
         {
-            'key'       : "NeonRider",
-            'title'     : "MAC-10 Neon Rider",
-            'subtitle'  : "Get a Mac10 Neon Rider for $1.20",
-            'image_url' : "http://i.imgur.com/PiKJ7k7.jpg"
-        }, {
-            'key'       : "AK47Redline",
-            'title'     : "AK-47 Redline",
-            'subtitle'  : "Get an AK47 Redline for $4.25",
-            'image_url' : "http://i.imgur.com/pcgbhwv.jpg"
-        }, {
             'key'       : "FrontsideMisty",
-            'title'     : "Frontside Misty",
-            'subtitle'  : "Get a Frontside Misty for $4.50",
-            'image_url' : "http://i.imgur.com/LUrC7P1.jpg"
+            'title'     : "AK 47 | Frontside Misty",
+            'subtitle'  : "4 Bucks for 1 AK47 Misty",
+            'image_url' : "http://i.imgur.com/QVW28ZJ.jpg"
+        }, {
+            'key'       : "LineStickers",
+            'title'     : "Line Stickers",
+            'subtitle'  : "\"Cute Characters\" Half Off",
+            'image_url' : "http://i.imgur.com/Awooxfd.png"
+        }, {
+            'key'       : "Chameleon",
+            'title'     : "AUG Chameleon",
+            'subtitle'  : "1 Dollar for 1 AUG Chameleon",
+            'image_url' : "http://i.imgur.com/woXKAO5.png"
         }
     ]
 

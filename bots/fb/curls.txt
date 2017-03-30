@@ -66,7 +66,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "attachment":{
       "type":"video",
       "payload":{
-        "url":"http://lmon.us/videos/1490846775_534.mp4",
+        "url":"http://lmon.us/videos/chameleon.mp4",
         "is_reusable":true
       }
     }
