@@ -1208,7 +1208,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             if "disneyjp" in product.tag_list_utf8:
                 customer.product_id = product.id
                 db.session.commit()
-                send_text(recipient_id, "Please enter passcode", cancel_entry_quick_reply())
+                send_text(recipient_id, "Please enter passcode.", cancel_entry_quick_reply())
 
             else:
                 if "/flip/" in deeplink:
@@ -2581,7 +2581,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_SHARE_PRODUCT:
         send_tracker(fb_psid=recipient_id, category="share")
-        product = Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
+        product = Product.query.filter(Product.id == customer.product_id).first() or Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state == 7).first()
         if product is not None:
             add_points(recipient_id, Const.POINT_AMOUNT_SHARE_PRODUCT)
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_SHARE)
