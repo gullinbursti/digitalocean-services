@@ -1403,6 +1403,7 @@ def flip_product(recipient_id, product):
     if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
         # send_image(recipient_id, Const.IMAGE_URL_FLIP_WIN)
+        
         send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots. Text \"Giveaway\" to m.me/gamebotsc & follow instructions.")
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
@@ -1415,7 +1416,7 @@ def flip_product(recipient_id, product):
         )
 
     else:
-        send_text(recipient_id, "YOU LOST!\n\nTap Flip Shop to try again.")
+        send_text(recipient_id, "You lost! Tap Flip Shop again for another chance.")
 
 
 def write_message_log(recipient_id, message_id, message_txt):
@@ -4312,7 +4313,7 @@ def paypal():
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `purchases` SET `claim_state` = 5 WHERE `id` = %s LIMIT 1;', (purchase.id,))
+                    cur.execute('UPDATE `purchases` SET `paid` = 1 WHERE `id` = %s LIMIT 1;', (purchase.id,))
                     conn.commit()
 
             except mysql.Error, e:
@@ -4335,7 +4336,7 @@ def paypal():
 
             customer.paypal_name = "_{PENDING}_"
             db.session.commit()
-            send_text(customer.fb_psid, "Purchase complete!\nType your trade URL here", cancel_entry_quick_reply())
+            send_text(customer.fb_psid, "Purchase complete. Type your Steam Trade URL and wait up to 8 hours.", cancel_entry_quick_reply())
 
             # send_text(
             #     recipient_id=customer.fb_psid,
