@@ -187,12 +187,12 @@ def default_carousel(sender_id, amount=1):
     )
 
 
-def pay_wall_carousel(sender_id, amount=5):
+def pay_wall_carousel(sender_id, amount=3):
     logger.info("default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
     elements = []
     for i in range(amount):
-        elements.append(coin_flip_element(sender_id, True))
+        elements.append(coin_flip_element(sender_id, True, True))
 
     if None in elements:
         send_text(sender_id, "No items are available right now, try again later")
@@ -234,8 +234,8 @@ def send_pay_wall(sender_id, item):
     # send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
 
 
-def coin_flip_element(sender_id, pay_wall=False):
-    logger.info("coin_flip_element(sender_id=%s, standalone=%s)" % (sender_id, pay_wall))
+def coin_flip_element(sender_id, pay_wall=False, share=False):
+    logger.info("coin_flip_element(sender_id=%s, pay_wall=%s, share=%s)" % (sender_id, pay_wall, share))
 
     item_id = None
     set_session_item(sender_id)
@@ -268,6 +268,13 @@ def coin_flip_element(sender_id, pay_wall=False):
                         'title'                : "${price:.2f} Confirm".format(price=deposit_amount_for_price(row['min_sell'])),
                         'webview_height_ratio' : "tall"
                     }]
+
+                    if share is True:
+                        element['buttons'].append({
+                            'type'    : "postback",
+                            'payload' : "INVITE",
+                            'title'   : "Share"
+                        })
 
                 else:
                     element['buttons'] = [{
@@ -1242,7 +1249,7 @@ def handle_payload(sender_id, payload_type, payload):
             logger.info("ITEM --> %s", item)
 
             if deposit_amount_for_price(item['min_sell']) < 1:
-                if wins_last_day(sender_id) < 5 or has_paid_flip(sender_id, 24):
+                if wins_last_day(sender_id) < 3 or has_paid_flip(sender_id, 24):
                     coin_flip_results(sender_id, item_id)
 
                 else:
@@ -1430,7 +1437,6 @@ def recieved_text_reply(sender_id, message_text):
     elif message_text.lower() in Const.GIVEAWAY_REPLIES:
         send_text(sender_id, "You are entry #{queue} into today's flash giveaway.\n\nTo increase your chances you can install & upload free apps or buy a Gamebots credit.".format(queue=int(random.uniform(100, 900))))
         send_text(sender_id, "Instructions:\n1. Install game: Taps.io/skins\n\n2. Open & screenshot game\n\n3. Upload screenshot here")
-        send_text(sender_id, "Purchase credits: paypal.me/gamebotsc/1", main_menu_quick_reply())
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
         send_text(sender_id, "Please upload a screenshot of the moderator task you have completed. Once approved you will be rewarded your skins. (wait time: 24 hours)")
