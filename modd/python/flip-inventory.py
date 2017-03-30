@@ -129,7 +129,7 @@ def update_db(inventory):
 
                 #-- update types for certain criteria
                 #cur.execute('UPDATE `flip_inventory` SET `type` = 3, `tradable` = 0 WHERE `name` LIKE "AK%Frontside%" AND `type` = 1;')
-                cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `min_sell` >= 3.50 AND `type` = 1;')
+                cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `min_sell` >= 1.50 AND `type` = 1;')
                 cur.execute('UPDATE `flip_inventory` SET `type` = 10, `tradable` = 0 WHERE `min_sell` > 50.00 AND `type` = 1;')
                 conn.commit()
 
