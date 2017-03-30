@@ -218,7 +218,7 @@ class Product(db.Model):
         return self.description.encode('utf-8') if self.description is not None else None
 
     @property
-    def tags_list(self):
+    def tag_list_utf8(self):
         return [] if self.tags is None else [tag.encode('utf-8') for tag in self.tags.replace(",", " ").split(" ")]
 
     @property
@@ -254,7 +254,7 @@ class Product(db.Model):
 
 
     def __repr__(self):
-        return "<Product id=%s, fb_psid=%s, storefront_id=%s, type_id=%s, creation_state=%s, name=%s, display_name=%s, description=%s, tags=%s, image_url=%s, video_url=%s, prebot_url=%s, views=%s, avg_rating=%.2f, physical_url=%s, release_date=%s, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.type_id, self.creation_state, self.name, self.display_name_utf8, self.description_utf8, self.tags_list, self.image_url, self.video_url, self.prebot_url, self.views, self.avg_rating, self.physical_url, self.release_date, self.added)
+        return "<Product id=%s, fb_psid=%s, storefront_id=%s, type_id=%s, creation_state=%s, name=%s, display_name=%s, description=%s, tags=%s, image_url=%s, video_url=%s, prebot_url=%s, views=%s, avg_rating=%.2f, physical_url=%s, release_date=%s, added=%s>" % (self.id, self.fb_psid, self.storefront_id, self.type_id, self.creation_state, self.name, self.display_name_utf8, self.description_utf8, self.tag_list_utf8, self.image_url, self.video_url, self.prebot_url, self.views, self.avg_rating, self.physical_url, self.release_date, self.added)
 
 
 class Purchase(db.Model):
@@ -555,7 +555,7 @@ def sync_user(recipient_id, deeplink=None):
             db.session.commit()
 
             #-- check db for existing user
-            cur.execute('SELECT `id`, `referrer` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
+            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
             row = cur.fetchone()
 
             if row is None:
@@ -571,6 +571,9 @@ def sync_user(recipient_id, deeplink=None):
             db.session.commit()
 
             if deeplink is not None:
+                customer.referrer = deeplink
+                db.session.commit()
+
                 cur.execute('UPDATE `users` SET `referrer` = %s WHERE `id` = %s AND `referrer` != %s LIMIT 1;', (deeplink or "/", customer.id, deeplink or "/"))
                 conn.commit()
 
@@ -795,8 +798,31 @@ def add_cc_payment(recipient_id):
     return False
 
 
-def view_product(recipient_id, product):
-    logger.info("view_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+def flip_product(recipient_id, product):
+    logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif")
+    time.sleep(3)
+
+    if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
+        code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots. Text \"Giveaway\" to m.me/gamebotsc & follow instructions." if "disneyjp" not in product.tag_list_utf8 else "You won a {product_name}!".format(product_name=product.display_name_utf8))
+
+        fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+        slack_outbound(
+            channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+            username=Const.SLACK_ORTHODOX_HANDLE,
+            webhook=Const.SLACK_ORTHODOX_WEBHOOK,
+            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by flipping.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
+            image_url=product.image_url
+        )
+
+    else:
+        send_text(recipient_id, "You lost! Tap Flip Shop again for another chance.")
+
+
+def view_product(recipient_id, product, welcome_entry=False):
+    logger.info("view_product(recipient_id=%s, product=%s, entry=%s)" % (recipient_id, product, welcome_entry))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if product is not None:
@@ -827,25 +853,26 @@ def view_product(recipient_id, product):
         else:
             if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(deeplink=product.name)):
                 send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
-                send_text(
-                    recipient_id=recipient_id,
-                    message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
-                )
 
                 send_image(
                     recipient_id=storefront.fb_psid,
                     url=Const.IMAGE_URL_NEW_SUBSCRIBER,
                     quick_replies=new_sub_quick_replies(recipient_id)
                 )
-                send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:],))
+                send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:], ))
+
+
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Welcome to {product_name} shop on Facebook Messenger.\n{product_rating} star{plural} | {points} points".format(product_name=product.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                #message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+            )
+
+            if welcome_entry is True:
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY)
 
             else:
-                send_text(
-                    recipient_id=recipient_id,
-                    message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
-                )
-
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
 
 def purchase_product(recipient_id, source):
@@ -1178,45 +1205,16 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
         product = Product.query.filter(Product.name.ilike(deeplink.split("/")[-1].lower())).filter(Product.creation_state == 7).first()
         if product is not None:
-            customer.product_id = product.id
-            db.session.commit()
+            if "disneyjp" in product.tag_list_utf8:
+                customer.product_id = product.id
+                db.session.commit()
+                send_text(recipient_id, "Please enter passcode", cancel_entry_quick_reply())
 
-            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-            if storefront is not None:
-                add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
+            else:
+                if "/flip/" in deeplink:
+                    flip_product(recipient_id, product)
 
-                if product.video_url is not None and product.video_url != "":
-                    send_video(recipient_id, product.video_url, product.attachment_id)
-
-                else:
-                    if storefront.logo_url is not None:
-                        send_image(recipient_id, storefront.logo_url)
-
-                send_tracker(fb_psid=recipient_id, category="view-shop", label=storefront.display_name_utf8)
-                if add_subscription(recipient_id, storefront.id, product.id, deeplink):
-                    send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
-
-                    send_text(
-                        recipient_id=recipient_id,
-                        message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
-                    )
-
-                    send_image(
-                        recipient_id=storefront.fb_psid,
-                        url=Const.IMAGE_URL_NEW_SUBSCRIBER,
-                        quick_replies=new_sub_quick_replies(recipient_id)
-                    )
-                    fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-                    send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:],))
-
-                else:
-                    send_text(
-                        recipient_id=recipient_id,
-                        message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
-                    )
-
-                send_home_content(recipient_id)
-
+                view_product(recipient_id, product, True)
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1313,110 +1311,88 @@ def autogen_storefront(recipient_id, name_prefix):
         }
     }
 
-    storefront_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
-    product_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
+    if name_prefix.lower() in details:
+        storefront_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
+        product_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
 
-    try:
-        Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
-        db.session.commit()
-    except:
-        db.session.rollback()
-
-    try:
-        Product.query.filter(Product.fb_psid == recipient_id).delete()
-        db.session.commit()
-    except:
-        db.session.rollback()
-
-
-    storefront = Storefront(recipient_id)
-    storefront.name = storefront_name
-    storefront.display_name = storefront_name
-    storefront.description = details[name_prefix.lower()]['description']
-    storefront.logo_url = details[name_prefix.lower()]['image_url']
-    storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_name)
-    storefront.creation_state = 4
-    db.session.add(storefront)
-    db.session.commit()
-
-    try:
-        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        with conn:
-            cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
-            conn.commit()
-            cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
-            storefront.id = cur.fetchone()['id']
+        try:
+            Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
             db.session.commit()
+        except:
+            db.session.rollback()
 
-    except mysql.Error, e:
-        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+        try:
+            Product.query.filter(Product.fb_psid == recipient_id).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
 
-    finally:
-        if conn:
-            conn.close()
 
-    product = Product(recipient_id, storefront.id)
-    product.name = product_name
-    product.display_name = product_name
-    product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(0 / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
-    product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
-    product.type_id = Const.PRODUCT_TYPE_VIRTUAL
-    product.image_url = details[name_prefix.lower()]['image_url']
-    product.video_url = details[name_prefix.lower()]['video_url']
-    product.attachment_id = details[name_prefix.lower()]['attachment_id']
-    product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_name)
-    product.price = details[name_prefix.lower()]['price']
-    product.tags = details[name_prefix.lower()]['tag']
-    product.creation_state = 7
-    db.session.add(product)
-    db.session.commit()
+        storefront = Storefront(recipient_id)
+        storefront.name = storefront_name
+        storefront.display_name = storefront_name
+        storefront.description = details[name_prefix.lower()]['description']
+        storefront.logo_url = details[name_prefix.lower()]['image_url']
+        storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_name)
+        storefront.creation_state = 4
+        db.session.add(storefront)
+        db.session.commit()
 
-    try:
-        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        with conn:
-            cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
-            if cur.fetchone() is None:
-                cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
                 conn.commit()
-                cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
-                product.id = cur.fetchone()['id']
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                storefront.id = cur.fetchone()['id']
                 db.session.commit()
 
-    except mysql.Error, e:
-        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-    finally:
-        if conn:
-            conn.close()
+        finally:
+            if conn:
+                conn.close()
 
-    return (storefront, product)
+        product = Product(recipient_id, storefront.id)
+        product.name = product_name
+        product.display_name = product_name
+        product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(0 / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+        product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
+        product.type_id = Const.PRODUCT_TYPE_VIRTUAL
+        product.image_url = details[name_prefix.lower()]['image_url']
+        product.video_url = details[name_prefix.lower()]['video_url']
+        product.attachment_id = details[name_prefix.lower()]['attachment_id']
+        product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_name)
+        product.price = details[name_prefix.lower()]['price']
+        product.tags = details[name_prefix.lower()]['tag']
+        product.creation_state = 7
+        db.session.add(product)
+        db.session.commit()
 
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
+                if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
+                    product.id = cur.fetchone()['id']
+                    db.session.commit()
 
-def flip_product(recipient_id, product):
-    logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING)
-    time.sleep(3)
+        finally:
+            if conn:
+                conn.close()
 
-    if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
-        code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-        # send_image(recipient_id, Const.IMAGE_URL_FLIP_WIN)
-        
-        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots. Text \"Giveaway\" to m.me/gamebotsc & follow instructions.")
+        return (storefront, product)
 
-        fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-        slack_outbound(
-            channel_name=Const.SLACK_ORTHODOX_CHANNEL,
-            username=Const.SLACK_ORTHODOX_HANDLE,
-            webhook=Const.SLACK_ORTHODOX_WEBHOOK,
-            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by flipping.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
-            image_url=product.image_url
-        )
-
-    else:
-        send_text(recipient_id, "You lost! Tap Flip Shop again for another chance.")
+    return (None, None)
 
 
 def write_message_log(recipient_id, message_id, message_txt):
@@ -2031,7 +2007,7 @@ def send_featured_carousel(recipient_id):
     send_message(json.dumps(data))
 
 
-def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_STOREFRONT):
+def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_STOREFRONT_SHARE):
     logger.info("send_storefront_card(recipient_id=%s, storefront_id=%s, card_type=%s)" % (recipient_id, storefront_id, card_type))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
@@ -2039,7 +2015,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
     product = Product.query.filter(Product.storefront_id == storefront_id).first()
 
     if storefront is not None:
-        if card_type == Const.CARD_TYPE_STOREFRONT:
+        if card_type == Const.CARD_TYPE_STOREFRONT_ENTRY:
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name_utf8,
@@ -2106,7 +2082,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
                     quick_replies = main_menu_quick_replies(recipient_id)
                 )
 
-        else:
+        elif card_type == Const.CARD_TYPE_STOREFRONT_SHARE:
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = storefront.display_name_utf8,
@@ -2122,7 +2098,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
         send_message(json.dumps(data))
 
 
-def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUCT):
+def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUCT_SHARE):
     logger.info("send_product_card(recipient_id=%s, product_id=%s, card_type=%s)" % (recipient_id, product_id, card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     product = Product.query.filter(Product.id == product_id).first()
@@ -2131,16 +2107,16 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
     if product is not None:
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
-        if card_type == Const.CARD_TYPE_PRODUCT:
+        if card_type == Const.CARD_TYPE_PRODUCT_ENTRY:
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle = "View my shop now",
+                subtitle ="{description} ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
-                item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
-                    build_button(Const.CARD_BTN_INVITE)
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Create", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=product.name))
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
@@ -2151,7 +2127,6 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 title = product.display_name_utf8,
                 subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
-                item_url = product.video_url,
                 quick_replies = [
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Submit", Const.PB_PAYLOAD_SUBMIT_PRODUCT),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Do", Const.PB_PAYLOAD_REDO_PRODUCT),
@@ -2302,21 +2277,6 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 subtitle = None if stars == 0 else "Average Rating: {stars}".format(stars=(Const.RATE_GLYPH * stars)),
                 image_url = product.image_url,
                 quick_replies = rate_buttons + cancel_entry_quick_reply()
-            )
-
-
-        else:
-            data = build_standard_card(
-                recipient_id = recipient_id,
-                title = product.display_name_utf8,
-                subtitle = "View my shop now",
-                image_url = product.image_url,
-                item_url = product.messenger_url,
-                buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
-                    build_button(Const.CARD_BTN_INVITE)
-                ],
-                quick_replies = main_menu_quick_replies(recipient_id)
             )
 
         send_message(json.dumps(data))
@@ -2472,10 +2432,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif re.search(r'^AUTO_GEN_STOREFRONT-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
-        send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
-        send_text(recipient_id, product.messenger_url)
-        send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
-        send_admin_carousel(recipient_id)
+        if storefront is not None and product is not None:
+            send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
+            send_text(recipient_id, product.messenger_url)
+            send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
+            send_admin_carousel(recipient_id)
+
+        else:
+            send_text(recipient_id, "Couldn't create a shop with the name {storefront_name} at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')))
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         # send_tracker(fb_psid=recipient_id, category="button-create-shop")
@@ -2647,7 +2611,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 pass
 
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
-            if "gamebotsmods" in product.tags_list:
+            if "gamebotsmods" in product.tag_list_utf8:
                 send_text(recipient_id, "To complete this purchase you must complete the PayPal payment & the instructions below.\n\n1. Install 2 free apps: taps.io/skins\n2. Wait for approval", main_menu_quick_replies(recipient_id))
             send_customer_carousel(recipient_id, product.id)
 
@@ -3579,6 +3543,8 @@ def received_text_response(recipient_id, message_text):
             message_text = "{message_text}\n/{deeplink}".format(message_text=message_text, deeplink=product.name)
         send_text(recipient_id, message_text)
 
+
+    #-- show featured shops
     elif message_text == "/featured":
         send_featured_carousel(recipient_id)
 
@@ -3593,6 +3559,16 @@ def received_text_response(recipient_id, message_text):
         welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text)
 
 
+    #-- protected entry
+    elif message_text in Const.RESERVED_PROTECTED_REPLIES:
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        if product is not None:
+            if customer.referrer is not None and "/flip/" in customer.referrer:
+                flip_product(recipient_id, product)
+
+            view_product(recipient_id, product, True)
+
+
     #-- show admin carousel
     elif message_text.lower() in Const.RESERVED_COMMAND_REPLIES:
         clear_entry_sequences(recipient_id)
@@ -3604,6 +3580,7 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
 
 
+    #-- autogenerate shop
     elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES:
         storefront, product = autogen_storefront(recipient_id, message_text)
 
@@ -3618,6 +3595,8 @@ def received_text_response(recipient_id, message_text):
         clear_entry_sequences(recipient_id)
         send_text(recipient_id, Const.GOODBYE_MESSAGE)
 
+
+    #-- all others
     else:
         #-- entering paypal payout info
         if customer.paypal_email == "_{PENDING}_":
@@ -4133,11 +4112,6 @@ def fbbot():
 
                 #-- entered via url referral
                 if referral is not None:
-                    if "/flip/" in referral:
-                        product = Product.query.filter(Product.name.ilike(referral.split("/")[-1].lower())).filter(Product.creation_state == 7).first()
-                        if product is not None:
-                            flip_product(customer.fb_psid, product)
-
                     welcome_message(customer.fb_psid, Const.CUSTOMER_REFERRAL if referral[1:] not in Const.RESERVED_AUTO_GEN_STOREFRONTS else Const.STOREFRONT_AUTO_GEN, referral)
                     return "OK", 200
 
