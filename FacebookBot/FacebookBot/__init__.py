@@ -397,7 +397,7 @@ def coin_flip_results(sender_id, item_id=None):
         #     }]
         # )
 
-        send_text(sender_id, "WINNER!\nYou won {item_name}.\n\nEnter your Steam Trade URL now.".format(item_name=flip_item['name']), main_menu_quick_reply())
+        send_text(sender_id, "WINNER!\nYou won {item_name}.\n\nInstructions for trade to process:\n\nMake sure your correct Steam Trade URL is set.\n\nText \"{fb_psid}\" to Lemonade. m.me/lmon8".format(item_name=flip_item['name'], fb_psid=sender_id[-4:]), main_menu_quick_reply())
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -1435,8 +1435,8 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.GIVEAWAY_REPLIES:
-        send_text(sender_id, "You are entry #{queue} into today's flash giveaway.\n\nTo increase your chances you can install & upload free apps or buy a Gamebots credit.".format(queue=int(random.uniform(100, 900))))
-        send_text(sender_id, "Instructions:\n1. Install game: Taps.io/skins\n\n2. Open & screenshot game\n\n3. Upload screenshot here")
+        send_text(sender_id, "You are entry #{queue} into today's giveaway.\n\nIncrease your odds by completing a mod task below.".format(queue=int(random.uniform(100, 900))))
+        send_text(sender_id, "Instructions\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nSupport: twitter.com/bryantapawan24")
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
         send_text(sender_id, "Please upload a screenshot of the moderator task you have completed. Once approved you will be rewarded your skins. (wait time: 24 hours)")
@@ -1445,7 +1445,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Mod Tasks for Skins:\n\nInstall and open 10 free games get 1 Aug Chameleon. (screenshot the game or apps main menu)\nTaps.io/skins\n\nCreate an auto shop on Lemonade and sell 1 item and you get 1 Aug Chameleon. taps.io/lmon8\n\nGet 2 friends to do both of the above tasks you get one Mac 10 Neon Rider.\n\nWhen you finish a task take a screenshot & upload it to Gamebots by typing \"Upload\".")
+        send_text(sender_id, "Weekly Mod Task:\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nReward: 1 Mac Neon Rider\n\nSupport: twitter.com/bryantapawan24")
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
