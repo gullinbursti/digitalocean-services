@@ -3,6 +3,7 @@
 
 import calendar
 import hashlib
+import itertools
 import json
 import locale
 import logging
@@ -28,6 +29,7 @@ from dateutil.tz import tzoffset
 from dateutil.relativedelta import relativedelta
 from flask import Flask, abort, flash, redirect, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from itsdangerous import URLSafeSerializer, BadSignature
 from PIL import Image
 from stripe import CardError
@@ -62,6 +64,17 @@ stripe.api_key = Const.STRIPE_DEV_API_KEY
 #=- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
 
+class QueueIter(object):
+    auto_inc_generator = itertools.count(0)
+    ind = next(auto_inc_generator)
+
+    def __init(self, offset=1):
+        if offset > 1:
+            self.auto_inc_generator = itertools.count(offset)
+        self.ind = next(self.auto_inc_generator)
+
+
+
 
 class CoerceUTF8(db.TypeDecorator):
     """Safely coerce Python bytestrings to Unicode
@@ -74,6 +87,20 @@ class CoerceUTF8(db.TypeDecorator):
             value = value.decode('utf-8')
         return value
 
+
+class QueueIndexer(db.Model):
+    __tablename__ = "queue_indexer"
+
+    id = db.Column(db.Integer, primary_key=True)
+    fb_psid = db.Column(db.String(255))
+    added = db.Column(db.Integer)
+
+    def __init__(self, fb_psid):
+        self.fb_psid = fb_psid
+        self.added = int(time.time())
+
+    def __repr__(self):
+        return "<QueueIncrementor id=%s, fb_psid=%s, added=%s>" % (self.id, self.fb_psid, self.added)
 
 
 class Customer(db.Model):
@@ -523,6 +550,67 @@ def async_tracker(payload):
 def is_vowel(char):
     return char == "a" or char == "e" or char == "i" or char == "o" or char == "u"
 
+
+def queue_position(recipient_id, offset=0):
+    logger.info("queue_position(recipient_id=%s, offset=%s" % (recipient_id, offset))
+
+    queue_indexer = QueueIndexer(recipient_id)
+    db.session.add(queue_indexer)
+    db.session.commit()
+
+    if queue_indexer.id < offset:
+        while queue_indexer.id < offset:
+            queue_indexer.id += random.gauss(offset, offset ** 0.5)
+
+    return queue_indexer.id + offset
+
+    # queue_indexer = QueueIndexer()
+    # logger.info("::::::] queue_indexer says it's :: [%s]" % (queue_indexer.ind,))
+
+
+
+    #
+    # summation_query = db.session.query(func.sum(Customer.id).label('sum')).group_by(Customer.id).subquery('summation_query')
+    # summation = db.session.query(Customer, summation_query.c.summate).outerjoin(sub, Customer.id == summation_query.c.id).order_by(db.desc('summate')).all()
+    #
+    # summation_query = db.session.query(Customer.id).filter(Storefront.id == product.storefront_id).subquery('storefront_query')
+    # storefront_owner = Customer.query.filter(Customer.fb_psid.in_(storefront_query)).first()
+    #
+    # db.session.execute(
+    #     db.session
+    #         .query(customers)
+    #         # .filter_by(x_id=y.id)
+    #         .statement.with_only_columns([func.count()]).order_by(None)
+    # ).scalar()
+
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
+
+    query = db.session.query(
+        func.sum(Customer.id, type=db.Integer).label('summation'),
+        func.count().label('records')
+    ).all()
+
+
+    summation, total = query[0]
+
+
+    # logger.info("SQLAlchemy WTF func subquery summation_query=%s, summation=%s, summation/scalar()=%s", (summation_query, summation, summation.scalar()))
+    #logger.info("\n\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n]:::::]]]] WTF ::::::] --- query=%s, adj=%s\n[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n\n\n", (query, len(query),))
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n::::::] --- query=%s, len(query)=1" % (query,))
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n::::::] --- query[0]=%s" % (query[0],))
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]\n::::::] --- summation=%s, records=%s" % (summation, total))
+
+    for res in query:
+        logger.info(res)
+
+
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
+# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
+
+
+
 def slack_outbound(channel_name, message_text, image_url=None, username=None, webhook=None):
     logger.info("slack_outbound(channel_name=%s, message_text=%s, image_url=%s, username=%s, webhook=%s" % (channel_name, message_text, image_url, username, webhook))
 
@@ -804,9 +892,9 @@ def flip_product(recipient_id, product):
     send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif")
     time.sleep(3)
 
-    if random.uniform(0, 100) < 20 or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
+    if random.uniform(0, 100) < 5:# or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots. Text \"Giveaway\" to m.me/gamebotsc & follow instructions." if "disneyjp" not in product.tag_list_utf8 else "You won a {product_name}!".format(product_name=product.display_name_utf8))
+        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots.\n\nText \"Giveaway\" to m.me/gamebotsc & follow instructions." if "disneyjp" not in product.tag_list_utf8 else "You won a {product_name}!".format(product_name=product.display_name_utf8))
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
@@ -1195,7 +1283,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_text(recipient_id, Const.ORTHODOX_GREETING)
         send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
         send_text(recipient_id, product.messenger_url)
-        send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
+        send_text(recipient_id, "Share your auto shop with 50 Friends.\n\nSell your first item & take a screenshot.\n\nEach time you sell an item you will be rewarded with same or even higher price than the one you sold.\n\nSupport: twitter.com/bryantapawan24")
         send_admin_carousel(recipient_id)
 
     elif entry_type == Const.CUSTOMER_REFERRAL:
@@ -1727,7 +1815,7 @@ def build_card_element(title, subtitle=None, image_url=None, item_url=None, butt
     return element
 
 
-def build_receipt_card(recipient_id, purchase_id):
+def e1build_receipt_card(recipient_id, purchase_id):
     logger.info("build_receipt_card(recipient_id=%s, purchase_id=%s)" % (recipient_id, purchase_id))
 
     data = None
@@ -1935,6 +2023,17 @@ def send_admin_carousel(recipient_id):
 
             cards += build_autogen_storefront_elements(recipient_id)
 
+            cards.append(
+                build_card_element(
+                    title="Share Bot on Messenger",
+                    subtitle="Share now with your friends on Messenger",
+                    image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
+                    buttons=[
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_APP)
+                    ]
+                )
+            )
+
         else:
             purchases = Purchase.query.filter(Purchase.storefront_id == storefront.id).all()
             if len(purchases) > 0:
@@ -1954,6 +2053,17 @@ def send_admin_carousel(recipient_id):
                         ]
                     )
                 )
+
+            cards.append(
+                build_card_element(
+                    title="Share {product_name} on Messenger".format(product_name=product.display_name_utf8),
+                    subtitle="Share now with your friends on Messenger",
+                    image_url=storefront.logo_url,
+                    buttons=[
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger".format(product_name=product.display_name_utf8), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                    ]
+                )
+            )
 
             cards += build_autogen_storefront_elements(recipient_id)
 
@@ -2453,7 +2563,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if storefront is not None and product is not None:
             send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
             send_text(recipient_id, product.messenger_url)
-            send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
+            send_text(recipient_id, "Share your auto shop with 50 Friends.\n\nSell your first item & take a screenshot.\n\nEach time you sell an item you will be rewarded with same or even higher price than the one you sold.\n\nSupport: twitter.com/bryantapawan24")
             send_admin_carousel(recipient_id)
 
         else:
@@ -2819,6 +2929,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_CLOSE)
 
     # quick replies
+    elif payload == Const.PB_PAYLOAD_CAPTURE_LINE:
+        customer.stripe_id = "_{PENDING}_"
+        db.session.commit()
+
     elif payload == Const.PB_PAYLOAD_MAIN_MENU:
         # send_tracker(fb_psid=recipient_id, category="button-menu")
 
@@ -3562,6 +3676,18 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, message_text)
 
 
+    elif customer.stripe_id == "_{PENDING}_":
+        customer.stripe_id = message_text
+        db.session.commit()
+
+        send_text(
+            recipient_id=recipient_id,
+            message_text="Your Line ID has been set. Please check your Line account shortly.",
+            quick_replies=main_menu_quick_replies(recipient_id))
+
+        slack_outbound(Const.SLACK_ORTHODOX_CHANNEL, "Received Line ID from _{fb_psid}_!\n*{line_id}*".format(fb_psid=recipient_id, line_id=message_text))
+
+
     #-- show featured shops
     elif message_text == "/featured":
         send_featured_carousel(recipient_id)
@@ -3591,6 +3717,13 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_COMMAND_REPLIES:
         clear_entry_sequences(recipient_id)
         send_admin_carousel(recipient_id)
+
+
+
+    #-- giveaway reply
+    elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES:
+        send_text(recipient_id, "You are entry #{queue} into today's giveaway.\n\nIncrease your odds by completing a mod task below.".format(queue=locale.format("%d", queue_position(recipient_id), grouping=True)))
+        send_text(recipient_id, "Instructions\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots to Gamebots (m.me/gamebots?ref=) by typing \"Upload\" & wait 24 hours.\n\nSupport: twitter.com/bryantapawan24")
 
 
     #-- appnext reply
@@ -4153,6 +4286,9 @@ def fbbot():
                     logger.info("PURCHASES -->%s" % (db.session.query(Purchase).filter((Purchase.storefront_id == storefront.id) | (Purchase.product_id == product.id)).all()))
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
+
+                if customer.fb_psid in Const.ADMIN_FB_PSIDS:
+                    queue_position(customer.fb_psid)
 
 
 
