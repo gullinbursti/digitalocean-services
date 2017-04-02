@@ -169,6 +169,28 @@ def opt_out_quick_replies():
     ]
 
 
+def buy_credits_button(sender_id, item_id, price):
+    logger.info("buy_credits_button(sender_id=%s item_id=%s, price=%s)" % (sender_id, item_id, price))
+
+    return {
+        'type'            : "payment",
+        'title'           : "Buy",
+        'payload'         : "%s-%d" % ("PURCHASE_ITEM", item_id),
+        'payment_summary' : {
+            'currency'            : "USD",
+            'payment_type'        : "FIXED_AMOUNT",
+            'is_test_payment'     : True,
+            'merchant_name'       : "Gamebots",
+            'requested_user_info' : [
+                "contact_email"
+            ],
+            'price_list'          : [{
+                'label'  : "Subtotal",
+                'amount' : price
+            }]
+        }
+    }
+
 def default_carousel(sender_id, amount=1):
     logger.info("default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
@@ -188,7 +210,7 @@ def default_carousel(sender_id, amount=1):
 
 
 def pay_wall_carousel(sender_id, amount=3):
-    logger.info("default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
+    logger.info("pay_wall_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
     elements = []
     for i in range(amount):
@@ -256,18 +278,23 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
 
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
-                    'subtitle'  : "",# if pay_wall is False else "${price:.2f}".format(price=deposit_amount_for_price(row['min_sell'])),
+                    'subtitle'  : "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['min_sell'])),
                     'image_url' : row['image_url'],
-                    'item_url'  : None
+                    'item_url'  : None,
+                    'buttons'   : []
                 }
 
                 if pay_wall is True:
-                    element['buttons'] = [{
+                    graph = fb_graph_user(sender_id)
+                    if graph is not None and graph['is_payment_enabled'] is True:
+                        element['buttons'].append(buy_credits_button(sender_id, item_id, deposit_amount_for_price(row['min_sell'])))
+
+                    element['buttons'].append({
                         'type'                 : "web_url",
                         'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=deposit_amount_for_price(row['min_sell'])),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                        'title'                : "${price:.2f} Confirm".format(price=deposit_amount_for_price(row['min_sell'])),
+                        'title'                : "Pay with Paypal",
                         'webview_height_ratio' : "tall"
-                    }]
+                    })
 
                     if share is True:
                         element['buttons'].append({
@@ -354,11 +381,12 @@ def coin_flip_results(sender_id, item_id=None):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
 
         total_wins += 1
+        full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
             'channel'     : "#bot-alerts",
             'username'    : "gamebotsc",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Flip Win by *{user}* ({sender_id}):\n_{item_name}_\n{pin_code}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), sender_id=sender_id, item_name=flip_item['name'], pin_code=flip_item['pin_code']),
+            'text'        : "Flip Win by *{user}* ({sender_id}):\n_{item_name}_\n{pin_code}".format(user=sender_id if full_name is None else full_name, sender_id=sender_id, item_name=flip_item['name'], pin_code=flip_item['pin_code']),
             'attachments' : [{
                 'image_url' : flip_item['image_url']
             }]
@@ -491,6 +519,9 @@ def set_session_state(sender_id, state=Const.SESSION_STATE_HOME):
 
 def get_session_name(sender_id):
     logger.info("get_session_name(sender_id=%s)" % (sender_id,))
+
+    f_name = None
+    l_name = None
     full_name = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -501,11 +532,11 @@ def get_session_name(sender_id):
         row = cur.fetchone()
 
         if row is not None:
-            full_name = "%s %s" % (row['f_name'] or "", row['l_name'] or "")
-            if len(full_name) == 1:
-                full_name = None
+            f_name = row['f_name']
+            l_name = row['l_name']
+            full_name = "%s %s" % (f_name, l_name)
 
-        logger.info("full_name=%s" % (full_name,))
+        logger.info("get_session_name=%s" % (full_name,))
 
     except sqlite3.Error as er:
         logger.info("::::::get_session_name[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
@@ -514,7 +545,7 @@ def get_session_name(sender_id):
         if conn:
             conn.close()
 
-    return full_name
+    return (full_name, f_name, l_name)
 
 
 def set_session_name(sender_id, first_name=None, last_name=None):
@@ -717,7 +748,7 @@ def set_session_trade_url(sender_id, trade_url=None):
 def get_session_purchase(sender_id):
     logger.info("get_session_purchase(sender_id=%s)" % (sender_id,))
     purchase_id = None
-    item = None
+    flip_id = None
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
@@ -728,13 +759,13 @@ def get_session_purchase(sender_id):
 
         if row is not None:
             purchase_id = row['purchase_id']
-            cur.execute('SELECT item_id FROM payments WHERE id = ? ORDER BY added DESC LIMIT 1;', (purchase_id,))
+            cur.execute('SELECT flip_id FROM payments WHERE id = ? ORDER BY added DESC LIMIT 1;', (purchase_id,))
             row = cur.fetchone()
             if row is not None:
-                item = row
+                flip_id = row['flip_id']
 
 
-        logger.info("purchase_id=%s" % (purchase_id,))
+        logger.info("purchase_id=%s, flip_id=" % (purchase_id,))
 
     except sqlite3.Error as er:
         logger.info("::::::get_session_item[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
@@ -743,7 +774,7 @@ def get_session_purchase(sender_id):
         if conn:
             conn.close()
 
-    return (purchase_id, item['id'])
+    return (purchase_id, flip_id)
 
 
 def set_session_purchase(sender_id, purchase_id=0):
@@ -952,6 +983,8 @@ def purchase_item(sender_id, payment):
     provider = payment['payment_credential']['provider_type']
     charge_id = payment['payment_credential']['charge_id']
 
+    full_name, f_name, l_name = get_session_name(sender_id)
+
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
@@ -962,9 +995,8 @@ def purchase_item(sender_id, payment):
             if row is not None:
                 item_name = row['name']
 
-            f_name = get_session_name(sender_id) or " ".split()[0]
-            l_name = get_session_name(sender_id) or " ".split()[-1]
-            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, f_name, l_name, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            full_name, f_name, l_name = get_session_name(sender_id)
+            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, f_name or "", l_name or "", customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
             conn.commit()
 
             cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -981,13 +1013,15 @@ def purchase_item(sender_id, payment):
 
 
     if purchase_id != 0:
+        inc_session_deposit(sender_id, amount)
         set_session_purchase(sender_id, purchase_id)
+        flip_id = get_session_item(sender_id)
 
         try:
             conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            cur.execute('INSERT INTO payments (id, fb_psid, email, item_id, flip_id, amount, fb_payment_id, provider, charge_id, added) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);', (purchase_id, sender_id, customer_email, item_id, flip_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
             conn.commit()
 
         except sqlite3.Error as er:
@@ -997,16 +1031,18 @@ def purchase_item(sender_id, payment):
             if conn:
                 conn.close()
 
-    # -- state 8 means purchased, but no trade url yet…
-    set_session_state(sender_id)
 
+    send_text(sender_id, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=float(amount)), main_menu_quick_reply())
+
+    # -- state 10 means purchased, but no trade url yet…
+    set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
     payload = {
         'channel'  : "#gamebots-purchases",
         'username' : "gamebotsc",
         'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-        'text'     : "*{customer_email}* ({fb_psid}) just purchased _{item_name}_ for ${item_price}".format(customer_email=customer_email, fb_psid=sender_id, item_name=item_name, item_price=amount),
+        'text': "*{user}* just added ${amount:.2f} in credits.".format(user=sender_id if full_name is None else full_name, amount=float(amount)),
     }
-    response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+    response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
 
 @app.route('/', methods=['GET'])
@@ -1078,59 +1114,52 @@ def webook():
 
                 if 'payment' in messaging_event: # payment result
                     logger.info("-=- PAYMENT -=-")
-                    set_session_state(sender_id, Const.SESSION_STATE_PURCHASE_ITEM)
+                    set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
                     purchase_item(sender_id, messaging_event['payment'])
                     return "OK", 200
 
 
                 #-- new entry
                 if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
-                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
                     send_tracker(fb_psid=sender_id, category="sign-up-fb")
 
                     set_session_state(sender_id)
                     send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
+                    graph = fb_graph_user(sender_id)
+                    if graph is not None:
+                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
 
                 #-- existing
-                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_CHECKOUT_ITEM:
-                    if get_session_name(sender_id) is None:
-                        graph = fb_graph_user(sender_id)
-                        if graph is not None:
-                            set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
-                        set_session_state(sender_id)
-                        default_carousel(sender_id)
+                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+                    # ------- POSTBACK BUTTON MESSAGE
+                    if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                        logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
+                        handle_payload(sender_id, Const.PAYLOAD_TYPE_POSTBACK, messaging_event['postback']['payload'])
+                        return "OK", 200
 
-                    else:
-                        # ------- POSTBACK BUTTON MESSAGE
-                        if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
-                            logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
-                            handle_payload(sender_id, Const.PAYLOAD_TYPE_POSTBACK, messaging_event['postback']['payload'])
+                    # -- actual message w/ txt
+                    if 'message' in messaging_event:
+                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
+
+                        # ------- QUICK REPLY BUTTON
+                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
+                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
+                            handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
                             return "OK", 200
 
+                        # ------- TYPED TEXT MESSAGE
+                        if 'text' in message:
+                            recieved_text_reply(sender_id, message['text'])
+                            return "OK", 200
 
-
-                        # -- actual message w/ txt
-                        if 'message' in messaging_event:
-                            logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
-
-                            # ------- QUICK REPLY BUTTON
-                            if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
-                                logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
-                                handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
-                                return "OK", 200
-
-                            # ------- TYPED TEXT MESSAGE
-                            if 'text' in message:
-                                recieved_text_reply(sender_id, message['text'])
-                                return "OK", 200
-
-                            # ------- ATTACHMENT SENT
-                            if 'attachments' in message:
-                                for attachment in message['attachments']:
-                                    recieved_attachment(sender_id, attachment['type'], attachment['payload'])
-                                return "OK", 200
+                        # ------- ATTACHMENT SENT
+                        if 'attachments' in message:
+                            for attachment in message['attachments']:
+                                recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+                            return "OK", 200
 
                     set_session_state(sender_id)
                     default_carousel(sender_id)
@@ -1158,12 +1187,12 @@ def paypal():
         logger.info("fb_psid=%s, amount=%s" % (fb_psid, amount))
         inc_session_deposit(fb_psid, int(round(amount)))
 
+        full_name, f_name, l_name = get_session_name(fb_psid)
+
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                f_name = get_session_name(fb_psid) or " ".split()[0]
-                l_name = get_session_name(fb_psid) or " ".split()[-1]
                 cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, NOW());', (fb_psid, f_name, l_name, amount))
                 conn.commit()
 
@@ -1182,12 +1211,12 @@ def paypal():
 
         send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount), main_menu_quick_reply())
         payload = {
-            'channel' : "#pre",
+            'channel' : "#gamebots-purchases",
             'username': "gamebotsc",
             'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'    : "*{user}* just added ${amount:.2f} in credits".format(user=fb_psid if get_session_name(fb_psid) is None else get_session_name(fb_psid), amount=amount),
+            'text': "*{user}* just added ${amount:.2f} in credits.".format(user=fb_psid if full_name is None else full_name, amount=amount),
         }
-        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
 
 #
     return "OK", 200
@@ -1209,7 +1238,7 @@ def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
     logger.info("recieved_trade_url(sender_id=%s, url=%s, action=%s)" % (sender_id, url, action))
 
     if action == Const.TRADE_URL_PURCHASE:
-        purchase_id = get_session_purchase(sender_id)
+        purchase_id, flip_id = get_session_purchase(sender_id)
 
         if get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
             send_text(sender_id, "Set your trade url to {url}?".format(url=url), quick_replies=submit_quick_replies())
@@ -1286,11 +1315,13 @@ def handle_payload(sender_id, payload_type, payload):
         send_text(sender_id, "www.paypal.me/gamebotsc/2\n\nEnter {fb_psid}-support in the buyer's notes.".format(fb_psid=sender_id))
         send_text(sender_id, "After payment DM: twitter.com/bryantapawan24", main_menu_quick_reply())
 
+        full_name, f_name, l_name = get_session_name(sender_id)
+
         payload = {
             'channel'  : "#pre",
             'username' : "gamebotsc",
             'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'     : "*{user}* needs help…".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id)),
+            'text'     : "*{user}* needs help…".format(user=sender_id if full_name is None else full_name),
         }
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
@@ -1337,11 +1368,12 @@ def handle_payload(sender_id, payload_type, payload):
                 if conn:
                     conn.close()
 
+            full_name, f_name, l_name = get_session_name(sender_id)
             payload = {
                 'channel'   : "#bot-alerts",
                 'username ' : "gamebotsc",
                 'icon_url'  : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                'text'      : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), trade_url=trade_url)
+                'text'      : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if full_name is None else full_name, trade_url=trade_url)
             }
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
@@ -1395,12 +1427,8 @@ def handle_payload(sender_id, payload_type, payload):
     elif payload == "SUBMIT_NO":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
-            set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
-            purchase_id = get_session_purchase(sender_id)
-
-            set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
             send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_session_purchase(sender_id)), main_menu_quick_reply())
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
@@ -1505,11 +1533,12 @@ def recieved_attachment(sender_id, attachment_type, attachment):
     logger.info("recieved_attachment(sender_id=%s, attachment_type=%s, attachment=%s)" % (sender_id, attachment_type, attachment))
 
     if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1]:
+        full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
             'channel'     : "#mods",
             'username '   : "gamebotsc",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Image upload from *{user}* _{fb_psid}_:\n{image_url}".format(user=sender_id if get_session_name(sender_id) is None else get_session_name(sender_id), fb_psid=sender_id, image_url=attachment['url']),
+            'text'        : "Image upload from *{user}* _{fb_psid}_:\n{image_url}".format(user=sender_id if full_name is None else full_name, fb_psid=sender_id, image_url=attachment['url']),
             'attachments' : [{
                 'image_url' : attachment['url']
             }]
