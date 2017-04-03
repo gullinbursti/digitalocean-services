@@ -617,24 +617,46 @@ def get_session_deposit(sender_id, interval=24):
     logger.info("get_session_deposit(sender_id=%s, interval=%s)" % (sender_id, interval))
 
     deposit = 0
-    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    try:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute('SELECT deposit FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
-        row = cur.fetchone()
 
-        if row is not None:
-            deposit = row['deposit']
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT SUM(`amount`) AS `tot` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, interval))
+            row = cur.fetchone()
+            deposit = row['tot']
 
         logger.info("deposit=%s" % (deposit,))
 
-    except sqlite3.Error as er:
-        logger.info("::::::get_session_deposit[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
     finally:
         if conn:
             conn.close()
+
+
+
+    #
+    # conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    # try:
+    #     conn.row_factory = sqlite3.Row
+    #     cur = conn.cursor()
+    #     cur.execute('SELECT deposit FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
+    #     row = cur.fetchone()
+    #
+    #     if row is not None:
+    #         deposit = row['deposit']
+    #
+    #     logger.info("deposit=%s" % (deposit,))
+    #
+    # except sqlite3.Error as er:
+    #     logger.info("::::::get_session_deposit[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+    #
+    # finally:
+    #     if conn:
+    #         conn.close()
 
     return deposit
 
