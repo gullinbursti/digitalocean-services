@@ -111,6 +111,7 @@ class Customer(db.Model):
     fb_name = db.Column(CoerceUTF8)
     email = db.Column(db.String(255))
     referrer = db.Column(db.String(255))
+    trade_url = db.Column(db.String(255))
     paypal_name = db.Column(db.String(255))
     paypal_email = db.Column(db.String(255))
     bitcoin_addr = db.Column(db.String(255))
@@ -131,7 +132,7 @@ class Customer(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_name=%s, paypal_email=%s, social=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_name, self.paypal_email, self.social, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
+        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, trade_url=%s, paypal_name=%s, paypal_email=%s, social=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.trade_url, self.paypal_name, self.paypal_email, self.social, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
 
 
 class FBUser(db.Model):
@@ -1280,6 +1281,9 @@ def clear_entry_sequences(recipient_id):
 
     if customer.fb_name == "_{PENDING}_":
         customer.fb_name = None
+
+    if customer.trade_url == "_{PENDING_":
+        customer.trade_url = None
 
     if customer.social == "_{PENDING}_":
         customer.social = None
@@ -2579,6 +2583,81 @@ def send_app_card(recipient_id):
 
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
+def received_fb_payment(customer, fb_payment):
+    logger.info("received_fb_payment(customer=%s, fb_payment=%s)" % (customer, fb_payment))
+
+    db.session.add(Payment(customer.fb_psid, Const.PAYMENT_SOURCE_FB))
+    db.session.commit()
+
+    product = Product.query.filter(Product.id == customer.product_id).first()
+    if product is not None:
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        if storefront is not None:
+            customer.email = fb_payment['requested_user_info']['contact_email']
+            purchase = Purchase(customer.id, storefront.id, product.id, 4, fb_payment['payment_credential']['charge_id'])
+            purchase.claim_state = 1
+            db.session.add(purchase)
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `paid`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 4, purchase.charge_id, fb_payment['payment_credential']['fb_payment_id']))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                    purchase.id = cur.fetchone()['id']
+                    customer.purchase_id = purchase.id
+                    db.session.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
+            route_purchase_dm(customer.fb_psid, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.email))
+
+            add_points(customer.fb_psid, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
+
+            fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
+            slack_outbound(
+                channel_name="lemonade-purchases",
+                message_text="*{customer}* ({email}) just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via FB Payments.\nTrade URL:{trade_url}\nAlt social:{social}".format(customer=customer.fb_psid if fb_user is None else fb_user.full_name_utf8, email=customer.email, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8, trade_url=customer.trade_url or "N/A", social=customer.social or "N/A"),
+                webhook=Const.SLACK_PURCHASES_WEBHOOK
+            )
+
+            if customer.trade_url is None:
+                customer.trade_url = "_{PENDING}_"
+                db.session.commit()
+                send_text(customer.fb_psid, "Purchase complete. Type your Steam Trade URL and wait up to 8 hours.", cancel_entry_quick_reply())
+
+            else:
+                send_text(
+                    recipient_id=customer.fb_psid,
+                    message_text="Trade URL set to {trade_url}\nWould you like to change it?".format(trade_url=customer.trade_url),
+                    quick_replies=[
+                                      build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
+                                  ] + return_home_quick_reply("No Thanks"))
+
+                if customer.social is None:
+                    send_text(
+                        recipient_id=customer.fb_psid,
+                        message_text="Set your LINE / Kakao / other social media name?",
+                        quick_replies=[
+                                          build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
+                                      ] + return_home_quick_reply("Later"))
+
+                else:
+                    send_text(
+                        recipient_id=customer.fb_psid,
+                        message_text="Alternate social name set to {social}\nWould you like to change it?".format(social=customer.social),
+                        quick_replies=[
+                                          build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
+                                      ] + return_home_quick_reply("No Thanks"))
+
+
 
 def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     logger.info("received_payload(recipient_id=%s, payload=%s, type=%s)" % (recipient_id, payload, type))
@@ -2959,7 +3038,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif re.search(r'^DM_SEND_URL\-(\d+)$', payload) is not None:
         purchase_id = re.match(r'^DM_SEND_URL\-(?P<purchase_id>\d+)$', payload).group('purchase_id')
         purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
-        customer.paypal_name = "_{PENDING}_"
+        customer.trade_url = "_{PENDING}_"
         customer.purchase_id = purchase.id
         db.session.commit()
 
@@ -3374,6 +3453,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-giveaways-no")
         send_admin_carousel(recipient_id)
 
+    elif payload == Const.PB_PAYLOAD_TRADE_URL:
+        customer.trade_url = "_{PENDING}_"
+        db.session.commit()
+
+        send_text(recipient_id, "Enter your trade URL now.", return_home_quick_reply("Cancel"))
+
     elif payload == Const.PB_PAYLOAD_ALT_SOCIAL:
         customer.social = "_{PENDING}_"
         db.session.commit()
@@ -3441,7 +3526,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product = Product.query.filter(Product.id == purchase.product_id).first()
             storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
 
-            customer.paypal_name = "_{PENDING}_"
+            customer.trade_url = "_{PENDING}_"
             db.session.commit()
             send_text(recipient_id, "Type your trade URL here", cancel_entry_quick_reply())
 
@@ -3751,19 +3836,6 @@ def received_text_response(recipient_id, message_text):
             message_text = "{message_text}\n/{deeplink}".format(message_text=message_text, deeplink=product.name)
         send_text(recipient_id, message_text)
 
-
-    elif customer.social == "_{PENDING}_":
-        customer.social = message_text
-        db.session.commit()
-
-        send_text(
-            recipient_id=recipient_id,
-            message_text="Your alternate social has been set.",
-            quick_replies=main_menu_quick_replies(recipient_id))
-
-        slack_outbound(Const.SLACK_ORTHODOX_CHANNEL, "Received alt social from _{fb_psid}_!\n*{social}*".format(fb_psid=recipient_id, social=message_text))
-
-
     #-- show featured shops
     elif message_text == "/featured":
         send_featured_carousel(recipient_id)
@@ -3825,6 +3897,86 @@ def received_text_response(recipient_id, message_text):
 
     #-- all others
     else:
+        if customer.fb_name == "_{PENDING}_":
+            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
+            if purchase is not None:
+                customer.fb_name = message_text
+                db.session.commit()
+                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "Contact me directly: https://m.me/{fb_name}".format(fb_name=customer.fb_name))
+
+            return "OK", 200
+
+
+        #-- entered trade url
+        if customer.trade_url == "_{PENDING}_":
+            customer.trade_url = message_text
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `trade_url` = %s WHERE `id` = %s LIMIT 1;', (message_text, customer.id))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(recipient_id, "Trade URL set to: {trade_url}".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
+
+            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
+            if purchase is not None:
+                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "My trade URL: {trade_url}".format(trade_url=customer.trade_url))
+
+            if customer.social is None:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Set your LINE / Kakao / other social media name?",
+                    quick_replies=[
+                                      build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
+                                  ] + return_home_quick_reply("Later"))
+
+            else:
+                send_text(
+                    recipient_id=recipient_id,
+                    message_text="Alternate social name set to {social} Would you like to change it?".format(social=customer.social),
+                    quick_replies=[
+                                      build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
+                                  ] + return_home_quick_reply("No Thanks"))
+
+            return "OK", 200
+
+
+        #-- entered alt social contact
+        if customer.social == "_{PENDING}_":
+            customer.social = message_text
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `social_other` = %s WHERE `id` = %s LIMIT 1;', (message_text, customer.id))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(recipient_id, "Alternate social name set to {social}".format(social=message_text))
+            send_customer_carousel(recipient_id, purchase.product_id)
+            slack_outbound(Const.SLACK_ORTHODOX_CHANNEL, "Received alt social from _{fb_psid}_!\n*{social}*".format(fb_psid=recipient_id, social=message_text))
+
+            return "OK", 200
+
+
         #-- entering paypal payout info
         if customer.paypal_email == "_{PENDING}_":
             if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
@@ -4004,53 +4156,6 @@ def received_text_response(recipient_id, message_text):
 
             return "OK", 200
 
-        if customer.fb_name == "_{PENDING}_":
-            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
-            if purchase is not None:
-                customer.fb_name = message_text
-                db.session.commit()
-                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "Contact me directly: https://m.me/{fb_name}".format(fb_name=customer.fb_name))
-
-            return "OK", 200
-
-        if customer.paypal_name == "_{PENDING}_":
-            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
-
-            if purchase is not None:
-                customer.paypal_name = message_text
-                db.session.commit()
-                route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_SEND, "My trade URL: {paypal_name}".format(paypal_name=customer.paypal_name))
-                send_text(recipient_id, "Trade URL set to: {paypal_name}".format(paypal_name=customer.paypal_name), main_menu_quick_replies(recipient_id))
-                send_text(
-                    recipient_id=recipient_id,
-                    message_text="Set your LINE / Kakao / other social media name?",
-                    quick_replies=[
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
-                    ] + return_home_quick_reply("Later"))
-
-            return "OK", 200
-
-        if customer.social == "_{PENDING}_":
-            customer.social = message_text
-            db.session.commit()
-
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('UPDATE `users` SET `social_other` = %s WHERE `id` = %s LIMIT 1;', (message_text, customer.id))
-                    conn.commit()
-
-            except mysql.Error, e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
-            send_text(recipient_id, "Alternate social name set to {social}".format(social=message_text))
-            send_customer_carousel(recipient_id, purchase.product_id)
-            return "OK", 200
 
         #-- has active storefront
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
@@ -4394,71 +4499,11 @@ def fbbot():
                     queue_position(customer.fb_psid)
 
 
-
-                # #-- lockout if subscriber count > max
-                # if storefront is not None and product is not None:
-                #     subscriptions_total = db.session.query(Subscription).filter((Subscription.storefront_id == storefront.id) | (Subscription.product_id == product.id)).count()
-                #     if Const.SUBSCRIBERS_MAX_FREE_TIER - subscriptions_total <= 0:
-                #         product = Product.query.filter(Product.id == 1).first()
-                #         if product is not None:
-                #             customer.product_id = product.id
-                #             db.session.commit()
-                #
-                #             send_text(customer.fb_psid, "You have reached {max_subscriptions} subscribers and your shop is locked. Please select a payment method. taps.io/lmon8".format(max_subscriptions=Const.SUBSCRIBERS_MAX_FREE_TIER))
-                #             send_storefront_card(customer.fb_psid, product.storefront_id, Const.CARD_TYPE_STOREFRONT_ACTIVATE_PRO)
-                #         return "OK", 200
-
-
-
+                #-- payment response
                 if 'payment' in messaging_event:
                     logger.info("-=- PAYMENT -=- (%s)" % (messaging_event['payment']))
-
-                    product = Product.query.filter(Product.id == customer.product_id).first()
-                    if product is not None:
-                        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-                        if storefront is not None:
-                            customer.email = messaging_event['payment']['requested_user_info']['contact_email']
-                            purchase = Purchase(customer.id, storefront.id, product.id, 4, messaging_event['payment']['payment_credential']['charge_id'])
-                            purchase.claim_state = 1
-                            db.session.add(purchase)
-
-                            try:
-                                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                                with conn:
-                                    cur = conn.cursor(mysql.cursors.DictCursor)
-                                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `paid`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 4, purchase.charge_id, messaging_event['payment']['payment_credential']['fb_payment_id']))
-                                    conn.commit()
-                                    cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
-                                    purchase.id = cur.fetchone()['id']
-                                    customer.purchase_id = purchase.id
-                                    db.session.commit()
-
-                            except mysql.Error, e:
-                                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-                            finally:
-                                if conn:
-                                    conn.close()
-
-                            send_image(storefront.fb_psid, Const.IMAGE_URL_PRODUCT_PURCHASED)
-                            route_purchase_dm(customer.fb_psid, purchase, Const.DM_ACTION_PURCHASE, "Purchase complete for {product_name} at {pacific_time}.\nTo complete this order send the customer ({customer_email}) the item now.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0"), customer_email=customer.email))
-
-                            add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
-
-                            fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
-                            slack_outbound(
-                                channel_name="lemonade-purchases",
-                                message_text="*{customer}* just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via FB Payments.".format(customer=customer.fb_psid if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8),
-                                webhook=Const.SLACK_PURCHASES_WEBHOOK
-                            )
-
-                            customer.paypal_name = "_{PENDING}_"
-                            db.session.commit()
-                            send_text(customer.fb_psid, "Purchase complete. Type your Steam Trade URL and wait up to 8 hours.", cancel_entry_quick_reply())
-
+                    received_fb_payment(customer, messaging_event['payment'])
                     return "OK", 200
-
-
 
                 #-- postback response w/ payload
                 if 'postback' in messaging_event:
@@ -4615,7 +4660,7 @@ def paypal():
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
 
-            customer.paypal_name = "_{PENDING}_"
+            customer.trade_url = "_{PENDING}_"
             db.session.commit()
             send_text(customer.fb_psid, "Purchase complete. Type your Steam Trade URL and wait up to 8 hours.", cancel_entry_quick_reply())
 
