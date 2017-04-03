@@ -379,6 +379,7 @@ def coin_flip_results(sender_id, item_id=None):
 
     if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
+        record_coin_flip(sender_id, item_id, True)
 
         total_wins += 1
         full_name, f_name, l_name = get_session_name(sender_id)
@@ -453,6 +454,8 @@ def coin_flip_results(sender_id, item_id=None):
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
+        record_coin_flip(sender_id, item_id, False)
+
         # send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
             recipient_id=sender_id,
@@ -463,8 +466,36 @@ def coin_flip_results(sender_id, item_id=None):
 
 
 
-def check_lmon8_url(sender_id, deeplink=None):
-    logger.info("check_lmon8_url(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
+def record_coin_flip(sender_id, item_id, won):
+    logger.info("record_coin_flip(sender_id=%s, item_id=%s, won=%s)" % (sender_id, item_id, won))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('INSERT INTO flips (id, fb_psid, item_id, won, added) VALUES (NULL, ?, ?, ?, ?);', (sender_id, item_id, 1 if won is True else 0, int(time.time())))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::record_coin_flip[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('INSERT INTO `fb_flips` (`id`, `fb_psid`, `item_id`, `won`, `added`) VALUES (NULL, %s, %s, %s, NOW());', (sender_id, item_id, 1 if won is True else 0))
+            conn.commit()
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
 
 
 
@@ -624,7 +655,7 @@ def get_session_deposit(sender_id, interval=24):
             cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute('SELECT SUM(`amount`) AS `tot` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, interval))
             row = cur.fetchone()
-            deposit = row['tot']
+            deposit = row['tot'] or 0
 
         logger.info("deposit=%s" % (deposit,))
 
