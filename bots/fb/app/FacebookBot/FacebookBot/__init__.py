@@ -1127,8 +1127,7 @@ def purchase_product(recipient_id, source):
                             image_url=product.image_url,
                             buttons=[
                                 build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
-                            ],
-                            quick_replies=cancel_entry_quick_reply()
+                            ]
                         )))
 
                         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase made for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
@@ -2352,7 +2351,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                         image_url=product.image_url,
                         item_url=product.messenger_url,
                         buttons=[
-                            build_button(Const.CARD_BTN_PAYMENT, caption="Pay via FB", price=product.price)
+                            build_button(Const.CARD_BTN_PAYMENT, caption="Buy Now", price=product.price)
                         ]
                     )
                 )
@@ -2364,7 +2363,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                         image_url=product.image_url,
                         item_url=product.messenger_url,
                         buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Pay via PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
+                            build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
                         ]
                 ))
 
@@ -2624,7 +2623,7 @@ def received_fb_payment(customer, fb_payment):
             fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
             slack_outbound(
                 channel_name="lemonade-purchases",
-                message_text="*{customer}* ({email}) just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via FB Payments.\nTrade URL:{trade_url}\nAlt social:{social}".format(customer=customer.fb_psid if fb_user is None else fb_user.full_name_utf8, email=customer.email, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8, trade_url=customer.trade_url or "N/A", social=customer.social or "N/A"),
+                message_text="*{customer}* ({email}) just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via FB Payments.\nTrade URL: {trade_url}\nAlt social: {social}".format(customer=customer.fb_psid if fb_user is None else fb_user.full_name_utf8, email=customer.email, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8, trade_url=customer.trade_url or "N/A", social=customer.social or "N/A"),
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
 
@@ -3186,16 +3185,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 webhook=Const.SLACK_ORTHODOX_WEBHOOK,
                 message_text="*{fb_name}* just created a shop named _{storefront_name}_.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, storefront_name=storefront.display_name_utf8),
                 image_url=storefront.logo_url
-            )
-
-            send_text(
-                recipient_id=recipient_id,
-                message_text="Great! You have created {storefront_name}. Do you want to add your PayPal or Bitcoin to receive payment?".format(storefront_name=storefront.display_name_utf8),
-                quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Add PayPal", Const.PB_PAYLOAD_PAYOUT_PAYPAL),
-                    # build_quick_reply(Const.KWIK_BTN_TEXT, "Add Bitcoin", Const.PB_PAYLOAD_PAYOUT_BITCOIN),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Not Now", Const.PB_PAYLOAD_MAIN_MENU)
-                ]
             )
 
     elif payload == Const.PB_PAYLOAD_REDO_STOREFRONT:
