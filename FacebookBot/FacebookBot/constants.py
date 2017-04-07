@@ -28,6 +28,9 @@ class Const(Constants):
     GA_TRACKING_ID = "UA-79705534-3"
     GA_TRACKING_URL = "http://www.google-analytics.com/collect"
 
+    MAX_INTERVAL_WINS = 3
+    MAX_LOSSING_STREAK = 7
+
     SESSION_STATE_UNKNOWN                 = -1
     SESSION_STATE_NEW_USER                = 0
     SESSION_STATE_HOME                    = 1

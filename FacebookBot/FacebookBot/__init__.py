@@ -4,10 +4,12 @@
 
 import hashlib
 import json
+import locale
 import logging
 import os
 import random
 import re
+import statistics
 import sqlite3
 import sys
 import time
@@ -26,7 +28,7 @@ from constants import Const
 
 reload(sys)
 sys.setdefaultencoding('utf8')
-
+locale.setlocale(locale.LC_ALL, '')
 
 app = Flask(__name__)
 
@@ -213,16 +215,19 @@ def pay_wall_carousel(sender_id, amount=3):
     logger.info("pay_wall_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
     elements = []
-    for i in range(amount):
+    for i in range(amount * 2):
         elements.append(coin_flip_element(sender_id, True, True))
 
-    if None in elements:
+    elements = [i for i in elements if i is not None]
+
+    # if None in elements:
+    if len([x for x in elements if x is not None]) == 0:
         send_text(sender_id, "No items are available right now, try again later")
         return
 
     send_carousel(
         recipient_id=sender_id,
-        elements=elements,
+        elements=random.sample(elements, min(amount, len(elements))),
         quick_replies=home_quick_replies()
     )
 
@@ -264,13 +269,25 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
 
     deposit = get_session_deposit(sender_id)
 
+    if pay_wall or random.uniform(1, 100) < 60:
+        min_deposit = deposit
+        max_deposit = deposit + 2
+
+    else:
+        min_deposit = deposit - 1
+        max_deposit = deposit
+
     element = None
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `max_buy`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND (`type` = 1 OR `type` = 2) AND `min_sell` > %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ((0.5) * deposit if pay_wall is False else (deposit + 1) * 2,))
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(min_deposit), price_for_deposit(max_deposit)))
             row = cur.fetchone()
+
+            if row is None:
+                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(deposit - 1),))
+                row = cur.fetchone()
 
             if row is not None:
                 item_id = row['id']
@@ -320,6 +337,40 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
     return element
 
 
+def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
+    logger.info("coin_flip_prep(sender_id=%s, deposit=%s, item_id=%s, interval=%s)" % (sender_id, deposit, item_id, interval))
+
+    item = get_item_details(item_id)
+    total_wins = 0
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, interval))
+            row = cur.fetchone()
+            total_wins = row['tot'] or 0
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    coin_flip(total_wins, min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, 0.00)
+
+
+def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01):
+    # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s)" % (wins, losses, deposit, item_cost))
+
+    probility = (losses * (1.0 / (Const.MAX_LOSSING_STREAK ** 2))) + statistics.stdev([min(max(random.expovariate(1.0 / float(wins * 3.0) if wins >= 1 else float(3.0)), 0), 1) for i in range(int(random.gauss(21, 3 + (1 / float(3)))))]) if deposit >= deposit_amount_for_price(item_cost) else 0.00
+    flipper = random.uniform(0, 1)
+    outcome = probility * (1.25 if deposit >= 1 else 1) >= flipper
+    logger.info("[:::::::] wins=%02d, losses=%02d, dep=$%05.2f, cost=$%05.2f [::::] FLIP-CHANCE --> %5.2f%% // %.2f -[%s]-" % (wins, losses, deposit, item_cost, probility * 100, flipper, ("%s" % (outcome,)[0])))
+
+    return outcome
+
+
 def coin_flip_results(sender_id, item_id=None):
     logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
@@ -332,8 +383,6 @@ def coin_flip_results(sender_id, item_id=None):
 
     total_wins = 1
     flip_item = None
-    win_boost = 1
-
     set_session_bonus(sender_id)
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -344,9 +393,6 @@ def coin_flip_results(sender_id, item_id=None):
             row = cur.fetchone()
             if row is not None:
                 total_wins = row['tot']
-
-            if has_paid_flip(sender_id, 16):
-                win_boost -= 0.5
 
             cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `trade_url` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
@@ -361,7 +407,6 @@ def coin_flip_results(sender_id, item_id=None):
                     'claim_id'  : None,
                     'claim_url' : None,
                     'trade_url' : row['trade_url'],
-                    'win_boost' : win_boost,
                     'pin_code'  : hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
                 }
 
@@ -377,7 +422,9 @@ def coin_flip_results(sender_id, item_id=None):
         if conn:
             conn.close()
 
-    if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, flip_item['win_boost']) <= (1 / float(5)) * (abs(1 - (total_wins * 0.01))):
+
+    if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True:# or sender_id in Const.ADMIN_FB_PSID:
+    # if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, 1) <= (1 / float(4 if get_session_deposit(sender_id) else 5)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
         record_coin_flip(sender_id, item_id, True)
 
@@ -398,9 +445,10 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
+
                 if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
-                    cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['name']))
 
                 if flip_item['type'] == 3:
                     cur.execute('UPDATE `bonus_codes` SET `counter` = `counter` - 1 WHERE `code` = %s LIMIT 1;', (get_session_bonus(sender_id),))
@@ -455,6 +503,7 @@ def coin_flip_results(sender_id, item_id=None):
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['name'])
         record_coin_flip(sender_id, item_id, False)
+        inc_session_loss_streak(sender_id)
 
         # send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
         send_text(
@@ -644,70 +693,75 @@ def set_session_item(sender_id, item_id=0):
             conn.close()
 
 
-def get_session_deposit(sender_id, interval=24):
-    logger.info("get_session_deposit(sender_id=%s, interval=%s)" % (sender_id, interval))
+def get_session_deposit(sender_id, interval=24, remote=False):
+    logger.info("get_session_deposit(sender_id=%s, interval=%s, remote=%s)" % (sender_id, interval, remote))
 
     deposit = 0
 
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT SUM(`amount`) AS `tot` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, interval))
+    if remote is True:
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT SUM(`amount`) AS `tot` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, interval))
+                row = cur.fetchone()
+                deposit = row['tot'] or 0
+
+            logger.info("deposit=%s" % (deposit,))
+
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+    else:
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('SELECT deposit FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
             row = cur.fetchone()
-            deposit = row['tot'] or 0
 
-        logger.info("deposit=%s" % (deposit,))
+            if row is not None:
+                deposit = row['deposit']
 
+            logger.info("deposit=%s" % (deposit,))
 
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+        except sqlite3.Error as er:
+            logger.info("::::::get_session_deposit[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
 
-    finally:
-        if conn:
-            conn.close()
+        finally:
+            if conn:
+                conn.close()
 
-
-
-    #
-    # conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    # try:
-    #     conn.row_factory = sqlite3.Row
-    #     cur = conn.cursor()
-    #     cur.execute('SELECT deposit FROM sessions WHERE fb_psid = ? LIMIT 1;', (sender_id,))
-    #     row = cur.fetchone()
-    #
-    #     if row is not None:
-    #         deposit = row['deposit']
-    #
-    #     logger.info("deposit=%s" % (deposit,))
-    #
-    # except sqlite3.Error as er:
-    #     logger.info("::::::get_session_deposit[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
-    #
-    # finally:
-    #     if conn:
-    #         conn.close()
-
-    return deposit
+    return deposit if sender_id not in Const.ADMIN_FB_PSID else 2
 
 
-def inc_session_deposit(sender_id, amount=1):
-    logger.info("inc_session_deposit(sender_id=%s, amount=%s)" % (sender_id, amount))
+def set_session_deposit(sender_id, amount=1):
+    logger.info("set_session_deposit(sender_id=%s, amount=%s)" % (sender_id, amount))
 
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute('UPDATE sessions SET deposit = deposit + ? WHERE fb_psid = ?;', (amount, sender_id))
+        cur.execute('UPDATE sessions SET deposit = ? WHERE fb_psid = ?;', (amount, sender_id))
         conn.commit()
 
     except sqlite3.Error as er:
-        logger.info("::::::inc_session_deposit[cur.execute] sqlite3.Error - %s" % (er.message,))
+        logger.info("::::::set_session_deposit[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
             conn.close()
+
+
+def sync_session_deposit(sender_id):
+    logger.info("sync_session_deposit(sender_id=%s)" % (sender_id,))
+    set_session_deposit(sender_id, get_session_deposit(sender_id, 24, True))
 
 
 def get_session_bonus(sender_id):
@@ -856,7 +910,7 @@ def get_item_details(item_id):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `quantity`, `max_buy`, `min_sell` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `quantity`, `min_sell` FROM `flip_inventory` WHERE `id` = %s LIMIT 1;', (item_id,))
             row = cur.fetchone()
             if row is not None:
                 item = row
@@ -869,6 +923,53 @@ def get_item_details(item_id):
             conn.close()
 
     return item
+
+
+def get_session_loss_streak(sender_id):
+    logger.info("get_session_loss_streak(sender_id=%s)" % (sender_id,))
+
+    streak = 0
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT flips FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+        streak = row['flips'] or 0
+        logger.info("streak=%s" % (streak,))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_loss_streak[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+        return streak
+
+
+def inc_session_loss_streak(sender_id, amt=1):
+    logger.info("set_session_loss_streak(sender_id=%s, amt=%s)" % (sender_id, amt))
+    set_session_loss_streak(sender_id, get_session_loss_streak(sender_id) + amt)
+
+
+def set_session_loss_streak(sender_id, streak=0):
+    logger.info("set_session_loss_streak(sender_id=%s, streak=%s)" % (sender_id, streak))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET flips = ? WHERE fb_psid = ?;', (streak, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_loss_streak[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
 
 
 def wins_last_day(sender_id):
@@ -895,7 +996,7 @@ def wins_last_day(sender_id):
 
 
 def deposit_amount_for_price(price):
-    logger.info("deposit_amount_for_price(price=%s)" % (price,))
+    # logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
     amount = 0
     if price < 1.50:
@@ -916,26 +1017,29 @@ def deposit_amount_for_price(price):
     return amount
 
 
-def has_paid_flip(sender_id, hours=24):
-    logger.info("has_paid_flip(sender_id=%s, hours=%s)" % (sender_id, hours))
+def price_for_deposit(deposit):
+    logger.info("price_for_deposit(deposit=%s)" % (deposit,))
 
-    has_paid = False
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `fb_purchases` WHERE `fb_psid` = %s AND `added` > DATE_SUB(NOW(), INTERVAL %s HOUR);', (sender_id, hours))
-            has_paid = cur.fetchone() is not None
+    if deposit >= 0 and deposit < 1:
+        price = 1.50
 
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+    elif deposit >= 1 and deposit < 2:
+        price = 4.50
 
-    finally:
-        if conn:
-            conn.close()
+    elif deposit >= 2 and deposit < 3:
+        price = 6.50
 
-    logger.info("has_paid=%s" % has_paid)
-    return has_paid
+    elif deposit >= 3 and deposit < 6:
+        price = 9.50
+
+    elif deposit >= 5 and deposit < 15:
+        price = 15.00
+
+    else:
+        price = 1.50
+
+    return price
+
 
 
 def valid_deeplink_code(sender_id, deeplink=None):
@@ -1066,7 +1170,7 @@ def purchase_item(sender_id, payment):
 
 
     if purchase_id != 0:
-        inc_session_deposit(sender_id, amount)
+        set_session_deposit(sender_id, amount)
         set_session_purchase(sender_id, purchase_id)
         flip_id = get_session_item(sender_id)
 
@@ -1163,7 +1267,7 @@ def webook():
 
                 # -- insert to log
                 write_message_log(sender_id, message_id, { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
-
+                sync_session_deposit(sender_id)
 
                 if 'payment' in messaging_event: # payment result
                     logger.info("-=- PAYMENT -=-")
@@ -1187,6 +1291,17 @@ def webook():
 
                 #-- existing
                 elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+
+                    # if sender_id in Const.ADMIN_FB_PSID:
+                    #     for losses in range(Const.MAX_LOSSING_STREAK + 1):
+                    #         for wins in range(Const.MAX_INTERVAL_WINS + 1):
+                    #             for cost in [0.11 + random.uniform(0.01, 0.10), 0.43 + random.uniform(0.2, 0.13), 0.85 + random.uniform(0.3, 0.11), 1.23 + random.uniform(0.06, 0.15), 2.22 + random.uniform(0.07, 0.10), 3.60 + random.uniform(0.14, 0.18), 4.20 + random.uniform(0.16, 0.19), 5.00 + random.uniform(0.25, 0.30), 7.32 + random.uniform(0.23, 0.57), 9.69 + random.uniform(0.46, 0.91), 13.71 + random.uniform(0.93, 2.10)]:
+                    #                 for deposit in [0, 1, 2, 3, 5]:
+                    #                     if deposit < deposit_amount_for_price(cost):
+                    #                         continue
+                    #
+                    #                     coin_flip(wins, losses, deposit, cost)
+
                     # ------- POSTBACK BUTTON MESSAGE
                     if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                         logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
@@ -1238,7 +1353,7 @@ def paypal():
         fb_psid = request.form['fb_psid']
         amount = float(request.form['amount'])
         logger.info("fb_psid=%s, amount=%s" % (fb_psid, amount))
-        inc_session_deposit(fb_psid, int(round(amount)))
+        set_session_deposit(fb_psid, int(round(amount)))
 
         full_name, f_name, l_name = get_session_name(fb_psid)
 
@@ -1312,7 +1427,7 @@ def handle_payload(sender_id, payload_type, payload):
 
 
     elif payload == "WELCOME_MESSAGE":
-        logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
         # send_tracker("signup-fb", sender_id, "")
         default_carousel(sender_id)
 
@@ -1331,14 +1446,14 @@ def handle_payload(sender_id, payload_type, payload):
             logger.info("ITEM --> %s", item)
 
             if deposit_amount_for_price(item['min_sell']) < 1:
-                if wins_last_day(sender_id) < 3 or has_paid_flip(sender_id, 24):
+                if wins_last_day(sender_id) < Const.MAX_INTERVAL_WINS or get_session_deposit(sender_id) > 0:
                     coin_flip_results(sender_id, item_id)
 
                 else:
                     send_pay_wall(sender_id, item)
 
             else:
-                if has_paid_flip(sender_id, 24) and get_session_deposit(sender_id) >= deposit_amount_for_price(item['min_sell']):
+                if get_session_deposit(sender_id) >= deposit_amount_for_price(item['min_sell']):
                     send_tracker(fb_psid=sender_id, category="bonus-flip", label=get_session_bonus(sender_id))
                     coin_flip_results(sender_id, item_id)
 
@@ -1508,7 +1623,7 @@ def recieved_text_reply(sender_id, message_text):
     logger.info("recieved_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
 
     if message_text.lower() in Const.OPT_OUT_REPLIES:
-        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime("%Y-%m-%d %H:%M:%S")))
+        logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime('%Y-%m-%d %H:%M:%S')))
         toggle_opt_out(sender_id, True)
 
     elif message_text.lower() in Const.MAIN_MENU_REPLIES:
@@ -1530,7 +1645,7 @@ def recieved_text_reply(sender_id, message_text):
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
-        inc_session_deposit(sender_id, -amount)
+        set_session_deposit(sender_id, -amount)
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
