@@ -20,36 +20,51 @@ DB_PASS = "f4zeHUga.age"
 
 
 def fetch(profile_id=76561198277603515):
-    #print("fetch(profile_id={profile_id})".format(profile_id=profile_id))
+    # print("fetch(profile_id={profile_id})".format(profile_id=profile_id))
 
-    #-- current inventory
-    response = requests.get("http://steamcommunity.com/inventory/76561198277603515/730/2", data=json.dumps({ 'l' : "english" }))
+    # -- current inventory
+    response = requests.get("http://steamcommunity.com/inventory/76561198277603515/730/2", data=json.dumps({'l': "english"}))
     desc_obj = response.json()['descriptions']
     print("TOTAL: %d" % (len(response.json()['assets'])))
 
-    #-- build asset info
+    # -- build asset info
     inventory = {}
-    for asset in response.json()['descriptions']:
+
+    for asset in response.json()['descriptions'].shuffle():
         print("Asset (%03d/%03d) - %s" % ((len(inventory) + 1), len(desc_obj), asset['market_name'].encode('utf-8')))
 
-        #if not any(obj['name'] == asset['market_name'].encode('utf-8') for obj in desc_obj):
+        # if not any(obj['name'] == asset['market_name'].encode('utf-8') for obj in desc_obj):
         if asset['market_name'].encode('utf-8') not in [value['name'] for key, value in inventory.items()]:
-            #-- get max buy / min sell price
+            # conn = mdb.connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+            # try:
+            #     with conn:
+            #         cur = conn.cursor(mdb.cursors.DictCursor)
+            #         cur.execute('SET NAMES utf8;')
+            #         cur.execute('SET CHARACTER SET utf8;');
+            #         cur.execute('SELECT `max_buy`, `min_sell` FROM `flip_inventory` WHERE `name` = %s LIMIT 1;', (asset['market_name'].encode('utf-8'),))
+            #         row = cur.fetchone()
+            #
+            # except mdb.Error, e:
+            #     print("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+
+            # -- get max buy / min sell price
             r = requests.get("http://steamcommunity.com/market/listings/730/%s" % (quote(asset['market_name'].encode('utf-8'))))
 
-            #-- skip if error
+
+            # -- skip if error
             soup = BeautifulSoup(r.text, 'html.parser')
             if soup.h2 is not None and re.search(r'^Error$', soup.h2.string) is not None:
                 print("Error getting %s - %s" % (r.request.url, soup.h3.string))
                 continue
 
-            #-- check for id
+            # -- check for id
             if re.search(r'Market_LoadOrderSpread\(\ (\d+)\ \)\;\t', r.text) is not None:
                 market_id = int(re.findall(r'Market_LoadOrderSpread\(\ (\d+)\ \)\;\t', r.text)[0])
                 params = {
                     'query'       : "",
                     'start'       : 0,
-                    'count'       : 10,
+                    'count'       : 5,
                     'country'     : "US",
                     'language'    : "english",
                     'currency'    : 1,
@@ -59,12 +74,12 @@ def fetch(profile_id=76561198277603515):
                 max_buy = int(r.json()['highest_buy_order'] or 0.00) * 0.01
                 min_sell = int(r.json()['lowest_sell_order'] or 0.00) * 0.01
 
-        #-- copy prev
+        # -- copy prev
         else:
             min_sell = [value['min_sell'] for key, value in inventory.items() if value['name'] == asset['market_name'].encode('utf-8')][0]
             max_buy = [value['max_buy'] for key, value in inventory.items() if value['name'] == asset['market_name'].encode('utf-8')][0]
 
-        #-- build asset obj
+        # -- build asset obj
         key = "%s_%s" % (asset['classid'], asset['instanceid'])
         inventory[key] = {
             'app_id'      : asset['appid'],
@@ -82,54 +97,52 @@ def fetch(profile_id=76561198277603515):
             'tradable'    : asset['tradable']
         }
 
-    #-- loop thru them
+    # -- loop thru them
     for asset in response.json()['assets']:
         key = "%s_%s" % (asset['classid'], asset['instanceid'])
         if key in inventory:
-
-            #-- assign asset id
+            # -- assign asset id
             inventory[key]['asset_id'] = asset['assetid'].encode('utf-8')
 
-            #-- inc the quantity
+            # -- inc the quantity
             inventory[key]['quantity'] += 1
 
     return inventory
 
 
 def update_db(inventory):
-    #print("update_db(inventory={inventory})".format(inventory=inventory))
+    # print("update_db(inventory={inventory})".format(inventory=inventory))
 
-    #-- output current item quantities
+    # -- output current item quantities
     for key, value in inventory.iteritems():
         print("%s (%d)" % (value['name'], value['quantity']))
-
 
     conn = mdb.connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
 
-            #-- loop thru
+            # -- loop thru
             for key, value in inventory.iteritems():
                 cur.execute('SET NAMES utf8;')
                 cur.execute('SET CHARACTER SET utf8;');
                 cur.execute('SELECT `asset_id` FROM `flip_inventory` WHERE `asset_id` = %s LIMIT 1;', (value['asset_id'],))
                 row = cur.fetchone()
 
-                #-- add new entry
+                # -- add new entry
                 if row is None:
                     if value['quantity'] > 0:
                         cur.execute('INSERT IGNORE INTO `flip_inventory` (`id`, `name`, `description`, `asset_id`, `app_id`, `class_id`, `instance_id`, `market_id`, `icon_url`, `image_url`, `quantity`, `max_buy`, `min_sell`, `tradable`, `updated`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (value['name'], value['description'], value['asset_id'], value['app_id'], value['class_id'], value['instance_id'], value['market_id'], value['icon_url'], value['image_url'], value['quantity'], value['max_buy'], value['min_sell'], value['tradable']))
                         conn.commit()
 
-                #-- update existing quant / prices / trade flag
+                # -- update existing quant / prices / trade flag
                 else:
                     cur.execute('UPDATE `flip_inventory` SET `quantity` = %s, `max_buy` = %s, `min_sell` = %s, `tradable` = %s, `updated` = UTC_TIMESTAMP() WHERE `asset_id` = %s LIMIT 1;', (value['quantity'], value['max_buy'], value['min_sell'], value['tradable'], value['asset_id']))
                     conn.commit()
 
-                #-- update types for certain criteria
-                #cur.execute('UPDATE `flip_inventory` SET `type` = 3, `tradable` = 0 WHERE `name` LIKE "AK%Frontside%" AND `type` = 1;')
-                cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `min_sell` >= 1.50 AND `type` = 1;')
+                # -- update types for certain criteria
+                # cur.execute('UPDATE `flip_inventory` SET `type` = 3, `tradable` = 0 WHERE `name` LIKE "AK%Frontside%" AND `type` = 1;')
+                # cur.execute('UPDATE `flip_inventory` SET `type` = 2, `tradable` = 0 WHERE `min_sell` >= 1.50 AND `type` = 1;')
                 cur.execute('UPDATE `flip_inventory` SET `type` = 10, `tradable` = 0 WHERE `min_sell` > 50.00 AND `type` = 1;')
                 conn.commit()
 
@@ -144,5 +157,5 @@ def update_db(inventory):
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
 
-#-- get latest inventory
+# -- get latest inventory
 update_db(fetch())
