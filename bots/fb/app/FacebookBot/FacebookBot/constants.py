@@ -223,6 +223,7 @@ class Const(Constants):
     RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
+    RESERVED_MODERATOR_REPLIES = "mod"
     RESERVED_GIAVEAWAY_REPLIES = "giveaway"
     RESERVED_PROTECTED_REPLIES = "4x78"
 

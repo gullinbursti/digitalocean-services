@@ -892,7 +892,7 @@ def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
 
     send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif")
-    time.sleep(3)
+    time.sleep(5)
 
     if random.uniform(0, 100) < 5:# or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
@@ -954,7 +954,7 @@ def view_product(recipient_id, product, welcome_entry=False):
 
             send_text(
                 recipient_id=recipient_id,
-                message_text="Welcome to {product_name} shop on Facebook Messenger.\n{product_rating} star{plural} | {points} points".format(product_name=product.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
+                message_text="Welcome to {product_name} shop on Facebook Messenger.\n{product_rating} star{plural} | {points} points".format(product_name=product.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format('%d', customer.points, grouping=True))
                 #message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
             )
 
@@ -1569,17 +1569,23 @@ def main_menu_quick_replies(fb_psid):
 
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip Shop", payload=Const.PB_PAYLOAD_RANDOM_STOREFRONT),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip", payload=Const.PB_PAYLOAD_RANDOM_STOREFRONT),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT if product is not None else Const.PB_PAYLOAD_SHARE_APP)
     ]
 
+
     if product is not None:
-        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Replace Item", payload=Const.PB_PAYLOAD_DELETE_PRODUCT))
+        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Sales", payload=Const.PB_PAYLOAD_PRODUCT_PURCHASES))
+        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Orders", payload=Const.PB_PAYLOAD_PRODUCTS_PURCHASED))
 
-    if storefront is not None:
-        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Replace Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT))
 
-    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share Shop", payload=Const.PB_PAYLOAD_SHARE_PRODUCT if product is not None else Const.PB_PAYLOAD_SHARE_APP))
+    # if product is not None:
+    #     quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Replace Item", payload=Const.PB_PAYLOAD_DELETE_PRODUCT))
+    # 
+    # if storefront is not None:
+    #     quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Replace Shop", payload=Const.PB_PAYLOAD_DELETE_STOREFRONT))
 
+    
     if product is not None:
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=product.messenger_url, payload=Const.PB_PAYLOAD_PREBOT_URL))
 
@@ -2121,7 +2127,7 @@ def send_admin_carousel(recipient_id):
                 build_card_element(
                     title="Share {product_name} on Messenger".format(product_name=product.display_name_utf8),
                     subtitle="Share now with your friends on Messenger",
-                    image_url=storefront.logo_url,
+                    image_url=product.image_url,
                     buttons=[
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger".format(product_name=product.display_name_utf8), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                     ]
@@ -2443,7 +2449,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                     image_url=product.image_url,
                     buttons=[
                         #build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="https://paypal.me/{paypal_name}/{price:.2f}".format(paypal_name=storefront_owner.paypal_name, price=product.price))
-                        build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
+                        build_button(Const.CARD_BTN_URL_TALL, caption="Pay now with PayPal", url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
                     ],
                     quick_replies=cancel_entry_quick_reply()
                 )
@@ -2716,9 +2722,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif re.search(r'^AUTO_GEN_STOREFRONT-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
         if storefront is not None and product is not None:
-            send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
-            send_text(recipient_id, product.messenger_url)
-            send_text(recipient_id, "Share your auto shop with 50 Friends.\n\nSell your first item & take a screenshot.\n\nEach time you sell an item you will be rewarded with same or even higher price than the one you sold.\n\nSupport: twitter.com/bryantapawan24")
+            send_text(recipient_id, "{storefront_name} created.\n\nPlease share your shop now.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
+            send_text(recipient_id, "To claim your reward you must complete the following.\n\n1. Share your shop with 20 friends\n\n2. Sell a item or sticker\n\n3. You win the same item free\n\nSupport: @gamebotsc")
             send_admin_carousel(recipient_id)
 
         else:
@@ -2743,7 +2748,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         db.session.add(storefront)
         db.session.commit()
 
-        send_text(recipient_id, "Give your Shopbot a name.", cancel_entry_quick_reply())
+        send_text(recipient_id, "Give your Lemonade shop a name", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_DELETE_STOREFRONT:
         # send_tracker(fb_psid=recipient_id, category="button-delete-shop")
@@ -2809,7 +2814,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-delete-item")
 
         for product in Product.query.filter(Product.fb_psid == recipient_id):
-            send_text(recipient_id, "Removing your existing product \"{product_name}\"...".format(product_name=product.display_name_utf8))
+            send_text(recipient_id, "Removing your existing item \"{product_name}\"...".format(product_name=product.display_name_utf8))
 
             try:
                 Subscription.query.filter(Subscription.product_id == product.id).delete()
@@ -3248,7 +3253,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
             send_text(
                 recipient_id=recipient_id,
-                message_text="Enter the URL of this product from your existing website",
+                message_text="Enter the URL of this item from your existing website",
                 quick_replies=cancel_entry_quick_reply()
             )
 
@@ -3277,7 +3282,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product.creation_state = 6
             db.session.commit()
 
-            send_text(recipient_id, "Here's what your product will look like:")
+            send_text(recipient_id, "Here's what your item will look like:")
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
@@ -3325,39 +3330,13 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_admin_carousel(recipient_id)
 
             # send_image(recipient_id, Const.IMAGE_URL_PRODUCT_CREATED)
+            send_text(recipient_id, "You have successfully added {product_name} to {storefront_name}.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8))
+            send_text(recipient_id, "Tap Share on Messenger Now to share with friends.")
             send_text(
                 recipient_id=recipient_id,
-                message_text="You have successfully added {product_name} to {storefront_name}.\n\nShare {product_name}'s card with your customers now.\n\n{product_url}\n\nTap Menu then Share on Messenger.".format(product_name=product.display_name_utf8, storefront_name=storefront.display_name_utf8, product_url=product.messenger_url),
+                message_text=product.messenger_url,
                 quick_replies=main_menu_quick_replies(recipient_id)
             )
-
-
-            # prev_subscribers = []
-            # try:
-            #     conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            #     with conn:
-            #         cur = conn.cursor(mysql.cursors.DictCursor)
-            #         cur.execute('SELECT `user_id` FROM `subscriptions` WHERE `storefront_id` = %s;', (storefront.id))
-            #         for row in cur.fetchall():
-            #             customer = Customer.query.filter(Customer.id == row['user_id']).first()
-            #             if customer is not None:
-            #                 prev_subscribers.append(customer.fb_psid)
-            #
-            # except mysql.Error, e:
-            #     logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-            #
-            # finally:
-            #     if conn:
-            #         conn.close()
-            #
-            # for fb_psid in prev_subscribers:
-            #     send_text(
-            #         recipient_id=fb_psid,
-            #         message_text="{storefront_name} just added {product_name} to their shop!".format(storefront_name=storefront.display_name_utf8, product_name=product.display_name_utf8),
-            #         quick_replies=[
-            #             build_quick_reply(Const.KWIK_BTN_TEXT, "View Product", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
-            #         ] + cancel_entry_quick_reply()
-            #     )
 
     elif payload == Const.PB_PAYLOAD_REDO_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-redo-product")
@@ -3379,7 +3358,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         if product is not None:
-            send_text(recipient_id, "Canceling your {product_name} product creation...".format(product_name=product.display_name_utf8))
+            send_text(recipient_id, "Canceling your {product_name} item creation...".format(product_name=product.display_name_utf8))
 
         try:
             Product.query.filter(Product.fb_psid == recipient_id).delete()
@@ -3727,7 +3706,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
                     product.image_url = "http://lmon.us/thumbs/{timestamp}.jpg".format(timestamp=timestamp)
                     db.session.commit()
 
-                    send_text(recipient_id, "Give your product a title.", cancel_entry_quick_reply())
+                    send_text(recipient_id, "Give your item a title.", cancel_entry_quick_reply())
 
                     image_sizer_sq = ImageSizer(in_file=image_file, out_file=None)
                     image_sizer_sq.start()
@@ -3801,7 +3780,7 @@ def recieved_attachment(recipient_id, attachment_type, payload):
             product.video_url = "http://lmon.us/videos/{timestamp}.mp4".format(timestamp=timestamp)
             db.session.commit()
 
-            send_text(recipient_id, "Give your product a title.", cancel_entry_quick_reply())
+            send_text(recipient_id, "Give your item a title.", cancel_entry_quick_reply())
 
         else:
             handle_wrong_reply(recipient_id)
@@ -3856,11 +3835,15 @@ def received_text_response(recipient_id, message_text):
         send_admin_carousel(recipient_id)
 
 
+    #-- moderator reply
+    elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES:
+        send_text(recipient_id, "Want to be a Mod?\n\n1. ADD snapchat.com/add/game.bots\n\n2. OPEN 3 free games: taps.io/skins\n\n3. GET m.me/gamebotsc and m.me/lmon8\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_replies(recipient_id))
+
 
     #-- giveaway reply
     elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES:
-        send_text(recipient_id, "You are entry #{queue} into today's giveaway.\n\nIncrease your odds by completing a mod task below.".format(queue=locale.format("%d", queue_position(recipient_id), grouping=True)))
-        send_text(recipient_id, "Instructions\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots to Gamebots (m.me/gamebots?ref=) by typing \"Upload\" & wait 24 hours.\n\nSupport: twitter.com/bryantapawan24")
+        send_text(recipient_id, "You are the {queue} user in line.\n\nFollow instructions to complete your entry:".format(queue=locale.format("%d", queue_position(recipient_id), grouping=True)))
+        send_text(recipient_id, "1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_replies(recipient_id))
 
 
     #-- appnext reply
@@ -4188,7 +4171,7 @@ def received_text_response(recipient_id, message_text):
 
                         send_text(
                             recipient_id=recipient_id,
-                            message_text="Select a date the product will be available.",
+                            message_text="Select a date the item will be available.",
                             quick_replies=[
                                 build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
                                 build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
@@ -4225,7 +4208,7 @@ def received_text_response(recipient_id, message_text):
                     db.session.commit()
 
 
-                    send_text(recipient_id, "Here's what your product will look like:")
+                    send_text(recipient_id, "Here's what your item will look like:")
                     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
                 #-- entered text at wrong step
@@ -4356,7 +4339,7 @@ def handle_wrong_reply(recipient_id):
                 send_text(recipient_id, "Upload a photo or video of what you are selling.", cancel_entry_quick_reply())
 
             elif product.creation_state == 1:
-                send_text(recipient_id, "Give your product a title.", cancel_entry_quick_reply())
+                send_text(recipient_id, "Give your item a title.", cancel_entry_quick_reply())
 
             elif product.creation_state == 2:
                 send_text(recipient_id, "Enter the price of {product_name} in USD. (example 78.00)".format(product_name=product.display_name_utf8), cancel_entry_quick_reply())
@@ -4364,7 +4347,7 @@ def handle_wrong_reply(recipient_id):
             elif product.creation_state == 3:
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Select a date the product will be available.",
+                    message_text="Select a date the item will be available.",
                     quick_replies=[
                         build_quick_reply(Const.KWIK_BTN_TEXT, "Right Now", Const.PB_PAYLOAD_PRODUCT_RELEASE_NOW),
                         build_quick_reply(Const.KWIK_BTN_TEXT, "Next Month", Const.PB_PAYLOAD_PRODUCT_RELEASE_30_DAYS),
@@ -4394,7 +4377,7 @@ def handle_wrong_reply(recipient_id):
                 )
 
             elif product.creation_state == 6:
-                send_text(recipient_id, "Here's what your product will look like:")
+                send_text(recipient_id, "Here's what your item will look like:")
                 send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_PREVIEW)
 
     return "OK", 200

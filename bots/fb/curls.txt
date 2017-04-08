@@ -82,17 +82,17 @@ curl -X POST -H "Content-Type: application/json" -d '{
       "composer_input_disabled":true,
       "call_to_actions":[
         {
-          "title":"Flip Shop",
+          "title":"Flip",
           "type":"postback",
           "payload":"RANDOM_STOREFRONT"
         }, {
-          "title":"My Sales",
+          "title":"Remove Item",
           "type":"postback",
-          "payload":"PRODUCT_PURCHASES"
+          "payload":"DELETE_PRODUCT"
         }, {
-          "title":"My Orders",
+          "title":"Remove Shop",
           "type":"postback",
-          "payload":"PRODUCTS_PURCHASED"
+          "payload":"DELETE_STOREFRONT"
         }
       ]
     }
