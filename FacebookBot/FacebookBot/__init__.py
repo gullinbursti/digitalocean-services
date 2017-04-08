@@ -14,6 +14,7 @@ import sqlite3
 import sys
 import time
 
+from itertools import cycle
 from StringIO import StringIO
 from urllib import urlencode
 
@@ -22,7 +23,6 @@ import pycurl
 import requests
 
 from flask import Flask, request
-from urllib2 import quote
 
 from constants import Const
 
@@ -269,26 +269,21 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
 
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall or random.uniform(1, 100) < 60:
-        min_deposit = deposit
-        max_deposit = deposit + 2
+    if pay_wall or random.uniform(1, 100) < 65:
+        deposit_cycle = cycle([0.00, 1.00, 2.00, 3.00, 5.00, 15.00])
+        next_deposit = deposit_cycle.next()
+        while next_deposit <= deposit:
+            next_deposit = deposit_cycle.next()
+        deposit = next_deposit
 
-    else:
-        min_deposit = deposit - 1
-        max_deposit = deposit + 1
+    min_price, max_price = price_range_for_deposit(deposit)
 
     element = None
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-
-            if random.uniform(1, 100) < 50 or pay_wall is True:
-                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(min_deposit), price_for_deposit(max_deposit)))
-
-            else:
-                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(max_deposit),))
-
+            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `min_sell` < %s AND `tradable` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price))
             row = cur.fetchone()
 
             if row is None and pay_wall is False:
@@ -301,7 +296,7 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
 
                 element = {
                     'title'     : "{item_name}".format(item_name=row['name'].encode('utf8')),
-                    'subtitle'  : "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['min_sell'])),
+                    'subtitle'  : "${price:.2f}".format(price=row['min_sell']) if sender_id in Const.ADMIN_FB_PSID else "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['min_sell'])),
                     'image_url' : row['image_url'],
                     'item_url'  : None,
                     'buttons'   : []
@@ -363,16 +358,16 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
         if conn:
             conn.close()
 
-    coin_flip(total_wins, min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, 0.00)
+    return coin_flip(total_wins, min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, 0.00)
 
 
 def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01):
     # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s)" % (wins, losses, deposit, item_cost))
 
     probility = (losses * (1.0 / (Const.MAX_LOSSING_STREAK ** 2))) + statistics.stdev([min(max(random.expovariate(1.0 / float(wins * 3.0) if wins >= 1 else float(3.0)), 0), 1) for i in range(int(random.gauss(21, 3 + (1 / float(3)))))]) if deposit >= deposit_amount_for_price(item_cost) else 0.00
-    flipper = random.uniform(0, 1)
-    outcome = probility * (1.25 if deposit >= 1 else 1) >= flipper
-    logger.info("[:::::::] wins=%02d, losses=%02d, dep=$%05.2f, cost=$%05.2f [::::] FLIP-CHANCE --> %5.2f%% // %.2f -[%s]-" % (wins, losses, deposit, item_cost, probility * 100, flipper, ("%s" % (outcome,)[0])))
+    dice_roller = random.uniform(0, 1) #int(round(random.uniform(1, 6))) / float(6)
+    outcome = probility * (1.25 if deposit >= 1 else 1) >= dice_roller
+    logger.info("[:::::::] wins=%02d, losses=%02d, dep=$%05.2f, cost=$%05.2f [::::] FLIP-CHANCE --> %5.2f%% // %.2f -[%s]-" % (wins, losses, deposit, item_cost, probility * 100, dice_roller, ("%s" % (outcome,)[0])))
 
     return outcome
 
@@ -432,6 +427,7 @@ def coin_flip_results(sender_id, item_id=None):
     if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True:# or sender_id in Const.ADMIN_FB_PSID:
     # if sender_id in Const.ADMIN_FB_PSID or random.uniform(0, 1) <= (1 / float(4 if get_session_deposit(sender_id) else 5)) * (abs(1 - (total_wins * 0.01))):
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['name'])
+        set_session_loss_streak(sender_id)
         record_coin_flip(sender_id, item_id, True)
 
         total_wins += 1
@@ -470,17 +466,7 @@ def coin_flip_results(sender_id, item_id=None):
             if conn:
                 conn.close()
 
-        # send_image(sender_id, Const.FLIP_COIN_WIN_GIF_URL)
-        # send_card(
-        #     recipient_id = sender_id,
-        #     title = "{item_name}".format(item_name=flip_item['name']),
-        #     image_url = flip_item['image_url'],
-        #     buttons = [{
-        #         'type' : "element_share"
-        #     }]
-        # )
-
-        send_text(sender_id, "WINNER!\nYou won {item_name}.\n\nInstructions for trade to process:\n\nMake sure your correct Steam Trade URL is set.\n\nText \"{fb_psid}\" to Lemonade. m.me/lmon8".format(item_name=flip_item['name'], fb_psid=sender_id[-4:]), main_menu_quick_reply())
+        send_text(sender_id, "You won {item_name}.\n\n1. Enter your Steam Trade URL.\n\n2. Text \"{fb_psid}\" to: m.me/lmon8".format(item_name=flip_item['name'], fb_psid=sender_id[-4:]), main_menu_quick_reply())
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -490,7 +476,7 @@ def coin_flip_results(sender_id, item_id=None):
             trade_url = get_session_trade_url(sender_id)
             send_text(
                 recipient_id=sender_id,
-                message_text="Trade URL set to {trade_url}".format(trade_url=trade_url),
+                message_text="Steam Trade URL is set to: {trade_url}".format(trade_url=trade_url),
                 quick_replies=[{
                     'content_type': "text",
                     'title'       : "OK",
@@ -703,7 +689,6 @@ def get_session_deposit(sender_id, interval=24, remote=False):
     logger.info("get_session_deposit(sender_id=%s, interval=%s, remote=%s)" % (sender_id, interval, remote))
 
     deposit = 0
-
     if remote is True:
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
@@ -744,7 +729,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit if sender_id not in Const.ADMIN_FB_PSID else 1
+    return deposit if sender_id not in Const.ADMIN_FB_PSID else 2
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -1023,26 +1008,26 @@ def deposit_amount_for_price(price):
     return amount
 
 
-def price_for_deposit(deposit):
-    logger.info("price_for_deposit(deposit=%s)" % (deposit,))
+def price_range_for_deposit(deposit):
+    logger.info("price_range_for_deposit(deposit=%s)" % (deposit,))
 
-    if deposit >= 0 and deposit < 1:
-        price = 1.50
+    if deposit < 1:
+        price = (0.00, 1.50)
 
-    elif deposit >= 1 and deposit < 2:
-        price = 4.50
+    elif deposit < 2:
+        price = (1.50, 4.50)
 
-    elif deposit >= 2 and deposit < 3:
-        price = 6.50
+    elif deposit < 3:
+        price = (4.50, 6.50)
 
-    elif deposit >= 3 and deposit < 6:
-        price = 9.50
+    elif deposit < 5:
+        price = (6.50, 9.50)
 
-    elif deposit >= 5 and deposit < 15:
-        price = 15.00
+    elif deposit < 15:
+        price = (9.50, 15.00)
 
     else:
-        price = 1.50
+        price = (15.00, 100.00)
 
     return price
 
@@ -1415,12 +1400,12 @@ def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
         purchase_id, flip_id = get_session_purchase(sender_id)
 
         if get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
-            send_text(sender_id, "Set your trade url to {url}?".format(url=url), quick_replies=submit_quick_replies())
+            send_text(sender_id, "Steam Trade URL is set to: {url}".format(url=url), quick_replies=submit_quick_replies())
 
 
     elif action == Const.TRADE_URL_FLIP_ITEM:
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
-            send_text(sender_id, "Set your trade url to {url}?".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Re-Enter"]))
+            send_text(sender_id, "Steam Trade URL is set to: {url}".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Re-Enter"]))
 
 
 def handle_payload(sender_id, payload_type, payload):
@@ -1654,7 +1639,7 @@ def recieved_text_reply(sender_id, message_text):
                 conn.close()
 
         send_text(sender_id, "You are the {queue} user in line.".format(queue=locale.format('%d', queue_index, grouping=True)))
-        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREAT an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc")
+        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_reply())
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
         send_text(sender_id, "Upload screenshots now.")
@@ -1663,7 +1648,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Weekly Mod Task:\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nReward: 1 Mac Neon Rider\n\nSupport: twitter.com/bryantapawan24")
+        send_text(sender_id, "Weekly Mod Task:\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nReward: 1 Mac Neon Rider\n\nSupport: twitter.com/bryantapawan24", main_menu_quick_reply())
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
