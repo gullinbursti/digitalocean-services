@@ -28,7 +28,7 @@ from constants import Const
 
 reload(sys)
 sys.setdefaultencoding('utf8')
-locale.setlocale(locale.LC_ALL, '')
+locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
 app = Flask(__name__)
 
@@ -275,18 +275,24 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
 
     else:
         min_deposit = deposit - 1
-        max_deposit = deposit
+        max_deposit = deposit + 1
 
     element = None
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(min_deposit), price_for_deposit(max_deposit)))
+
+            if random.uniform(1, 100) < 50 or pay_wall is True:
+                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(min_deposit), price_for_deposit(max_deposit)))
+
+            else:
+                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(max_deposit),))
+
             row = cur.fetchone()
 
-            if row is None:
-                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `min_sell` >= %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (price_for_deposit(deposit - 1),))
+            if row is None and pay_wall is False:
+                cur.execute('SELECT `id`, `type`, `name`, `game_name`, `image_url`, `min_sell` FROM `flip_inventory` WHERE `quantity` > 0 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
                 row = cur.fetchone()
 
             if row is not None:
@@ -738,7 +744,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit if sender_id not in Const.ADMIN_FB_PSID else 2
+    return deposit if sender_id not in Const.ADMIN_FB_PSID else 1
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -1361,7 +1367,7 @@ def paypal():
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, NOW());', (fb_psid, f_name, l_name, amount))
+                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (fb_psid, f_name, l_name, amount, int(time.time())))
                 conn.commit()
 
                 cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1631,11 +1637,27 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.GIVEAWAY_REPLIES:
-        send_text(sender_id, "You are entry #{queue} into today's giveaway.\n\nIncrease your odds by completing a mod task below.".format(queue=int(random.uniform(100, 900))))
-        send_text(sender_id, "Instructions\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nSupport: twitter.com/bryantapawan24")
+        queue_index = 1066
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('INSERT INTO queue_indexer (id, fb_psid, added) VALUES (NULL, ?, ?);', (sender_id, int(time.time())))
+            conn.commit()
+            queue_index += cur.lastrowid
+
+        except sqlite3.Error as er:
+            logger.info("::::::queue_indexer[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(sender_id, "You are the {queue} user in line.".format(queue=locale.format('%d', queue_index, grouping=True)))
+        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREAT an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc")
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
-        send_text(sender_id, "Please upload a screenshot of the moderator task you have completed. Once approved you will be rewarded your skins. (wait time: 24 hours)")
+        send_text(sender_id, "Upload screenshots now.")
 
     elif message_text.lower() in Const.APPNEXT_REPLIES:
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
