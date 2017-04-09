@@ -552,7 +552,7 @@ def is_vowel(char):
 
 
 def queue_position(recipient_id, offset=0):
-    logger.info("queue_position(recipient_id=%s, offset=%s" % (recipient_id, offset))
+    logger.info("queue_position(recipient_id=%s, offset=%s)" % (recipient_id, offset))
 
     queue_indexer = QueueIndexer(recipient_id)
     db.session.add(queue_indexer)
@@ -563,26 +563,6 @@ def queue_position(recipient_id, offset=0):
             queue_indexer.id += random.gauss(offset, offset ** 0.5)
 
     return queue_indexer.id + offset
-
-    # queue_indexer = QueueIndexer()
-    # logger.info("::::::] queue_indexer says it's :: [%s]" % (queue_indexer.ind,))
-
-
-
-    #
-    # summation_query = db.session.query(func.sum(Customer.id).label('sum')).group_by(Customer.id).subquery('summation_query')
-    # summation = db.session.query(Customer, summation_query.c.summate).outerjoin(sub, Customer.id == summation_query.c.id).order_by(db.desc('summate')).all()
-    #
-    # summation_query = db.session.query(Customer.id).filter(Storefront.id == product.storefront_id).subquery('storefront_query')
-    # storefront_owner = Customer.query.filter(Customer.fb_psid.in_(storefront_query)).first()
-    #
-    # db.session.execute(
-    #     db.session
-    #         .query(customers)
-    #         # .filter_by(x_id=y.id)
-    #         .statement.with_only_columns([func.count()]).order_by(None)
-    # ).scalar()
-
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- #
@@ -1307,18 +1287,17 @@ def clear_entry_sequences(recipient_id):
 def welcome_message(recipient_id, entry_type, deeplink="/"):
     logger.info("welcome_message(recipient_id=%s, entry_type=%s, deeplink=%s)" % (recipient_id, entry_type, deeplink))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-    fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
 
     if entry_type == Const.MARKETPLACE_GREETING:
         # send_image(recipient_id, Const.IMAGE_URL_GREETING)
-        send_text(recipient_id, Const.ORTHODOX_GREETING.format(f_name="there" if fb_user is None else fb_user.first_name))
+        send_text(recipient_id, Const.ORTHODOX_GREETING)
         send_admin_carousel(recipient_id)
 
     elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1].lower() in Const.RESERVED_AUTO_GEN_STOREFRONTS.lower():
         storefront, product = autogen_storefront(recipient_id, deeplink.split("/")[-1])
 
         # send_image(recipient_id, Const.IMAGE_URL_GREETING)
-        send_text(recipient_id, Const.ORTHODOX_GREETING.format(f_name="there" if fb_user is None else fb_user.first_name))
+        send_text(recipient_id, Const.ORTHODOX_GREETING)
 
         if storefront is not None and product is not None:
             send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
@@ -1346,7 +1325,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                 view_product(recipient_id, product, True)
 
         else:
-            send_text(recipient_id, Const.ORTHODOX_GREETING.format(f_name="there" if fb_user is None else fb_user.first_name))
+            send_text(recipient_id, Const.ORTHODOX_GREETING)
             send_admin_carousel(recipient_id)
 
     else:
@@ -1567,7 +1546,7 @@ def main_menu_quick_replies(fb_psid):
 
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip", payload=Const.PB_PAYLOAD_RANDOM_STOREFRONT)
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip", payload=Const.PB_PAYLOAD_GAMEBOTS_FLIP)
     ]
 
     if storefront is None:
@@ -2653,9 +2632,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 conn.close()
 
     elif payload == Const.PB_PAYLOAD_GAMEBOTS_FLIP:
-        if random.uniform(0, 100) < 500:  # or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
-            code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-            send_text(recipient_id, "You won $1 in Gamebots credits.\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(fb_psid=recipient_id[-4:]))
+        outcome = random.uniform(0, 100) < 25
+        send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
+
+        send_image(recipient_id, Const.GAMEBOTS_FLIP_START_GIF_URL, Const.GAMEBOTS_FLIP_START_ATTACHMENT_ID)
+        time.sleep(3.33)
+
+        if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
+            send_text(recipient_id, "You won ${amount:.2f} in Gamebots credits.\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(amount=1, fb_psid=recipient_id[-4:]), [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
@@ -2664,7 +2648,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             )
 
         else:
-            send_text(recipient_id, "You lost! Tap Flip again for another chance.")
+            send_text(recipient_id, "You lost! Tap Flip again for another chance.", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).first()
@@ -4477,10 +4461,10 @@ def fbbot():
     data = request.get_json()
 
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info(data)
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    # logger.info(data)
+    # logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
 
     if data['object'] == "page":
         for entry in data['entry']:

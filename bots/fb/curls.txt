@@ -64,9 +64,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "message":{
     "attachment":{
-      "type":"video",
+      "type":"image",
       "payload":{
-        "url":"http://lmon.us/videos/chameleon.mp4",
+        "url":"https://i.imgur.com/duzgYmq.gif",
         "is_reusable":true
       }
     }
@@ -84,7 +84,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
         {
           "title":"Flip",
           "type":"postback",
-          "payload":"RANDOM_STOREFRONT"
+          "payload":"GAMEBOTS_FLIP"
         }, {
           "title":"Remove Item",
           "type":"postback",
@@ -120,3 +120,8 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 
 while true ; do head -c $(( $RANDOM % 100 )) /dev/urandom | printf "%s\t\t" $(hexdump -e '"%x"') ; done
+
+
+
+pages_subscription error:
+zgrep -B 1 2018065 /var/log/apache/error.log* | cut -d\: -f7- | grep -E '\)$' | cut -d\  -f3 | cut -d\" -f2 | grep -E '^[0-9]{5,}$' | sort -fu

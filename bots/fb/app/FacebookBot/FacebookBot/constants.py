@@ -53,7 +53,7 @@ class Const(Constants):
 
     COIN_FLIP_API = "http://beta.modd.live/api/coin_flip.php"
 
-    ORTHODOX_GREETING = "Hi {f_name}, welcome to Lemonade. The fastest way to sell virtual game items & stickers in the world."
+    ORTHODOX_GREETING = "Hi, this is Lemonade. The fastest way to sell virtual items in chat."
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
@@ -67,11 +67,17 @@ class Const(Constants):
     IMAGE_URL_SAY_THANKS = "http://i.imgur.com/XRG8fHa.gif"
 
     IMAGE_URL_CREATE_STOREFRONT_CARD = "https://i.imgur.com/dT2KO63.png"
-    IMAGE_URL_ADD_PRODUCT_CARD = "https://i.imgur.com/VGdh4Bb.png"
+    IMAGE_URL_ADD_PRODUCT_CARD = "https://i.imgur.com/rrEWTrd.png"
     IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/BJ7d2bn.png"
     IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/BJ7d2bn.png"
     IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/vGR05Z0.png"
     IMAGE_URL_GAMEBOTS_CARD = "https://i.imgur.com/QTQoIFp.png"
+
+    GAMEBOTS_FLIP_START_GIF_URL = "https://i.imgur.com/duzgYmq.gif"
+    GAMEBOTS_FLIP_START_ATTACHMENT_ID = "235999630209207"
+
+    GAMEBOTS_FLIP_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
+    GAMEBOTS_FLIP_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
 
     IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
     IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"
