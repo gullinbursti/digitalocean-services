@@ -4,7 +4,7 @@ class Const(Constants):
     FB_APP_ID = "267184583696625"
     FB_PAGE_ID = "177712676037903"
 
-    ADMIN_FB_PSIDS = "1328567820538012|1448213991869039|996171033817503|1117769054987142"
+    ADMIN_FB_PSIDS = "1448213991869039"#|1328567820538012|996171033817503|1117769054987142"
 
     VERIFY_TOKEN = "AC7F552BD16A775B653F6EF6CD3902E6"
     ACCESS_TOKEN = "EAADzAMIzYPEBAKS2cCjNRq67CcaDGwz6fdWSpJNV1ZA4RkUqvLCrcsbAJnPONRONxbFAZCSNqeaFCEQ2LfxCP0QK37Oa5pBjnA974HtZCQ9ZCLMC0BFAX6ZAlBOdV8aOQOGmFq8lUfTSEAriFpsNBbLDnaivVS5RZAX62ZBvR619QZDZD"
@@ -58,9 +58,6 @@ class Const(Constants):
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
     IMAGE_URL_GREETING = "https://media.giphy.com/media/3o6wrlOBmtEI8OUi5y/giphy.gif" #"http://i.imgur.com/Qa1iPak.gif"
-    IMAGE_URL_FLIP_GREETING = "https://media.giphy.com/media/fWlesbav1qMk8/giphy.gif" #"https://i.imgur.com/cVdRZG2.gif"
-    IMAGE_URL_FLIP_WIN = "http://i.imgur.com/TAayas0.gif"
-    IMAGE_URL_FLIP_LOSE = "http://i.imgur.com/CdwqcSD.gif"
     IMAGE_URL_NEW_SUBSCRIBER = "https://media.giphy.com/media/MaxKN8dORncpG/giphy.gif" #"http://i.imgur.com/zBTx8Xy.gif"
     IMAGE_URL_PRODUCT_PURCHASED = "https://media.giphy.com/media/VUie5h5B1NDfq/giphy.gif" #"http://i.imgur.com/vdMdrVT.gif"
     IMAGE_URL_PRODUCT_CREATED = "http://i.imgur.com/WsjHWej.gif"
@@ -70,14 +67,8 @@ class Const(Constants):
     IMAGE_URL_ADD_PRODUCT_CARD = "https://i.imgur.com/rrEWTrd.png"
     IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/BJ7d2bn.png"
     IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/BJ7d2bn.png"
-    IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/vGR05Z0.png"
-    IMAGE_URL_GAMEBOTS_CARD = "https://i.imgur.com/QTQoIFp.png"
-
-    GAMEBOTS_FLIP_START_GIF_URL = "https://i.imgur.com/duzgYmq.gif"
-    GAMEBOTS_FLIP_START_ATTACHMENT_ID = "235999630209207"
-
-    GAMEBOTS_FLIP_WIN_GIF_URL = "http://i.imgur.com/9fmZntz.gif"
-    GAMEBOTS_FLIP_LOSE_GIF_URL = "http://i.imgur.com/7YNujdq.gif"
+    IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/j5GbuHS.png"
+    IMAGE_URL_FLIP_SPONSOR_CARD = "https://i.imgur.com/dDYYwoU.jpg"
 
     IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
     IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"
@@ -86,6 +77,10 @@ class Const(Constants):
     IMAGE_URL_LEMONADE_COMMAND = "https://i.imgur.com/W65TYHj.gif"
     IMAGE_URL_MAIN_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
     IMAGE_URL_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
+
+    IMAGE_URL_FLIP_START = "https://i.imgur.com/48w05cY.gif"  # "https://i.imgur.com/cVdRZG2.gif"
+    IMAGE_URL_FLIP_WIN = "http://i.imgur.com/TAayas0.gif"
+    IMAGE_URL_FLIP_LOSE = "http://i.imgur.com/CdwqcSD.gif"
 
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
@@ -128,14 +123,13 @@ class Const(Constants):
     PB_PAYLOAD_HOME_CONTENT = 'HOME_CONTENT'
     PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE = 'CANCEL_ENTRY_SEQUENCE'
 
-    PB_PAYLOAD_GAMEBOTS_FLIP = 'GAMEBOTS_FLIP'
-    PB_PAYLOAD_RANDOM_STOREFRONT = 'RANDOM_STOREFRONT'
+    PB_PAYLOAD_RND_FLIP_STOREFRONT = 'RND_FLIP_STOREFRONT'
     PB_PAYLOAD_PRODUCT_PURCHASES = 'PRODUCT_PURCHASES'
     PB_PAYLOAD_PRODUCTS_PURCHASED = 'PRODUCTS_PURCHASED'
 
     PB_PAYLOAD_MAIN_MENU = 'MAIN_MENU'
     PB_PAYLOAD_PREBOT_URL = "PREBOT_URL"
-    PB_PAYLOAD_NEXT_STOREFRONT = 'NEXT_STOREFRONT'
+    PB_PAYLOAD_RND_STOREFRONT = 'RND_STOREFRONT'
     PB_PAYLOAD_SAY_THANKS = 'SAY_THANKS'
     PB_PAYLOAD_SHARE_APP = 'SHARE_APP'
     PB_PAYLOAD_FEATURE_STOREFRONT = 'FEATURE_STOREFRONT'

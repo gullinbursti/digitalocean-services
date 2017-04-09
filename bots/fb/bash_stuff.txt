@@ -1,0 +1,19 @@
+[Sun Apr 09 16:17:26.448727 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282] [2017-04-09 16:17:26,443] ERROR in app: Exception on / [POST]
+[Sun Apr 09 16:17:26.450304 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282] Traceback (most recent call last):
+[Sun Apr 09 16:17:26.450405 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1982, in wsgi_app
+[Sun Apr 09 16:17:26.450697 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     response = self.full_dispatch_request()
+[Sun Apr 09 16:17:26.450794 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1614, in full_dispatch_request
+[Sun Apr 09 16:17:26.450880 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     rv = self.handle_user_exception(e)
+[Sun Apr 09 16:17:26.450957 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1517, in handle_user_exception
+[Sun Apr 09 16:17:26.451039 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     reraise(exc_type, exc_value, tb)
+[Sun Apr 09 16:17:26.451116 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1612, in full_dispatch_request
+[Sun Apr 09 16:17:26.451199 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     rv = self.dispatch_request()
+[Sun Apr 09 16:17:26.451272 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1598, in dispatch_request
+[Sun Apr 09 16:17:26.451347 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     return self.view_functions[rule.endpoint](**req.view_args)
+[Sun Apr 09 16:17:26.451417 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/var/www/FacebookBot/FacebookBot/__init__.py", line 4534, in fbbot
+[Sun Apr 09 16:17:26.451493 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     received_payload(customer.fb_psid, payload, Const.PAYLOAD_TYPE_POSTBACK)
+[Sun Apr 09 16:17:26.451574 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/var/www/FacebookBot/FacebookBot/__init__.py", line 2621, in received_payload
+[Sun Apr 09 16:17:26.451651 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     time.sleep(3.33 if flip_product(customer.fb_psid, product) is True else 0.33)
+[Sun Apr 09 16:17:26.451724 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]   File "/var/www/FacebookBot/FacebookBot/__init__.py", line 876, in flip_product
+[Sun Apr 09 16:17:26.451800 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282]     send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif", Const.GAMEBOTS_FLIP_START_ATTACHMENT_ID if "disneyjp" not in product.tag_list_utf8 else None)
+[Sun Apr 09 16:17:26.451900 2017] [wsgi:error] [pid 19412] [client 2a03:2880:20:4fe2:face:b00c:0:8000:19282] AttributeError: type object 'Const' has no attribute 'GAMEBOTS_FLIP_START_ATTACHMENT_ID'

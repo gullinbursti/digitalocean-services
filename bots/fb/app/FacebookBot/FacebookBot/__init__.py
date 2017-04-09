@@ -869,24 +869,29 @@ def add_cc_payment(recipient_id):
 def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
 
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_GREETING if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif")
+    outcome = random.uniform(0, 1) < (1 / float(3)) or recipient_id in Const.ADMIN_FB_PSIDS
+    send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
+
+    send_text(recipient_id, "Flipping for the shop {storefront_name}…".format(storefront_name=Storefront.query.filter(Storefront.id == product.storefront_id).first().display_name_utf8))
+    # send_image(recipient_id,  if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/JmxZ46l.gif")
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_START)
     time.sleep(5)
 
-    if random.uniform(0, 100) < 5:# or (recipient_id == "996171033817503" and random.uniform(0, 100) < 80):
+    if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-        send_text(recipient_id, "You Won!\n\nA CSGO item from Gamebots.\n\nText \"Giveaway\" to m.me/gamebotsc & follow instructions." if "disneyjp" not in product.tag_list_utf8 else "You won a {product_name}!".format(product_name=product.display_name_utf8))
+        send_text(recipient_id, "You won ${amount:.2f} in Gamebots credits.\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(amount=1, fb_psid=recipient_id[-4:]))
+        #send_text(recipient_id, "You won {prepo} {product_name} worth ${price:.2f}!\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(prepo="an" if is_vowel(product.display_name_utf8[0]) else "a", product_name=product.display_name_utf8, price=product.price, fb_psid=recipient_id[-4:]))
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
             channel_name=Const.SLACK_ORTHODOX_CHANNEL,
-            username=Const.SLACK_ORTHODOX_HANDLE,
-            webhook=Const.SLACK_ORTHODOX_WEBHOOK,
-            message_text="*{fb_name}* ({fb_psid}) just won a _{product_name}_ by flipping.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8),
-            image_url=product.image_url
+            message_text="*{fb_name}* ({fb_psid}) just won $1 in Gamebots credits by flipping {product_name}.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8)
         )
 
     else:
-        send_text(recipient_id, "You lost! Tap Flip Shop again for another chance.")
+        send_text(recipient_id, "You lost! Flip again later for another chance.")
+
+    return outcome
 
 
 def view_product(recipient_id, product, welcome_entry=False):
@@ -909,7 +914,6 @@ def view_product(recipient_id, product, welcome_entry=False):
         else:
             if storefront.logo_url is not None:
                 send_image(recipient_id, storefront.logo_url)
-
 
 
         purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
@@ -936,11 +940,8 @@ def view_product(recipient_id, product, welcome_entry=False):
                 #message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
             )
 
-            if welcome_entry is True:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY if welcome_entry is True else Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-            else:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
 
 def purchase_product(recipient_id, source):
@@ -1396,15 +1397,15 @@ def autogen_storefront(recipient_id, name_prefix):
         },
         'neonrider'       : {
             'description'   : "Get a MAC-10 Neon Rider for $1.20",
-            'price'         : 1.15,
-            'image_url'     : "http://i.imgur.com/PiKJ7k7.jpg",
+            'price'         : 1.20,
+            'image_url'     : "https://i.imgur.com/Lzay82s.jpg",
             'video_url'     : "http://lmon.us/videos/neon.mp4",
             'attachment_id' : "226330947842742",
             'tag'           : "gamebotsc"
         },
         'ak47redline'     : {
             'description'   : "Get an AK47 Redline for $4.25",
-            'price'         : 3.50,
+            'price'         : 4.25,
             'image_url'     : "http://i.imgur.com/pcgbhwv.jpg",
             'video_url'     : "http://lmon.us/videos/redline.mp4",
             'attachment_id' : "226331167842720",
@@ -1434,7 +1435,10 @@ def autogen_storefront(recipient_id, name_prefix):
             'video_url'     : None,
             'attachment_id' : None,
             'tag'           : "gamebotsc"
-        }
+        },
+
+
+
     }
 
     if name_prefix.lower() in details:
@@ -1546,7 +1550,7 @@ def main_menu_quick_replies(fb_psid):
 
     quick_replies = [
         build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip", payload=Const.PB_PAYLOAD_GAMEBOTS_FLIP)
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="Flip", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
     ]
 
     if storefront is None:
@@ -1758,9 +1762,9 @@ def build_gamebots_element():
     return build_card_element(
         title="Win Gamebots Credits",
         subtitle="Tap, Flip & Win Now",
-        image_url=Const.IMAGE_URL_GAMEBOTS_CARD,
+        image_url=Const.IMAGE_URL_FLIP_SPONSOR_CARD,
         buttons=[
-            build_button(Const.CARD_BTN_POSTBACK, caption="Flip", payload=Const.PB_PAYLOAD_GAMEBOTS_FLIP)
+            build_button(Const.CARD_BTN_POSTBACK, caption="Flip", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
         ]
     )
 
@@ -2602,7 +2606,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     # postback btn
-    if payload == Const.PB_PAYLOAD_RANDOM_STOREFRONT:
+    if payload == Const.PB_PAYLOAD_RND_FLIP_STOREFRONT:
         send_tracker(fb_psid=recipient_id, category="next-shop")
         add_points(recipient_id, Const.POINT_AMOUNT_NEXT_SHOP)
 
@@ -2618,7 +2622,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                     if row is not None:
                         product = Product.query.filter(Product.id == row['id']).first()
                         if product is not None:
-                            flip_product(customer.fb_psid, product)
+                            time.sleep(3.33 if flip_product(customer.fb_psid, product) is True else 0.33)
                             view_product(recipient_id, product)
 
                     else:
@@ -2630,25 +2634,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         finally:
             if conn:
                 conn.close()
-
-    elif payload == Const.PB_PAYLOAD_GAMEBOTS_FLIP:
-        outcome = random.uniform(0, 100) < 25
-        send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
-
-        send_image(recipient_id, Const.GAMEBOTS_FLIP_START_GIF_URL, Const.GAMEBOTS_FLIP_START_ATTACHMENT_ID)
-        time.sleep(3.33)
-
-        if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
-            send_text(recipient_id, "You won ${amount:.2f} in Gamebots credits.\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(amount=1, fb_psid=recipient_id[-4:]), [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
-
-            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            slack_outbound(
-                channel_name=Const.SLACK_ORTHODOX_CHANNEL,
-                message_text="*{fb_name}* ({fb_psid}) just won $1 in Gamebots credits by flipping.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id)
-            )
-
-        else:
-            send_text(recipient_id, "You lost! Tap Flip again for another chance.", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).first()
@@ -3072,7 +3057,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-ok")
         send_home_content(recipient_id)
 
-    elif payload == Const.PB_PAYLOAD_NEXT_STOREFRONT:
+    elif payload == Const.PB_PAYLOAD_RND_STOREFRONT:
         send_tracker(fb_psid=recipient_id, category="next-shop")
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
