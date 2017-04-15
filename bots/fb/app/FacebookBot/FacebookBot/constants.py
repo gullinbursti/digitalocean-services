@@ -216,7 +216,10 @@ class Const(Constants):
     PB_PAYLOAD_GIVEAWAYS_NO = 'GIVEAWAYS_NO'
 
     PB_PAYLOAD_TRADE_URL = 'TRADE_URL'
+    PB_PAYLOAD_TRADE_URL_KEEP = 'TRADE_URL_KEEP'
+
     PB_PAYLOAD_ALT_SOCIAL = 'ALT_SOCIAL'
+    PB_PAYLOAD_ALT_SOCIAL_KEEP = 'ALT_SOCIAL_KEEP'
 
     PAYMENT_SOURCE_UNDEFINED = 'PAYMENT_UNDEFINED'
     PAYMENT_SOURCE_BITCOIN = 'PAYMENT_BITCOIN'
@@ -227,7 +230,7 @@ class Const(Constants):
 
     RESERVED_COMMAND_REPLIES = "lemonade|lmon8|admin|main|main menu|menu|support|help|subs"
     RESERVED_APPNEXT_REPLIES = "f1xgb"
-    RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate||ShibaMaruPupUps|LINECharactersinLove|AK47FrontsideMisty|FlipDopplerKnife|MAC10NeonRider"
+    RESERVED_AUTO_GEN_STOREFRONTS = "autogen|AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate||ShibaMaruPupUps|LINECharactersinLove|AK47FrontsideMisty|FlipDopplerKnife|MAC10NeonRider"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_MODERATOR_REPLIES = "mod"
