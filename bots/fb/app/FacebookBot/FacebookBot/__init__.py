@@ -551,6 +551,13 @@ def is_vowel(char):
     return char == "a" or char == "e" or char == "i" or char == "o" or char == "u"
 
 
+def fb_psid_profile(recipient_id):
+    logger.info("fb_psid_profile(recipient_id=%s)" % (recipient_id))
+
+    fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+    return recipient_id if fb_user is None else fb_user
+
+
 def queue_position(recipient_id, offset=0):
     logger.info("queue_position(recipient_id=%s, offset=%s)" % (recipient_id, offset))
 
@@ -868,6 +875,11 @@ def add_cc_payment(recipient_id):
 
 def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    if customer is not None and customer.referrer is not None and re.search(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', customer.referrer) is not None:
+        customer.referrer = re.sub(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', r'/\1', customer.referrer)
+        db.session.commit()
 
     outcome = random.uniform(0, 1) < (1 / float(3)) or recipient_id in Const.ADMIN_FB_PSIDS
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
@@ -1266,6 +1278,9 @@ def clear_entry_sequences(recipient_id):
     if customer.social == "_{PENDING}_":
         customer.social = None
 
+    if customer.referrer == "/pizza":
+        customer.referrer = None
+
     #-- pending product
     try:
         Product.query.filter(Product.fb_psid == recipient_id).filter(Product.creation_state < 7).delete()
@@ -1288,11 +1303,15 @@ def clear_entry_sequences(recipient_id):
 def welcome_message(recipient_id, entry_type, deeplink="/"):
     logger.info("welcome_message(recipient_id=%s, entry_type=%s, deeplink=%s)" % (recipient_id, entry_type, deeplink))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
 
     if entry_type == Const.MARKETPLACE_GREETING:
         # send_image(recipient_id, Const.IMAGE_URL_GREETING)
         send_text(recipient_id, Const.ORTHODOX_GREETING)
         send_admin_carousel(recipient_id)
+
+
+
 
     elif entry_type == Const.STOREFRONT_AUTO_GEN and deeplink.split("/")[-1].lower() in Const.RESERVED_AUTO_GEN_STOREFRONTS.lower():
         storefront, product = autogen_storefront(recipient_id, deeplink.split("/")[-1])
@@ -1307,13 +1326,19 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         else:
             send_text(recipient_id, "Couldn't create a shop with the name {storefront_name} at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
 
+        slack_outbound(
+            channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+            message_text="{fb_user} arrived to autogen {storefront_name} via deeplink {slug_trigger}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'), deeplink=deeplink)
+        )
+
     elif entry_type == Const.CUSTOMER_REFERRAL:
         if re.search(r'^\/?createshop$', deeplink) is not None:
-            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             send_tracker(fb_psid=recipient_id, category="adref", action=deeplink)
 
         product = Product.query.filter(Product.name.ilike(deeplink.split("/")[-1].lower())).filter(Product.creation_state == 7).first()
         if product is not None:
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
             if "disneyjp" in product.tag_list_utf8:
                 customer.product_id = product.id
                 db.session.commit()
@@ -1321,9 +1346,15 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
             else:
                 if "/flip/" in deeplink:
+                    send_text(recipient_id, "Loading {storefront_name}…".format(storefront_name=product.display_name_utf8 if storefront is None else storefront.display_name_utf8))
                     flip_product(recipient_id, product)
 
                 view_product(recipient_id, product, True)
+
+            slack_outbound(
+                channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+                message_text="{fb_user} arrived via referral {deeplink}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, deeplink=deeplink)
+            )
 
         else:
             send_text(recipient_id, Const.ORTHODOX_GREETING)
@@ -1337,14 +1368,14 @@ def autogen_storefront(recipient_id, name_prefix):
     logger.info("autogen_storefront(recipient_id=%s, name_prefix=%s)" % (recipient_id, name_prefix))
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
-    details = {
+    templates = {
         'ak47mistyshop'   : {
             'description'   : "Selling the cheapest Misty.",
             'price'         : 4.25,
             'image_url'     : "http://i.imgur.com/TQOAnps.jpg",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'ak47vulcanshop'  : {
             'description'   : "Selling the cheapest Vulcan.",
@@ -1352,7 +1383,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/CnYFbzD.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'mac10neonshop'   : {
             'description'   : "Selling the cheapest Neon.",
@@ -1360,7 +1391,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/mLDaoyA.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'steamcardshop'   : {
             'description'   : "Selling the cheapest Steam card.",
@@ -1368,7 +1399,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/iKexmpe.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
 
         'privatesnapchat' : {
@@ -1377,7 +1408,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/mFm9Nlk.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'gamebotscrate'   : {
             'description'   : "Gamebots daily crate. Items up to 15.00.",
@@ -1385,7 +1416,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/J4pzcki.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'bonus'           : {
             'description'   : "3 bonus flips inside Gamebots!",
@@ -1393,7 +1424,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://lmon.us/thumbs/1489878300_741.jpg",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebots"
+            'tags'          : "gamebots"
         },
         'neonrider'       : {
             'description'   : "Get a MAC-10 Neon Rider for $1.20",
@@ -1401,7 +1432,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "https://i.imgur.com/Lzay82s.jpg",
             'video_url'     : "http://lmon.us/videos/neon.mp4",
             'attachment_id' : "226330947842742",
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
         'ak47redline'     : {
             'description'   : "Get an AK47 Redline for $4.25",
@@ -1409,60 +1440,166 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "http://i.imgur.com/pcgbhwv.jpg",
             'video_url'     : "http://lmon.us/videos/redline.mp4",
             'attachment_id' : "226331167842720",
-            'tag'           : "gamebotsc"
+            'tags'          : "gamebotsc"
         },
 
-        'friendswithyou'  : {
-            'description'   : "FriendsWithYou stickers 25% off",
-            'price'         : 1.49,
-            'image_url'     : "https://i.imgur.com/HzYOknD.jpg",
+        # 'friendswithyou'  : {
+        #     'description'   : "FriendsWithYou stickers 25% off",
+        #     'price'         : 1.49,
+        #     'image_url'     : "https://i.imgur.com/HzYOknD.jpg",
+        #     'video_url'     : None,
+        #     'attachment_id' : None,
+        #     'tags'           : "gamebotsc"
+        # },
+        # 'ak47vulcan'    : {
+        #     'description'   : "CS:GO AK-47 Vulcan",
+        #     'price'         : 9.30,
+        #     'image_url'     : "https://i.imgur.com/2N4dnKn.jpg",
+        #     'video_url'     : None,
+        #     'attachment_id' : None,
+        #     'tags'           : "gamebotsc"
+        # },
+        # 'chameleon'       : {
+        #     'description'   : "CS:GO AUG | Chameleon",
+        #     'price'         : 1.30,
+        #     'image_url'     : "https://i.imgur.com/e8CqAuZ.jpg",
+        #     'video_url'     : None,
+        #     'attachment_id' : None,
+        #     'tags'           : "gamebotsc"
+        # },
+
+
+        #-- latest carousel templates
+        'chickenbro'   : {
+            'type_id'       : Const.PRODUCT_TYPE_STICKER,
+            'title'         : "Chicken Bro",
+            'description'   : "Chicken Bro stickers on Line!",
+            'price'         : 2.50,
+            'image_url'     : "http://i.imgur.com/ZJUocsY.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "autogen-carousel gamebotsc"
         },
-        'ak47vulcan'    : {
-            'description'   : "CS:GO AK-47 Vulcan",
-            'price'         : 9.30,
-            'image_url'     : "https://i.imgur.com/2N4dnKn.jpg",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tag'           : "gamebotsc"
-        },
-        'chameleon'       : {
-            'description'   : "CS:GO AUG | Chameleon",
+        'augchameleon' : {
+            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'         : "AUG | Chameleon",
+            'description'   : "AUG | Chameleon for CS:GO",
             'price'         : 1.30,
-            'image_url'     : "https://i.imgur.com/e8CqAuZ.jpg",
+            'image_url'     : "http://i.imgur.com/UR5F3a3.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tag'           : "gamebotsc"
+            'tags'          : "autogen-carousel gamebotsc"
+        },
+        'awphyperbeast': {
+            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'         : "AWP | Hyper Beast",
+            'description'   : "AWP | Hyper Beast for CS:GO (Battle Scared)",
+            'price'         : 10.50,
+            'image_url'     : "http://i.imgur.com/3s9BtSX.jpg",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-carousel gamebotsc"
         },
 
 
-
+        #-- autogen via referral
+        'shibamarupupups'     : {
+            'type_id'       : Const.PRODUCT_TYPE_STICKER,
+            'title'         : "Shiba Maru Pup-Ups",
+            'description'   : "The Shiba pup with over 2.5 million Instagram",
+            'price'         : 1.59,
+            'image_url'     : "http://i.imgur.com/K5FcycA.png",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-referral instagram"
+        },
+        'linecharactersinlove': {
+            'type_id'       : Const.PRODUCT_TYPE_STICKER,
+            'title'         : "LINE Characters in Love!",
+            'description'   : "This new set of stickers brings you love!",
+            'price'         : 1.59,
+            'image_url'     : "http://i.imgur.com/FWe9RoW.png",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-referral line"
+        },
+        'ak47frontsidemisty'  : {
+            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'         : "AK-47 | Frontside Misty",
+            'description'   : "Super Cheap AK-47 | Frontside Misty for CS:GO (Battle Scared)",
+            'price'         : 5.00,
+            'image_url'     : "http://i.imgur.com/RLMa1eH.png",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-referral gamebotsc"
+        },
+        'flipdopplerknife'    : {
+            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'         : "Flip Doppler Knife",
+            'description'   : "Cheap Flip Doppler Knife for CS:GO (Battle Scared)",
+            'price'         : 100.00,
+            'image_url'     : "http://i.imgur.com/r8xrkO5.png",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-referral gamebotsc"
+        },
+        'mac10neonrider'      : {
+            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'         : "MAC-10 | Neon Rider",
+            'description'   : "MAC-10 | Neon Rider for CS:GO",
+            'price'         : 1.50,
+            'image_url'     : "http://i.imgur.com/eAYNEz9.jpg",
+            'video_url'     : None,
+            'attachment_id' : None,
+            'tags'          : "autogen-referral gamebotsc"
+        }
     }
 
-    if name_prefix.lower() in details:
-        try:
-            Product.query.filter(Product.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
+    if name_prefix.lower() in templates:
+        template = templates[name_prefix.lower()]
 
-        try:
-            Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
+        if Storefront.query.filter(Storefront.fb_psid == recipient_id).count() > 0:
+            for storefront in Storefront.query.filter(Storefront.fb_psid == recipient_id):
+                send_text(recipient_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name_utf8))
 
-        storefront_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
-        product_name = "{name_prefix}{index}".format(name_prefix=name_prefix, index=recipient_id[-4:])
+                try:
+                    Product.query.filter(Product.storefront_id == storefront.id).delete()
+                    db.session.commit()
+                except:
+                    db.session.rollback()
+
+                try:
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = %s;', (storefront.id,))
+                        cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                        cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+            try:
+                Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
+                db.session.commit()
+            except:
+                db.session.rollback()
+
+
+        storefront_name = "{name_prefix} - {fb_psid}".format(name_prefix=template['title'], fb_psid=recipient_id[-4:])
+        product_name = "{name_prefix} - {fb_psid}".format(name_prefix=template['title'], fb_psid=recipient_id[-4:])
 
         storefront = Storefront(recipient_id)
-        storefront.name = storefront_name
+        storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", storefront_name.encode('ascii', 'ignore'))
         storefront.display_name = storefront_name
-        storefront.description = details[name_prefix.lower()]['description']
-        storefront.logo_url = details[name_prefix.lower()]['image_url']
-        storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront_name)
+        storefront.description = template['description']
+        storefront.logo_url = template['image_url']
+        storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
         storefront.creation_state = 4
         db.session.add(storefront)
         db.session.commit()
@@ -1485,17 +1622,17 @@ def autogen_storefront(recipient_id, name_prefix):
                 conn.close()
 
         product = Product(recipient_id, storefront.id)
-        product.name = product_name
+        product.name = re.sub(Const.IGNORED_NAME_PATTERN, "", product_name.encode('ascii', 'ignore'))
         product.display_name = product_name
-        product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=int(0 / 30))).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+        product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=0)).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
         product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
-        product.type_id = Const.PRODUCT_TYPE_GAME_ITEM
-        product.image_url = details[name_prefix.lower()]['image_url']
-        product.video_url = details[name_prefix.lower()]['video_url']
-        product.attachment_id = details[name_prefix.lower()]['attachment_id']
-        product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product_name)
-        product.price = details[name_prefix.lower()]['price']
-        product.tags = details[name_prefix.lower()]['tag']
+        product.type_id = template['type_id']
+        product.image_url = template['image_url']
+        product.video_url = template['video_url']
+        product.attachment_id = template['attachment_id']
+        product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
+        product.price = template['price']
+        product.tags = template['tags']
         product.creation_state = 7
         db.session.add(product)
         db.session.commit()
@@ -1777,8 +1914,7 @@ def build_featured_storefront_elements(amt=3):
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', (min(max(amt, 0), 10),))
-
+            cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', ("%{tag}%".format(tag="autogen"), min(max(amt, 0), 10)))
             for row in cur.fetchall():
                 product = Product.query.filter(Product.id == row['id']).first()
                 if product is not None:
@@ -1810,24 +1946,22 @@ def build_autogen_storefront_elements(recipient_id):
     logger.info("build_autogen_storefront_elements(recipient_id=%s)" % (recipient_id,))
     elements = []
 
-    details = [
-        {
-            'key'       : "FriendsWithYou",
-            'title'     : "FriendsWithYou Malfi",
-            'subtitle'  : "FriendsWithYou stickers 25% off",
-            'image_url' : "https://i.imgur.com/HzYOknD.jpg"
-        }, {
-            'key'       : "AK47Vulcan",
-            'title'     : "AK-47 Vulcan",
-            'subtitle'  : "CS:GO AK-47 Vulcan",
-            'image_url' : "https://i.imgur.com/2N4dnKn.jpg"
-        }, {
-            'key'       : "Chameleon",
-            'title'     : "AUG | Chameleon",
-            'subtitle'  : "CS:GO AUG | Chameleon",
-            'image_url' : "https://i.imgur.com/e8CqAuZ.jpg"
-        }
-    ]
+    details = [{
+        'key'       : "ChickenBro",
+        'title'     : "Chicken Bro",
+        'subtitle'  : "Chicken Bro stickers on Line!",
+        'image_url' : "http://i.imgur.com/ZJUocsY.png"
+    }, {
+        'key'       : "AUGChameleon",
+        'title'     : "AUG | Chameleon",
+        'subtitle'  : "AUG | Chameleon for CS:GO",
+        'image_url' : "http://i.imgur.com/UR5F3a3.png"
+    }, {
+        'key'       : "AWPHyperBeast",
+        'title'     : "AWP | Hyper Beast",
+        'subtitle'  : "AWP | Hyper Beast for CS:GO (Battle Scared)",
+        'image_url' : "http://i.imgur.com/3s9BtSX.jpg"
+    }]
 
     for detail in details:
         elements.append(build_card_element(
@@ -2617,7 +2751,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
                 product = None
                 while product is None:
-                    cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                    cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen"),))
                     row = cur.fetchone()
                     if row is not None:
                         product = Product.query.filter(Product.id == row['id']).first()
@@ -2634,6 +2768,50 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         finally:
             if conn:
                 conn.close()
+
+    elif payload == Const.PB_PAYLOAD_PIZZA_CLAIM:
+        customer.referrer = "/pizza"
+        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PIZZA))
+        db.session.commit()
+        send_text(recipient_id, "🍕enter your phone number.", cancel_entry_quick_reply())
+
+    elif payload == Const.PB_PAYLOAD_PIZZA_TRY_AGAIN:
+        recieved_pizza(recipient_id)
+
+    elif payload == Const.PB_PAYLOAD_PIZZA_CONFIRM:
+        payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
+        if payment is not None:
+            slack_outbound(
+                channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+                message_text="{fb_user} used \"pizza\" with order:\n\nAddress:\n{address}\n\nContact:\n{phone_number}\n\nAt time:\n{delivery_time}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc)
+            )
+
+        customer.referrer = None
+        try:
+            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
+        db.session.commit()
+
+        send_admin_carousel(recipient_id)
+
+
+    elif payload == Const.PB_PAYLOAD_PIZZA_REENTER:
+        try:
+            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
+
+        customer.referrer = "/pizza"
+        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PIZZA))
+        db.session.commit()
+        send_text(recipient_id, "🍕enter your phone number.", cancel_entry_quick_reply())
+
+    elif payload == Const.PB_PAYLOAD_LMON8_FAQ:
+        send_text(recipient_id, "Lmon8 is the world's largest virtual mall exclusively on Facebook Messenger. We are launching soon and thought you might like a free pizza. Enjoy!", main_menu_quick_replies(recipient_id))
+
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).first()
@@ -2654,6 +2832,11 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_GREETING:
         logger.info("----------=BOT GREETING @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
         welcome_message(recipient_id, Const.MARKETPLACE_GREETING)
+
+        slack_outbound(
+            channel_name=Const.SLACK_ORTHODOX_CHANNEL,
+            message_text="{fb_user} arrived from “Getting Started” btn via deeplink {deeplink}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, deeplink=customer.referrer)
+        )
 
     elif re.search(r'^AUTO_GEN_STOREFRONT-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
@@ -3063,7 +3246,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `products` WHERE (`type` = 5 OR `type` = 6) AND `enabled` = 1 ORDER BY RAND() LIMIT 1;')
+                cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen"),))
                 row = cur.fetchone()
                 if row is not None:
                     product = Product.query.filter(Product.id == row['id']).first()
@@ -3915,6 +4098,11 @@ def received_text_response(recipient_id, message_text):
         send_featured_carousel(recipient_id)
 
 
+    #-- special pizza reserved word
+    elif message_text.lower() == "pizza":
+        recieved_pizza(recipient_id)
+        return "OK", 200
+
     #-- gamebots referral code
     elif message_text.startswith(":"):
         pass
@@ -3925,9 +4113,40 @@ def received_text_response(recipient_id, message_text):
         welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text)
 
 
-
     #-- all others
     else:
+        if customer.referrer == "/pizza":
+            payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
+            logger.info("Payment: %s" % (payment))
+            if payment is not None:
+                if payment.creation_state == 0: #-- phone #
+                    payment.full_name = message_text
+                    payment.creation_state = 1
+                    db.session.commit()
+                    send_text(recipient_id, "🍕enter your address.", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 1: #-- address
+                    payment.email = message_text
+                    payment.creation_state = 2
+                    db.session.commit()
+                    send_text(recipient_id, "🍕enter a time between 11am & 8pm (PDT)", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 2: #-- time
+                    #payment.expiration = calendar.timegm((datetime.now()).replace(hour=int(message_text) + 12 if int(message_text) < 12 else int(message_text), minute=0, second=0, microsecond=0).utctimetuple())
+                    payment.cvc = message_text
+                    payment.creation_state = 3
+                    db.session.commit()
+                    send_text(
+                        recipient_id=recipient_id,
+                        message_text="Your pizza will be delievered to:\n{address}\n\nContact:\n{phone_number}\n\nAt time:\n{delivery_time}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc),
+                        quick_replies=[
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_PIZZA_CONFIRM),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Enter", payload=Const.PB_PAYLOAD_PIZZA_REENTER),
+                        ] + cancel_entry_quick_reply()
+                    )
+
+                return "OK", 200
+
         if customer.fb_name == "_{PENDING}_":
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
             if purchase is not None:
@@ -4342,6 +4561,40 @@ def received_text_response(recipient_id, message_text):
             clear_entry_sequences(recipient_id)
             send_text(recipient_id, Const.GOODBYE_MESSAGE)
 
+        return "OK", 200
+
+    send_text(recipient_id, "Vanity Keyword Not Found", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+
+
+def recieved_pizza(recipient_id):
+    logger.info("recieved_pizza(recipient_id=%s)" % (recipient_id))
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    send_image(recipient_id, Const.IMAGE_URL_PIZZA_GIF)
+    time.sleep(5)
+    outcome = random.uniform(0, 100) < 50
+    if outcome is True:
+        send_text(
+            recipient_id=recipient_id,
+            message_text="F8 Winner! You just won 1 of 25 FREE pizzas from Lemonade.",
+            quick_replies=[
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Claim", payload=Const.PB_PAYLOAD_PIZZA_CLAIM),
+                build_quick_reply(Const.KWIK_BTN_TEXT, "What is Lmon8?", payload=Const.PB_PAYLOAD_LMON8_FAQ)
+            ]
+        )
+
+    else:
+        send_text(
+            recipient_id=recipient_id,
+            message_text="Not so lucky, here is a 🍕emoji stead.",
+            quick_replies=[
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Try again", payload=Const.PB_PAYLOAD_PIZZA_TRY_AGAIN),
+                build_quick_reply(Const.KWIK_BTN_TEXT, "What is Lmon8?", payload=Const.PB_PAYLOAD_LMON8_FAQ)
+            ]
+    )
+
+
+
 def handle_wrong_reply(recipient_id):
     logger.info("handle_wrong_reply(recipient_id=%s)" % (recipient_id))
 
@@ -4610,25 +4863,25 @@ def slack():
             else:
                 logger.info("PURCHASE NOT FOUND!!")
                 slack_outbound(
-                    channel_name = "lemonade-shops",
-                    message_text = "Couldn't locate that purchase!",
-                    webhook = Const.SLACK_SHOPS_WEBHOOK
+                    channel_name="lemonade-shops",
+                    message_text="Couldn't locate that purchase!",
+                    webhook=Const.SLACK_SHOPS_WEBHOOK
                 )
 
         else:
             logger.info("PURCHASE NOT FOUND!!")
             slack_outbound(
-                channel_name = "lemonade-shops",
-                message_text = "Couldn't locate that purchase!",
-                webhook = Const.SLACK_SHOPS_WEBHOOK
+                channel_name="lemonade-shops",
+                message_text="Couldn't locate that purchase!",
+                webhook=Const.SLACK_SHOPS_WEBHOOK
             )
 
     else:
         logger.info("INAVLID TOKEN!!")
         slack_outbound(
-            channel_name = "lemonade-shops",
-            message_text = "Invalid token!",
-            webhook = Const.SLACK_SHOPS_WEBHOOK
+            channel_name="lemonade-shops",
+            message_text="Invalid token!",
+            webhook=Const.SLACK_SHOPS_WEBHOOK
         )
 
     return "OK", 200

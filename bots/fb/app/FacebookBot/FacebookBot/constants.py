@@ -78,9 +78,11 @@ class Const(Constants):
     IMAGE_URL_MAIN_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
     IMAGE_URL_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
 
-    IMAGE_URL_FLIP_START = "https://i.imgur.com/48w05cY.gif"  # "https://i.imgur.com/cVdRZG2.gif"
+    IMAGE_URL_FLIP_START = "https://i.imgur.com/Kr0g3fY.gif" #"https://i.imgur.com/48w05cY.gif"
     IMAGE_URL_FLIP_WIN = "http://i.imgur.com/TAayas0.gif"
     IMAGE_URL_FLIP_LOSE = "http://i.imgur.com/CdwqcSD.gif"
+
+    IMAGE_URL_PIZZA_GIF = "https://i.imgur.com/aaiiSj3.gif"
 
 
     MARKETPLACE_GREETING = 'MARKETPLACE_GREETING'
@@ -118,10 +120,16 @@ class Const(Constants):
     PAYLOAD_TYPE_QUICK_REPLY = 'PAYLOAD_QUICK_REPLY'
     PAYLOAD_TYPE_POSTBACK = 'PAYLOAD_POSTBACK'
 
+    PB_PAYLOAD_PIZZA_CLAIM = "PIZZA_CLAIM"
+    PB_PAYLOAD_PIZZA_TRY_AGAIN = "PIZZA_TRY_AGAIN"
+    PB_PAYLOAD_PIZZA_CONFIRM = "PIZZA_CONFIRM"
+    PB_PAYLOAD_PIZZA_REENTER = "PIZZA_REENTER"
+
     PB_PAYLOAD_ORTHODOX = 'ORTHODOX_PAYLOAD'
     PB_PAYLOAD_GREETING = 'WELCOME_MESSAGE'
     PB_PAYLOAD_HOME_CONTENT = 'HOME_CONTENT'
     PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE = 'CANCEL_ENTRY_SEQUENCE'
+    PB_PAYLOAD_LMON8_FAQ = "LMON8_FAQ"
 
     PB_PAYLOAD_RND_FLIP_STOREFRONT = 'RND_FLIP_STOREFRONT'
     PB_PAYLOAD_PRODUCT_PURCHASES = 'PRODUCT_PURCHASES'
@@ -215,10 +223,11 @@ class Const(Constants):
     PAYMENT_SOURCE_CREDIT_CARD = 'PAYMENT_CREDIT_CARD'
     PAYMENT_SOURCE_PAYPAL = 'PAYMENT_PAYPAL'
     PAYMENT_SOURCE_FB = 'PAYMENT_FB'
+    PAYMENT_SOURCE_PIZZA = 'PAYMENT_PIZZA'
 
     RESERVED_COMMAND_REPLIES = "lemonade|lmon8|admin|main|main menu|menu|support|help|subs"
     RESERVED_APPNEXT_REPLIES = "f1xgb"
-    RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate"
+    RESERVED_AUTO_GEN_STOREFRONTS = "AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate||ShibaMaruPupUps|LINECharactersinLove|AK47FrontsideMisty|FlipDopplerKnife|MAC10NeonRider"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_MODERATOR_REPLIES = "mod"
