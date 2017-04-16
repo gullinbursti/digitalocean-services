@@ -199,7 +199,7 @@ def default_carousel(sender_id, amount=1):
     set_session_item(sender_id)
 
     elements = []
-    for i in range(amount):
+    for i in range(amount):# + 5 if sender_id in Const.ADMIN_FB_PSID else amount):
         elements.append(coin_flip_element(sender_id))
 
     if None in elements:
@@ -281,10 +281,12 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
+            logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
             cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price))
             row = cur.fetchone()
 
             if row is None:
+                logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
                 cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `enabled` = 1 ORDER BY `price` DESC LIMIT 1;')
                 row = cur.fetchone()
 
@@ -340,11 +342,11 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
     logger.info("coin_flip_prep(sender_id=%s, deposit=%s, item_id=%s, interval=%s)" % (sender_id, deposit, item_id, interval))
 
     item = get_item_details(item_id)
-    return coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
+    return True if sender_id in Const.ADMIN_FB_PSID else coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
 
 
 def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01, quantity=1, total_quantity=1):
-    # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s, quantity=%s)" % (wins, losses, deposit, item_cost, quantity))
+    # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s, quantity=%s)" % (wins, losses, deposit, item_cost, quantity))]
 
     probility = (losses * (1.0 / (Const.MAX_LOSSING_STREAK ** 2))) + statistics.stdev([min(max(random.expovariate(1.0 / float(wins * 3.0) if wins >= 1 else float(3.0)), 0), 1) for i in range(int(random.gauss(21, 3 + (1 / float(3)))))]) if deposit >= deposit_amount_for_price(item_cost) else 0.00
     # dice_roller = 1 - int(round(random.uniform(1, 6))) / float(6)
@@ -466,6 +468,10 @@ def coin_flip_results(sender_id, item_id=None):
                     'payload'     : "MAIN_MENU"
                 }]
             )
+
+
+
+
 
     else:
         send_tracker(fb_psid=sender_id, category="loss", label=flip_item['asset_name'], value=flip_item['price'])
@@ -704,7 +710,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit if sender_id not in Const.ADMIN_FB_PSID else 2
+    return deposit if sender_id not in Const.ADMIN_FB_PSID else random.choice([0.00, 1.00, 2.00, 3.00, 5.00, 15.00])
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -992,17 +998,20 @@ def deposit_amount_for_price(price):
     if price < 1.50:
         amount = 0
 
-    elif price < 4.50:
+    elif price < 2.50:
         amount = 1
 
-    elif price < 6.50:
+    elif price < 4.00:
         amount = 2
 
-    elif price < 9.50:
+    elif price < 6.00:
         amount = 3
 
-    elif price < 15.00:
+    elif price < 10.00:
         amount = 5
+
+    elif price < 15.00:
+        amount = 10
 
     return amount
 
@@ -1014,19 +1023,19 @@ def price_range_for_deposit(deposit):
         price = (0.00, 1.50)
 
     elif deposit < 2:
-        price = (1.50, 4.50)
+        price = (1.50, 2.00)
 
     elif deposit < 3:
-        price = (4.50, 6.50)
+        price = (2.00, 4.00)
 
     elif deposit < 5:
-        price = (6.50, 9.50)
+        price = (4.00, 10.00)
 
-    elif deposit < 15:
-        price = (9.50, 15.00)
+    elif deposit < 10:
+        price = (10.00, 15.00)
 
     else:
-        price = (15.00, 100.00)
+        price = (15.00, 1066.00)
 
     return price
 
@@ -1408,6 +1417,9 @@ def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
             send_text(sender_id, "Steam Trade URL is set to: {url}".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Re-Enter"]))
 
 
+
+
+
 def handle_payload(sender_id, payload_type, payload):
     logger.info("handle_payload(sender_id=%s, payload_type=%s, payload=%s)" % (sender_id, payload_type, payload))
 
@@ -1505,8 +1517,36 @@ def handle_payload(sender_id, payload_type, payload):
             if conn:
                 conn.close()
 
-        set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-        send_text(sender_id, "Enter your Lemonade shop name. If you don't have one go here: taps.io/makeshop\n\nInstructions for trade to process:\n\n1. Make sure your correct Steam trade URL is set.\n\n2. Make sure you enter a valid Lemonade shop URL.", main_menu_quick_reply())
+        # set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
+
+        trade_url = get_session_trade_url(sender_id)
+        send_tracker(fb_psid=sender_id, category="trade-url-set")
+
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('UPDATE `item_winners` SET `trade_url` = %s WHERE `fb_id` = %s ORDER BY `added` DESC LIMIT 1;', (trade_url, sender_id))
+                conn.commit()
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+        finally:
+            if conn:
+                conn.close()
+
+        full_name, f_name, l_name = get_session_name(sender_id)
+        payload = {
+            'channel'  : "#bot-alerts",
+            'username ': "gamebotsc",
+            'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+            'text'     : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if full_name is None else full_name, trade_url=trade_url)
+        }
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        send_text(sender_id, "Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
+
+        set_session_state(sender_id)
+        default_carousel(sender_id)
+
 
     elif payload == "TRADE_URL_CHANGE":
         set_session_trade_url(sender_id, "_{PENDING}_")
@@ -1517,7 +1557,6 @@ def handle_payload(sender_id, payload_type, payload):
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             trade_url = get_session_trade_url(sender_id)
             send_tracker(fb_psid=sender_id, category="trade-url-set")
-            send_text(sender_id, "Trade URL set to {trade_url}".format(trade_url=trade_url))
 
             conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
             try:
@@ -1539,9 +1578,10 @@ def handle_payload(sender_id, payload_type, payload):
                 'text'      : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if full_name is None else full_name, trade_url=trade_url)
             }
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+            send_text(sender_id, "Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
 
-            set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
-            send_text(sender_id, "Instructions to complete trade.\n\n1. MAKE a shop on Lemonade: taps.io/makeshop\n2. SHARE Shop with 3 friends on Messenger.\n3.Enter your Lemonade shop url now.", main_menu_quick_reply())
+            set_session_state(sender_id)
+            default_carousel(sender_id)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
             send_tracker(fb_psid=sender_id, category="lmon-name-entered")
@@ -1642,8 +1682,9 @@ def recieved_text_reply(sender_id, message_text):
             if conn:
                 conn.close()
 
-        send_text(sender_id, "You are the {queue} user in line.".format(queue=locale.format('%d', queue_index, grouping=True)))
-        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_reply())
+        #send_text(sender_id, "You are the {queue} user in line.".format(queue=locale.format('%d', queue_index, grouping=True)))
+        #send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_reply())
+        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_reply())
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
         send_text(sender_id, "Upload screenshots now.")
@@ -1652,7 +1693,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Weekly Mod Task:\n\nInstall and Open 10 FREE games or apps: taps.io/skins\n\nCreate a Lemonade Shop & share with 20 friends: taps.io/lmon8\n\nUpload screenshots by typing \"Upload\" & wait 24 hours.\n\nReward: 1 Mac Neon Rider\n\nSupport: twitter.com/bryantapawan24", main_menu_quick_reply())
+        send_text(sender_id, "Want to be a Mod?\n\nADD snapchat.com/add/game.bots\n\nGET m.me/gamebotsc & m.me/lmon8\n\nFOLLOW twitter.com/lmon8de\n\nFOLLOW twitter.com/gamebotsc\n\nLIKE fb.com/gamebotsc & fb.com/lmon8\n\nWAIT 24 hours for daily rewards.", main_menu_quick_reply())
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
