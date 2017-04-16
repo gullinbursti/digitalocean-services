@@ -346,7 +346,7 @@ class Storefront(db.Model):
     views = db.Column(db.Integer)
     added = db.Column(db.Integer)
 
-    def __init__(self, fb_psid, type_id=1):
+    def __init__(self, fb_psid, type_id=Const.STOREFRONT_TYPE_CUSTOM):
         self.fb_psid = fb_psid
         self.creation_state = 0
         self.type_id = type_id
@@ -881,17 +881,17 @@ def flip_product(recipient_id, product):
         customer.referrer = re.sub(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', r'/\1', customer.referrer)
         db.session.commit()
 
-    outcome = random.uniform(0, 1) < (1 / float(3)) or recipient_id in Const.ADMIN_FB_PSIDS or "disneyjp" not in product.tag_list_utf8
+    outcome = random.uniform(0, 1) < (1 / float(13)) or recipient_id in Const.ADMIN_FB_PSIDS or "disneyjp" not in product.tag_list_utf8
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
     #send_text(recipient_id, "Flipping for the shop {storefront_name}…".format(storefront_name=Storefront.query.filter(Storefront.id == product.storefront_id).first().display_name_utf8))
-    send_text(recipient_id, "A flip from our sponsor…")
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/gZYN481.gif")
     time.sleep(5)
 
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
-        send_text(recipient_id, "You won ${amount:.2f} in Gamebots credits.\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(amount=1, fb_psid=recipient_id[-4:]))
+        add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
+        send_text(recipient_id, "You won 100 Lemonade Pts.\n\n1. FOLLOW twitter.com/lmon8de\n2. LIKE fb.com/lmon8")
         #send_text(recipient_id, "You won {prepo} {product_name} worth ${price:.2f}!\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(prepo="an" if is_vowel(product.display_name_utf8[0]) else "a", product_name=product.display_name_utf8, price=product.price, fb_psid=recipient_id[-4:]))
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
@@ -899,9 +899,6 @@ def flip_product(recipient_id, product):
             channel_name=Const.SLACK_ORTHODOX_CHANNEL,
             message_text="*{fb_name}* ({fb_psid}) just won $1 in Gamebots credits by flipping {product_name}.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8)
         )
-
-    else:
-        send_text(recipient_id, "You lost! Flip again later for another chance.")
 
     return outcome
 
@@ -948,7 +945,7 @@ def view_product(recipient_id, product, welcome_entry=False):
 
             send_text(
                 recipient_id=recipient_id,
-                message_text="Welcome to {storefront_name}.\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format('%d', customer.points, grouping=True))
+                message_text="{storefront_name}.\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format('%d', customer.points, grouping=True))
                 #message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
             )
 
@@ -1321,7 +1318,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_text(recipient_id, "Instructions:\n\n1. Share your shop with 20 friends on Messenger.\n\n2. Sell them an item & take a screenshot.\n\n3. Text \"Upload\" to m.me/gamebotsc", main_menu_quick_replies(recipient_id))
 
         else:
-            send_text(recipient_id, "Couldn't create a shop with the name {storefront_name} at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "{storefront_name} is not available to resell at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
 
         slack_outbound(
             channel_name=Const.SLACK_ORTHODOX_CHANNEL,
@@ -1691,7 +1688,7 @@ def main_menu_quick_replies(fb_psid):
     ]
 
     if storefront is None:
-        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Create Shop", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT))
+        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Create Shop", payload=Const.PB_PAYLOAD_BUILD_STOREFRONT))
 
 
     quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT if product is not None else Const.PB_PAYLOAD_SHARE_APP))
@@ -1897,7 +1894,7 @@ def build_gamebots_element():
     logger.info("build_gamebots_element()")
 
     return build_card_element(
-        title="Win Gamebots Credits",
+        title="Gamebots Credits",
         subtitle="Tap, Flip & Win Now",
         image_url=Const.IMAGE_URL_FLIP_SPONSOR_CARD,
         buttons=[
@@ -2172,16 +2169,6 @@ def send_admin_carousel(recipient_id):
 
     #-- look for created storefront
     if storefront is None:
-        # cards.append(
-        #     build_card_element(
-        #         title="Create Shop",
-        #         subtitle="Tap Button Below",
-        #         image_url=Const.IMAGE_URL_CREATE_STOREFRONT_CARD,
-        #         buttons=[
-        #             build_button(Const.CARD_BTN_POSTBACK, caption="Create Shop", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT)
-        #         ]
-        #     )
-        # )
         cards.append(build_gamebots_element())
         cards += build_autogen_storefront_elements(recipient_id)
 
@@ -2201,17 +2188,6 @@ def send_admin_carousel(recipient_id):
 
             cards.append(build_gamebots_element())
             cards += build_autogen_storefront_elements(recipient_id)
-
-            # cards.append(
-            #     build_card_element(
-            #         title="Share Bot on Messenger",
-            #         subtitle="Share now with your friends on Messenger",
-            #         image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
-            #         buttons=[
-            #             build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger", payload=Const.PB_PAYLOAD_SHARE_APP)
-            #         ]
-            #     )
-            # )
 
         else:
             cards.append(build_gamebots_element())
@@ -2233,17 +2209,6 @@ def send_admin_carousel(recipient_id):
                         ]
                     )
                 )
-
-            # cards.append(
-            #     build_card_element(
-            #         title="Share {product_name} on Messenger".format(product_name=product.display_name_utf8),
-            #         subtitle="Share now with your friends on Messenger",
-            #         image_url=product.image_url,
-            #         buttons=[
-            #             build_button(Const.CARD_BTN_POSTBACK, caption="Share on Messenger".format(product_name=product.display_name_utf8), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
-            #         ]
-            #     )
-            # )
 
             cards += build_autogen_storefront_elements(recipient_id)
 
@@ -2298,6 +2263,18 @@ def send_customer_carousel(recipient_id, product_id):
         recipient_id = recipient_id,
         cards = elements,
         quick_replies = main_menu_quick_replies(recipient_id)
+    )
+
+    send_message(json.dumps(data))
+
+
+def send_autogen_carousel(recipient_id):
+    logger.info("send_autogen_carousel(recipient_id=%s)" % (recipient_id,))
+
+    data = build_carousel(
+        recipient_id=recipient_id,
+        cards=build_autogen_storefront_elements(recipient_id),
+        quick_replies=main_menu_quick_replies(recipient_id)
     )
 
     send_message(json.dumps(data))
@@ -2703,7 +2680,8 @@ def received_fb_payment(customer, fb_payment):
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
 
-
+            time.sleep(3)
+            send_text(customer.fb_psid, "Purchase complete!")
             if product.type_id == Const.PRODUCT_TYPE_GAME_ITEM:
                 if customer.trade_url is None:
                     customer.trade_url = "_{PENDING}_"
@@ -2721,7 +2699,7 @@ def received_fb_payment(customer, fb_payment):
 
             elif product.type_id == Const.PRODUCT_TYPE_STICKER:
                 if customer.social is None:
-                    customer.alt_social = "_{PENDING}_"
+                    customer.social = "_{PENDING}_"
                     db.session.commit()
                     send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Line ID.", cancel_entry_quick_reply())
 
@@ -2772,11 +2750,15 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             if conn:
                 conn.close()
 
+    elif payload == Const.PB_PAYLOAD_PIZZA_FAQ:
+        send_text(recipient_id, "Pizza is awesome and wedge shaped!", [build_quick_reply(Const.KWIK_BTN_TEXT, "Menu", payload=Const.PB_PAYLOAD_PIZZA_CLAIM)])
+
     elif payload == Const.PB_PAYLOAD_PIZZA_CLAIM:
         customer.referrer = "/pizza"
         db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PIZZA))
         db.session.commit()
-        send_text(recipient_id, "🍕enter your phone number.", cancel_entry_quick_reply())
+
+        send_text(recipient_id, "Offer only valid in the SF/South Bay Area between April 18th through 21st.\n\nEnter your F8 pizza code.", [build_quick_reply(Const.KWIK_BTN_TEXT, "What is Lmon8?", payload=Const.PB_PAYLOAD_LMON8_FAQ)] + return_home_quick_reply("Menu"))
 
     elif payload == Const.PB_PAYLOAD_PIZZA_TRY_AGAIN:
         recieved_pizza(recipient_id)
@@ -2785,9 +2767,25 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
         if payment is not None:
             slack_outbound(
-                channel_name=Const.SLACK_ORTHODOX_CHANNEL,
-                message_text="{fb_user} used \"pizza\" delievery to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm")
+                channel_name="lmon8-pizza",
+                message_text="{fb_user} used \"pizza\" delievery to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
+                webhook=Const.SLACK_PIZZA_WEBHOOK
             )
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('INSERT INTO `pizza_orders` (`id`, `fb_psid`, `info`, `added`) VALUES (NULL, %s, %s, UNIX_TIMESTAMP());', (recipient_id, "Phone #:{phone_number}, Address:{address}, Time:{delivery_time}:00{ampm}".format(phone_number=payment.full_name, address=payment.email, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm")))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
 
         customer.referrer = None
         try:
@@ -2813,7 +2811,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "🍕enter your phone number.", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_LMON8_FAQ:
-        send_text(recipient_id, "Lmon8 is the world's largest virtual mall exclusively on Facebook Messenger.\n\nWe are launching soon and thought you might like a free pizza. Enjoy!", main_menu_quick_replies(recipient_id))
+        send_text(
+            recipient_id=recipient_id,
+            message_text="Lemonade is the world's largest virtual mall.",
+            quick_replies=[
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Why Pizza?", payload=Const.PB_PAYLOAD_PIZZA_FAQ),
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Menu", payload=Const.PB_PAYLOAD_PIZZA_CLAIM)
+            ] + cancel_entry_quick_reply()
+        )
 
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
@@ -2848,7 +2853,21 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_text(recipient_id, "Instructions:\n\n1. Share your shop with 20 friends on Messenger.\n\n2. Sell them an item & take a screenshot.\n\n3. Text \"Upload\" to m.me/gamebotsc", main_menu_quick_replies(recipient_id))
 
         else:
-            send_text(recipient_id, "Couldn't create a shop with the name {storefront_name} at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "{storefront_name} is not available to resell at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
+
+
+    elif payload == Const.PB_PAYLOAD_BUILD_STOREFRONT:
+        send_text(
+            recipient_id=recipient_id,
+            message_text="Do you want to create a custom shop or become a reseller?",
+            quick_replies=[
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Custom", payload=Const.PB_PAYLOAD_CREATE_STOREFRONT),
+                build_quick_reply(Const.KWIK_BTN_TEXT, "Resell", payload=Const.PB_PAYLOAD_RESELLER_STOREFRONT)
+            ] + cancel_entry_quick_reply()
+        )
+
+    elif payload == Const.PB_PAYLOAD_RESELLER_STOREFRONT:
+        send_autogen_carousel(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_CREATE_STOREFRONT:
         # send_tracker(fb_psid=recipient_id, category="button-create-shop")
@@ -3669,7 +3688,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "Please enter your Line ID.", return_home_quick_reply("Cancel"))
 
     elif payload == Const.PB_PAYLOAD_ALT_SOCIAL_KEEP:
-        send_text(recipient_id, "Line ID has been set to “{alt_social}”\n\nInstructions:\n1. Accept friend request from link for profile Lmon8.\n\n2. Wait 6 hours.".format(alt_social=customer.alt_social), main_menu_quick_replies(recipient_id))
+        send_text(recipient_id, "Line ID has been set to “{alt_social}”\n\nInstructions:\n1. Accept friend request from link for profile Lmon8.\n\n2. Wait 6 hours.".format(alt_social=customer.social), main_menu_quick_replies(recipient_id))
         send_customer_carousel(recipient_id, customer.product_id)
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
@@ -4101,7 +4120,7 @@ def received_text_response(recipient_id, message_text):
         welcome_message(recipient_id, Const.CUSTOMER_REFERRAL, message_text)
 
     # -- protected entry
-    elif message_text in Const.RESERVED_PROTECTED_REPLIES:
+    elif message_text == Const.RESERVED_PROTECTED_REPLIES:
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
             if customer.referrer is not None and ("/flip/" in customer.referrer or customer.product_id == 12901):
@@ -4118,33 +4137,47 @@ def received_text_response(recipient_id, message_text):
             payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
             logger.info("Payment: %s" % (payment))
             if payment is not None:
-                if payment.creation_state == 0: #-- phone #
+                if payment.creation_state == 0: #-- code entered
+                    if message_text.lower() in Const.RESERVED_PIZZA_CODES:
+                        payment.creation_state = 1
+                        db.session.commit()
+                        send_text(recipient_id, "Enter your phone number.", cancel_entry_quick_reply())
+
+                    else:
+                        send_text(recipient_id, "Incorrect code, please try again.", cancel_entry_quick_reply())
+
+                elif payment.creation_state == 1: #-- phone #
                     payment.full_name = message_text
-                    payment.creation_state = 1
+                    payment.creation_state = 2
                     db.session.commit()
                     send_text(recipient_id, "Enter your address.", cancel_entry_quick_reply())
 
-                elif payment.creation_state == 1: #-- address
+                elif payment.creation_state == 2: #-- address
                     payment.email = message_text
-                    payment.creation_state = 2
+                    payment.creation_state = 3
                     db.session.commit()
                     send_text(recipient_id, "Enter a time between 11am & 5pm (PDT)", cancel_entry_quick_reply())
 
-                elif payment.creation_state == 2: #-- time
+                elif payment.creation_state == 3: #-- time
                     #payment.expiration = calendar.timegm((datetime.now()).replace(hour=int(message_text) + 12 if int(message_text) < 12 else int(message_text), minute=0, second=0, microsecond=0).utctimetuple())
-                    payment.cvc = int(message_text[1])
-                    payment.creation_state = 3
-                    db.session.commit()
-                    send_text(
-                        recipient_id=recipient_id,
-                        message_text="Your pizza will be delievered to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
-                        quick_replies=[
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_PIZZA_CONFIRM),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Enter", payload=Const.PB_PAYLOAD_PIZZA_REENTER),
-                        ] + cancel_entry_quick_reply()
-                    )
 
-                elif payment.creation_state >= 3:  # -- time
+                    if re.search(r'^(\d+)[ap]m$', message_text) is not None:
+                        payment.cvc = re.sub(r'^(\d+).*$', r'\1', message_text)
+                        payment.creation_state = 4
+                        db.session.commit()
+                        send_text(
+                            recipient_id=recipient_id,
+                            message_text="Your pizza will be delievered to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
+                            quick_replies=[
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_PIZZA_CONFIRM),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Enter", payload=Const.PB_PAYLOAD_PIZZA_REENTER),
+                            ] + cancel_entry_quick_reply()
+                        )
+
+                    else:
+                        send_text(recipient_id, "Please enter a time like 4pm", cancel_entry_quick_reply())
+
+                elif payment.creation_state >= 4:  # -- time
                     send_text(
                         recipient_id=recipient_id,
                         message_text="Your pizza will be delievered to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
@@ -4214,7 +4247,7 @@ def received_text_response(recipient_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(recipient_id, "Line ID has been set to “{alt_social}”\n\nInstructions:\n1. Accept friend request from link for profile Lmon8.\n\n2. Wait 6 hours.".format(alt_social=customer.alt_social))
+            send_text(recipient_id, "Line ID has been set to “{alt_social}”\n\nInstructions:\n1. Accept friend request from link for profile Lmon8.\n\n2. Wait 6 hours.".format(alt_social=customer.social))
             send_customer_carousel(recipient_id, customer.product_id)
             return "OK", 200
 
@@ -4524,7 +4557,7 @@ def received_text_response(recipient_id, message_text):
         # -- giveaway reply
         elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES:
             # send_text(recipient_id, "You are the {queue} user in line.\n\nFollow instructions to complete your entry:".format(queue=locale.format('%d', queue_position(recipient_id), grouping=True)))
-            send_text(recipient_id, "Instructions:\n\n1. INSTALL 1 FREE game: taps.io/skins\n\n2. OPEN & SCREENSHOT\n\n3. MSG \"Upload\" to: m.me/gamebotsc", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Instructions:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_replies(recipient_id))
 
         # -- appnext reply
         elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES:
@@ -4559,11 +4592,10 @@ def recieved_pizza(recipient_id):
     if outcome is True:
         send_text(
             recipient_id=recipient_id,
-            message_text="You won!\n1 of 25 FREE pizzas from Lemonade.",
+            message_text="You WON! 🍕🎉\n1 of 25 FREE pizzas from Lemonade, the world's largest virtual mall. ",
             quick_replies=[
                 build_quick_reply(Const.KWIK_BTN_TEXT, "Claim", payload=Const.PB_PAYLOAD_PIZZA_CLAIM),
-                build_quick_reply(Const.KWIK_BTN_TEXT, "What is Lmon8?", payload=Const.PB_PAYLOAD_LMON8_FAQ)
-            ]
+            ] + cancel_entry_quick_reply()
         )
 
     else:
@@ -4935,7 +4967,7 @@ def paypal():
 
             elif product.type_id == Const.PRODUCT_TYPE_STICKER:
                 if customer.social is None:
-                    customer.alt_social = "_{PENDING}_"
+                    customer.social = "_{PENDING}_"
                     db.session.commit()
                     send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Line ID.", cancel_entry_quick_reply())
 
@@ -4952,7 +4984,101 @@ def paypal():
     return "OK", 200
 
 
-#-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
+
+@app.route('/import-storefront', methods=['POST'])
+def import_storefront():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/import-storefront'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.IMPORT_STOREFRONT_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        customer = Customer.query.filter(Customer.fb_psid == request.form['fb_psid']).first()
+
+        suffix = ""
+        for i in range(4):
+            suffix = "{suffix}{rand}".format(suffix=suffix, rand=random.randint(0, 9))
+        display_name = "{prefix} - {suffix}".format(prefix=request.form['storefront.display_name'], suffix=suffix)
+
+        storefront = Storefront(request.form['fb_psid'], Const.STOREFRONT_TYPE_IMPORT_GEN)
+        storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", display_name.encode('ascii', 'ignore'))
+        storefront.display_name = display_name
+        storefront.description = request.form['storefront.description']
+        storefront.logo_url = request.form['storefront.logo_url']
+        storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
+        storefront.creation_state = 4
+        db.session.add(storefront)
+        db.session.commit()
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT * FROM `storefronts` WHERE `name` = %s AND `enabled` = 1;', (storefront.name,))
+                if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `type`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (0 if customer is None else customer.id, storefront.type_id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                    storefront.id = cur.fetchone()['id']
+                    db.session.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        suffix = ""
+        for i in range(4):
+            suffix = "{suffix}{rand}".format(suffix=suffix, rand=random.randint(0, 9))
+        display_name = "{prefix} - {suffix}".format(prefix=request.form['product.display_name'], suffix=suffix)
+
+        product = Product(request.form['fb_psid'], storefront.id)
+        product.name = re.sub(Const.IGNORED_NAME_PATTERN, "", display_name.encode('ascii', 'ignore'))
+        product.display_name = display_name
+        product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=0)).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+        product.description = request.form['product.description'] or "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
+        product.type_id = Const.PRODUCT_TYPE_GAME_ITEM
+        product.image_url = request.form['product.image_url']
+        product.video_url = request.form['product.video_url'] or None
+        product.attachment_id = request.form['product.attachment_id'] or None
+        product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
+        product.price = request.form['product.price']
+        product.tags = "autogen-import{tags}".format(tags=request.form['product.tags'] or "")
+        product.creation_state = 7
+        db.session.add(product)
+        db.session.commit()
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
+                if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, "", product.release_date))
+                    conn.commit()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
+                    product.id = cur.fetchone()['id']
+                    db.session.commit()
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+    return "OK", 200
+
+
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
 @app.route('/', methods=['GET'])
@@ -4969,8 +5095,10 @@ def verify():
 
     return "OK", 200
 
+
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
+
 
 def send_typing_indicator(recipient_id, is_typing):
     data = {
