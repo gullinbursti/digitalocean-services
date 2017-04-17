@@ -1109,7 +1109,7 @@ def toggle_opt_out(sender_id, is_optout=True):
             conn.close()
 
     if is_optout:
-        send_text(sender_id, "You will have opted out of Gamebots & will no longer recieve messages from Gamebots. If you need help visit facebook.com/gamebotsc", opt_out_quick_replies())
+        send_text(sender_id, "You have opted out of Gamebots & will no longer recieve messages from Gamebots. If you need help visit facebook.com/gamebotsc", opt_out_quick_replies())
         return "OK", 200
 
 
@@ -1251,8 +1251,9 @@ def webook():
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None# (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
-                if sender_id in Const.BANNED_USERS:
-                    return "OK", 200
+
+
+
 
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
@@ -1649,6 +1650,10 @@ def handle_payload(sender_id, payload_type, payload):
         # send_tracker("no-thanks", sender_id, "")
         default_carousel(sender_id)
 
+
+    elif payload == "CANCEL":
+        return "OK", 200
+
     else:
         default_carousel(sender_id)
     return "OK", 200
@@ -1657,15 +1662,15 @@ def handle_payload(sender_id, payload_type, payload):
 def recieved_text_reply(sender_id, message_text):
     logger.info("recieved_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
 
-    if message_text.lower() in Const.OPT_OUT_REPLIES:
+    if message_text.lower() in Const.OPT_OUT_REPLIES.split("|"):
         logger.info("-=- ENDING HELP -=- (%s)" % (time.strftime('%Y-%m-%d %H:%M:%S')))
         toggle_opt_out(sender_id, True)
 
-    elif message_text.lower() in Const.MAIN_MENU_REPLIES:
+    elif message_text.lower() in Const.MAIN_MENU_REPLIES.split("|"):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
-    elif message_text.lower() in Const.GIVEAWAY_REPLIES:
+    elif message_text.lower() in Const.GIVEAWAY_REPLIES.split("|"):
         queue_index = 1066
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         try:
