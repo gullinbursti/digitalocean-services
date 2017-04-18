@@ -885,7 +885,7 @@ def flip_product(recipient_id, product):
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
     #send_text(recipient_id, "Flipping for the shop {storefront_name}…".format(storefront_name=Storefront.query.filter(Storefront.id == product.storefront_id).first().display_name_utf8))
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif", "240305683111935" if "disneyjp" in product.tag_list_utf8 else None)
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
     time.sleep(0.01)
 
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
@@ -2435,76 +2435,83 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT:
-            body_elements = []
-            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            if fb_user is not None and fb_user.payments_enabled is True:
-                # body_elements.append(
-                #     build_card_element(
-                #         title=product.display_name_utf8,
-                #         subtitle="${price:.2f}".format(price=product.price),
-                #         image_url=product.image_url,
-                #         item_url=product.messenger_url,
-                #         buttons=[
-                #             build_button(Const.CARD_BTN_PAYMENT, caption="Buy Now", price=product.price)
-                #         ]
-                #     )
-                # )
-
-                body_elements.append(
-                    build_card_element(
-                        title=product.display_name_utf8,
-                        subtitle="${price:.2f}".format(price=product.price),
-                        image_url=product.image_url,
-                        item_url=product.messenger_url,
-                        buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
-                        ]
-                    )
-                )
-
-                body_elements.append(
-                    build_card_element(
-                        title=product.display_name_utf8,
-                        subtitle="${price:.2f}".format(price=product.price),
-                        image_url=product.image_url,
-                        item_url=product.messenger_url,
-                        buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
-                        ]
-                    ),
-                )
-
-            data = build_list_card(
-                recipient_id = recipient_id,
-                body_elements = body_elements,
-
-                    # ),
-                    # build_card_element(
-                    #     title = product.display_name_utf8,
-                    #     subtitle = "${price:.2f}".format(price=product.price),
-                    #     image_url = product.image_url,
-                    #     item_url = product.messenger_url,
-                    #     buttons = [
-                    #         build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
-                    #     ]
-                    # ),
-                    # build_card_element(
-                    #     title = product.display_name_utf8,
-                    #     subtitle = "${price:.2f}".format(price=product.price),
-                    #     image_url = product.image_url,
-                    #     item_url = product.messenger_url,
-                    #     buttons = [
-                    #         build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
-                    #     ]
-                    # )
-                header_element = build_card_element(
-                    title = storefront.display_name_utf8,
-                    subtitle = storefront.description,
-                    image_url = storefront.logo_url,
-                    item_url = None
-                ),
-                quick_replies = main_menu_quick_replies(recipient_id)
+            data = build_standard_card(
+                recipient_id=recipient_id,
+                title=product.display_name_utf8,
+                subtitle="${price:.2f}".format(price=product.price),
+                image_url=product.image_url,
+                item_url=product.messenger_url,
+                buttons=[
+                    build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                ],
+                quick_replies=main_menu_quick_replies(recipient_id)
             )
+
+
+            # body_elements = []
+            # fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+            # if fb_user is not None and fb_user.payments_enabled is True:
+            #     body_elements.append(
+            #         build_card_element(
+            #             title=product.display_name_utf8,
+            #             subtitle="${price:.2f}".format(price=product.price),
+            #             image_url=product.image_url,
+            #             item_url=product.messenger_url,
+            #             buttons=[
+            #                 build_button(Const.CARD_BTN_PAYMENT, caption="Buy Now", price=product.price)
+            #             ]
+            #         )
+            #     )
+            #
+            # body_elements.append(
+            #     build_card_element(
+            #         title=product.display_name_utf8,
+            #         subtitle="${price:.2f}".format(price=product.price),
+            #         image_url=product.image_url,
+            #         item_url=product.messenger_url,
+            #         buttons=[
+            #             build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
+            #         ]
+            #     )
+            # )
+            #
+            # body_elements.append(
+            #     build_card_element(
+            #         title=product.display_name_utf8,
+            #         subtitle="${price:.2f}".format(price=product.price),
+            #         image_url=product.image_url,
+            #         item_url=product.messenger_url,
+            #         buttons=[
+            #             build_button(Const.CARD_BTN_POSTBACK, caption="Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
+            #         ]
+            #     ),
+            # )
+            # # body_elements.append(
+            # #     build_card_element(
+            # #         title = product.display_name_utf8,
+            # #         subtitle = "${price:.2f}".format(price=product.price),
+            # #         image_url = product.image_url,
+            # #         item_url = product.messenger_url,
+            # #         buttons = [
+            # #             build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
+            # #         ]
+            # #     )
+            # # )
+            #
+            #
+            # data = build_list_card(
+            #     recipient_id = recipient_id,
+            #     body_elements = body_elements,
+            #
+            #     header_element = build_card_element(
+            #         title = storefront.display_name_utf8,
+            #         subtitle = storefront.description,
+            #         image_url = storefront.logo_url,
+            #         item_url = None
+            #     ),
+            #     quick_replies = main_menu_quick_replies(recipient_id)
+            # )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT_CC:
             stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
@@ -4191,6 +4198,7 @@ def received_text_response(recipient_id, message_text):
         #send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "240305683111935")
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
+            send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "240749559734214")
             if customer.referrer is not None and ("/flip/" in customer.referrer or customer.product_id == 12901):
                 flip_product(recipient_id, product)
 
@@ -4224,7 +4232,7 @@ def received_text_response(recipient_id, message_text):
                     payment.email = message_text
                     payment.creation_state = 3
                     db.session.commit()
-                    send_text(recipient_id, "Enter a time between 11am & 5pm (PDT)", cancel_entry_quick_reply())
+                    send_text(recipient_id, "Enter a time between 11am & 8pm (PDT)", cancel_entry_quick_reply())
 
                 elif payment.creation_state == 3: #-- time
                     #payment.expiration = calendar.timegm((datetime.now()).replace(hour=int(message_text) + 12 if int(message_text) < 12 else int(message_text), minute=0, second=0, microsecond=0).utctimetuple())

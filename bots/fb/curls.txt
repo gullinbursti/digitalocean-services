@@ -54,7 +54,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 
 User API:
-curl -X GET "https://graph.facebook.com/v2.6/1567462583293855?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/177712676037903?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/177712676037903?fields=is_payment_enabled&access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/267184583696625?fields=is_payment_enabled&access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
 
 
 Attachment ID:
@@ -64,9 +66,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "message":{
     "attachment":{
-      "type":"video",
+      "type":"image",
       "payload":{
-        "url":"http://lmon.us/videos/tsumtsum.mp4",
+        "url":"https://i.imgur.com/rsiKG84.gif",
         "is_reusable":true
       }
     }
