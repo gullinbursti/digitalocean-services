@@ -959,9 +959,8 @@ class KikBot(tornado.web.RequestHandler):
                         TextMessage(
                             to=message.from_user,
                             chat_id=message.chat_id,
-                            body="Gamebots on Kik is experiencing some technical issues! Please use our Messenger bot m.me/gamebotsc",
-                            type_time=250,
-                            keyboards=default_keyboard()
+                            body="Gamebots on Kik is launching soon. You will be notified here once the bot goes live. \n\nm.me/gamebotsc\ntwitter.com/gamebotsc",
+                            type_time=250
                         )
                     ])
                 except KikError as err:
@@ -1020,14 +1019,27 @@ class KikBot(tornado.web.RequestHandler):
             elif isinstance(message, TextMessage):
                 print("=-= TextMessage =-= ")
 
+                conn = pymysql.connect(host=Const.DB_HOST, user=Const.DB_USER, password=Const.DB_PASS, db=Const.DB_NAME, charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor);
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute('INSERT INTO `kikbot_logs` (`id`, `username`, `chat_id`, `body`, `added`) VALUES (NULL, %s, %s, %s, NOW());', (message.from_user, message.chat_id, message.body))
+                        conn.commit()
+                        cur.close()
+
+                except pymysql.Error as err:
+                    print("MySQL DB error:%s" % (err))
+
+                finally:
+                    if conn:
+                        conn.close()
+
                 try:
                     kik.send_messages([
                         TextMessage(
                             to=message.from_user,
                             chat_id=message.chat_id,
-                            body="Gamebots on Kik is experiencing some technical issues! Please use our Messenger bot m.me/gamebotsc",
-                            type_time=250,
-                            keyboards=default_keyboard()
+                            body="Gamebots on Kik is launching soon. You will be notified here once the bot goes live. \n\nm.me/gamebotsc\ntwitter.com/gamebotsc",
+                            type_time=250
                         )
                     ])
                 except KikError as err:
