@@ -250,7 +250,7 @@ class Const(Constants):
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_MODERATOR_REPLIES = "mod"
-    RESERVED_GIAVEAWAY_REPLIES = "giveaway"
+    RESERVED_GIAVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     RESERVED_PROTECTED_REPLIES = "4x78"
     RESERVED_PIZZA_CODES = "p1zza|152dd|c84e6|56aeb|b95b2|90d6a|5dac8|a561e|a2e9d|df301|e5618|b272e|70b01|befb2|96466|c112f|e2587|7b16a|36d25|393de|c445f|38809|4fa71|a9f19|c3ddd|8fdb7|6874f|69624|3f8e7|09dbb|2d8c3|f483a|ade96|770a3|77823|6db3a|45336|4b11d|835f5|86a38|f087c|b2360|fc2a0|3df83|81374|ae3ed|15c01|3d0d5|84da0|c7add|9a323|7d3ae|06162|85a2c|f4e15|b10e9|ad47f|cb27b|94a1c|7204d|6d17a"
 

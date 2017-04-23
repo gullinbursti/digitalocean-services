@@ -561,13 +561,15 @@ def fb_psid_profile(recipient_id):
 def queue_position(recipient_id, offset=0):
     logger.info("queue_position(recipient_id=%s, offset=%s)" % (recipient_id, offset))
 
-    queue_indexer = QueueIndexer(recipient_id)
-    db.session.add(queue_indexer)
-    db.session.commit()
+    queue_indexer = QueueIndexer.query.filter(QueueIndexer.fb_psid == recipient_id).first()
+    if queue_indexer is None:
+        queue_indexer = QueueIndexer(recipient_id)
+        db.session.add(queue_indexer)
+        db.session.commit()
 
-    if queue_indexer.id < offset:
-        while queue_indexer.id < offset:
-            queue_indexer.id += random.gauss(offset, offset ** 0.5)
+        if queue_indexer.id < offset:
+            while queue_indexer.id < offset:
+                queue_indexer.id += random.gauss(offset, offset ** 0.5)
 
     return queue_indexer.id + offset
 
@@ -884,14 +886,12 @@ def flip_product(recipient_id, product):
     outcome = random.uniform(0, 1) < (1 / float(13)) or recipient_id in Const.ADMIN_FB_PSIDS or "disneyjp" not in product.tag_list_utf8
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
-    #send_text(recipient_id, "Flipping for the shop {storefront_name}…".format(storefront_name=Storefront.query.filter(Storefront.id == product.storefront_id).first().display_name_utf8))
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
-    time.sleep(0.01)
 
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
         add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
-        send_text(recipient_id, "You won 100 Lemonade Pts.\n\n1. FOLLOW twitter.com/lmon8de\n2. LIKE fb.com/lmon8")
+        send_text(recipient_id, "You won 100 Lemonade Pts. Keep flipping to earn more.\n\nEnjoy the following featured shop.")
         #send_text(recipient_id, "You won {prepo} {product_name} worth ${price:.2f}!\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(prepo="an" if is_vowel(product.display_name_utf8[0]) else "a", product_name=product.display_name_utf8, price=product.price, fb_psid=recipient_id[-4:]))
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
@@ -1959,11 +1959,11 @@ def build_autogen_storefront_elements(recipient_id):
     elements = []
 
     templates = [{
-        'key'       : "AK47FireSerpent",
-        'title'     : "AK-47 | Fire Serpent",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/0G9LXB0.png"
-    }, {
+    #     'key'       : "AK47FireSerpent",
+    #     'title'     : "AK-47 | Fire Serpent",
+    #     'subtitle'  : None,
+    #     'image_url' : "https://i.imgur.com/0G9LXB0.png"
+    # }, {
         'key'       : "MAC10NeonRider",
         'title'     : "MAC-10 | Neon Rider",
         'subtitle'  : None,
@@ -1974,11 +1974,11 @@ def build_autogen_storefront_elements(recipient_id):
         'subtitle'  : None,
         'image_url' : "https://i.imgur.com/NzPh6im.png"
     }, {
-        'key'       : "AWPDragonLore",
-        'title'     : "AWP | Dragon Lore",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/Bavlo02.png"
-    }, {
+    #     'key'       : "AWPDragonLore",
+    #     'title'     : "AWP | Dragon Lore",
+    #     'subtitle'  : None,
+    #     'image_url' : "https://i.imgur.com/Bavlo02.png"
+    # }, {
         'key'       : "AWPMedusa",
         'title'     : "AWP | Medusa",
         'subtitle'  : None,
@@ -4206,6 +4206,38 @@ def received_text_response(recipient_id, message_text):
 
         return "OK", 200
 
+    # -- show admin carousel
+    elif message_text.lower() in Const.RESERVED_COMMAND_REPLIES.split("|"):
+        clear_entry_sequences(recipient_id)
+        send_admin_carousel(recipient_id)
+
+    # -- moderator reply
+    elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES.split("|"):
+        send_text(recipient_id, "You have signed up to be a mod. We will send you details shortly. ", main_menu_quick_replies(recipient_id))
+
+    # -- giveaway reply
+    elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES.split("|"):
+        send_text(recipient_id, "You have completed a virtual item giveaway entry. User {queue} of {total}. You will be messaged here when the winner is selected.".format(queue=locale.format('%d', queue_position(recipient_id), grouping=True), total=locale.format('%d', int(queue_position(recipient_id) * 2.125), grouping=True)))
+        #send_text(recipient_id, "Instructions:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_replies(recipient_id))
+
+    # -- appnext reply
+    elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES.split("|"):
+        send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
+
+    # -- autogenerate shop
+    elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES.split("|"):
+        storefront, product = autogen_storefront(recipient_id, message_text)
+
+        send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
+        send_text(recipient_id, product.messenger_url)
+        send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
+        send_admin_carousel(recipient_id)
+
+    # -- quit message
+    elif message_text.lower() in Const.RESERVED_OPTOUT_REPLIES.split("|"):
+        clear_entry_sequences(recipient_id)
+        send_text(recipient_id, Const.GOODBYE_MESSAGE)
+
 
     #-- all others
     else:
@@ -4618,44 +4650,7 @@ def received_text_response(recipient_id, message_text):
             else:
                 welcome_message(recipient_id, Const.ENTRY_CUSTOMER_REFERRAL, message_text)
 
-            return "OK", 200
-
-
-        # -- show admin carousel
-        if message_text.lower() in Const.RESERVED_COMMAND_REPLIES.split("|"):
-            clear_entry_sequences(recipient_id)
-            send_admin_carousel(recipient_id)
-
-        # -- moderator reply
-        elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES.split("|"):
-            send_text(recipient_id, "Want to be a Mod?\n\nADD snapchat.com/add/game.bots\n\nGET m.me/gamebotsc & m.me/lmon8\n\nFOLLOW twitter.com/lmon8de\n\nFOLLOW twitter.com/gamebotsc\n\nLIKE fb.com/gamebotsc & fb.com/lmon8\n\nWAIT 24 hours for daily rewards.", main_menu_quick_replies(recipient_id))
-
-        # -- giveaway reply
-        elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES.split("|"):
-            # send_text(recipient_id, "You are the {queue} user in line.\n\nFollow instructions to complete your entry:".format(queue=locale.format('%d', queue_position(recipient_id), grouping=True)))
-            send_text(recipient_id, "Instructions:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_replies(recipient_id))
-
-        # -- appnext reply
-        elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES.split("|"):
-            send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
-
-        # -- autogenerate shop
-        elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES.split("|"):
-            storefront, product = autogen_storefront(recipient_id, message_text)
-
-            send_text(recipient_id, "Auto generated your shop {storefront_name}.".format(storefront_name=storefront.display_name_utf8))
-            send_text(recipient_id, product.messenger_url)
-            send_text(recipient_id, "Every 2 {product_name}s you sell you will earn 1 {product_name}.".format(product_name=product.display_name_utf8))
-            send_admin_carousel(recipient_id)
-
-        # -- quit message
-        elif message_text.lower() in Const.RESERVED_OPTOUT_REPLIES.split("|"):
-            clear_entry_sequences(recipient_id)
-            send_text(recipient_id, Const.GOODBYE_MESSAGE)
-
-        return "OK", 200
-
-    send_text(recipient_id, "Vanity Keyword Not Found", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
+    return "OK", 200
 
 
 def recieved_pizza(recipient_id):
@@ -4861,7 +4856,7 @@ def fbbot():
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
 
-                if random.uniform(1, 100) < 50:
+                if random.uniform(1, 100) < 10:
                     queue_position(customer.fb_psid)
 
 
