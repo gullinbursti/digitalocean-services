@@ -61,7 +61,7 @@ class Const(Constants):
     MODERATOR_REPLIES = "mod"
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
     UPLOAD_REPLIES = "upload"
-    GIVEAWAY_REPLIES = "giveaway"
+    GIVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
 
     BANNED_USERS = ""

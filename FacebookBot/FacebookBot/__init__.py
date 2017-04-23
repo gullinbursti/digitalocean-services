@@ -1671,7 +1671,7 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.GIVEAWAY_REPLIES.split("|"):
-        queue_index = 1066
+        queue_index = 0
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         try:
             conn.row_factory = sqlite3.Row
@@ -1689,7 +1689,7 @@ def recieved_text_reply(sender_id, message_text):
 
         #send_text(sender_id, "You are the {queue} user in line.".format(queue=locale.format('%d', queue_index, grouping=True)))
         #send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_reply())
-        send_text(sender_id, "Follow instructions to complete your entry:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_reply())
+        send_text(sender_id, "You have completed a virtual item giveaway entry. User {queue} of {total}. You will be messaged here when the winner is selected.".format(queue=locale.format('%d', queue_index, grouping=True), total=locale.format('%d', queue_index * 2.125, grouping=True)), main_menu_quick_reply())
 
     elif message_text.lower() in Const.UPLOAD_REPLIES:
         send_text(sender_id, "Upload screenshots now.")
@@ -1698,7 +1698,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc\n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
-        send_text(sender_id, "Want to be a Mod?\n\nADD snapchat.com/add/game.bots\n\nGET m.me/gamebotsc & m.me/lmon8\n\nFOLLOW twitter.com/lmon8de\n\nFOLLOW twitter.com/gamebotsc\n\nLIKE fb.com/gamebotsc & fb.com/lmon8\n\nWAIT 24 hours for daily rewards.", main_menu_quick_reply())
+        send_text(sender_id, "You have signed up to be a mod. We will send you details shortly.", main_menu_quick_reply())
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
