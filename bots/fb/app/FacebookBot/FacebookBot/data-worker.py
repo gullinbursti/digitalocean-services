@@ -52,26 +52,31 @@ class Customer(Base):
 
     id = Column(Integer, primary_key=True)
     fb_psid = Column(String(255))
-    fb_name = Column(String(255))
+    fb_name = Column(CoerceUTF8)
     email = Column(String(255))
     referrer = Column(String(255))
+    trade_url = Column(String(255))
+    paypal_name = Column(String(255))
     paypal_email = Column(String(255))
     bitcoin_addr = Column(String(255))
-    stripe_id = Column(String(255))
+    social = Column(String(255))
+    stripe_id =Column(String(255))
     card_id = Column(String(255))
     bitcoin_id = Column(String(255))
     storefront_id = Column(Integer)
     product_id = Column(Integer)
     purchase_id = Column(Integer)
+    points = Column(Integer)
     added = Column(Integer)
 
-    def __init__(self, fb_psid, referrer=None):
+    def __init__(self, fb_psid, referrer="/"):
         self.fb_psid = fb_psid
         self.referrer = referrer
+        self.points = 0
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, paypal_email=%s, storefront_id=%s, product_id=%s, purchase_id=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.paypal_email, self.storefront_id, self.product_id, self.purchase_id, self.added)
+        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, trade_url=%s, paypal_name=%s, paypal_email=%s, social=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.trade_url, self.paypal_name, self.paypal_email, self.social, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
 
 
 class FBUser(Base):
@@ -333,16 +338,6 @@ def add_commerce(fb_psid, storefront_name, storefront_description, storefront_lo
     return (user_id, storefront_id, product_id)
 
 
-def name_fill():
-    with open("{basepath}/data/csv/kik_names.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
-        for row in csv.reader(f, delimiter=",", quotechar="\""):
-            kik_names.append(row[0])
-
-def item_fill():
-    with open("{basepath}/data/csv/csgo_items.csv".format(basepath=os.path.dirname(os.path.realpath(__file__))), 'rb') as f:
-        for row in csv.DictReader(f, delimiter=",", quotechar="\"", fieldnames=["name", "img_url"]):
-            csgo_items.append(row)
-
 
 def add_user(fb_psid):
     print("add_user(fb_psid={fb_psid})".format(fb_psid=fb_psid))
@@ -366,7 +361,7 @@ def add_user(fb_psid):
                 cur.execute('INSERT INTO `users` (`id`, `fb_psid`, `referrer`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (fb_psid, "/"))
                 conn.commit()
                 cur.execute('SELECT @@`IDENTITY` AS `id` FROM `storefronts`;')
-                customer.id = cur.fetchone()['row']
+                customer.id = cur.fetchone()['id']
 
             else:
                 customer.id = row['id']
@@ -538,8 +533,10 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
 
 
 def generate_fb_psid():
-    psid = "99"
-    for i in range(1, 15):
+    print("generate_fb_psid()")
+
+    psid = "808"
+    for i in range(10):
         psid = "{psid}{rand}".format(psid=psid, rand=random.randint(0, 9))
 
     return "{psid}".format(psid=psid)
@@ -792,107 +789,11 @@ def products_sync():
                     conn.close()
 
 
-products_sync()
-quit()
+
+for i in range(300):
+    add_user(generate_fb_psid())
 
 
-#static_assets_path = "{script_path}/static".format(script_path=os.path.dirname(os.path.realpath(__file__)))
-#generate_images(static_assets_path)
-# quit()
-
-
-
-
-
-
-kik_names = []
-csgo_items = []
-
-name_fill()
-item_fill()
-
-print("Creating {name_total} users...".format(name_total=len(kik_names)))
-
-
-results = []
-for kik_name in kik_names:
-    cnt = len(results)
-
-    csgo_item = random.choice(csgo_items)
-    entry = {
-        'user_id'      : 0,
-        'fb_psid'      : generate_fb_psid(),
-        'kik_name'     : kik_name,
-        'storefronts'  : [],
-        'products'     : [],
-        'item_name'    : csgo_item['name'],
-        'item_img_url' : csgo_item['img_url'],
-        'timestamp'    : datetime.now().strftime('%Y-%m-%d %H:%M:%s')
-    }
-    results.append(entry)
-
-    print("Importing ({cnt} / {tot}) --> \"{kik_name}\" as [{fb_psid}]".format(cnt=len(results), tot=len(kik_names), kik_name=entry['kik_name'], fb_psid=entry['fb_psid']))
-
-    customer_id, storefront_id, product_id = add_commerce(
-        fb_psid = entry['fb_psid'],
-        storefront_name = "{kik_name} Shop".format(kik_name=entry['kik_name']),
-        storefront_description = "Buy {kik_name} snapchat pics here!".format(kik_name=entry['kik_name']),
-        storefront_logo_url = "http://prebot.me/thumbs/snapchat.png",
-        product_name = "{kik_name} Snaps".format(kik_name=entry['kik_name']),
-        product_image = "http://prebot.me/thumbs/{card}.jpg".format(card=random.randint(1, 100)),
-        product_video = None,
-        product_price = round(random.uniform(0.50, 4.99), 2)
-    )
-    entry['user_id'] = user_id
-    entry['storefronts'].append(storefront_id)
-    entry['products'].append(product_id)
-
-    customer_id, storefront_id, product_id = add_commerce(
-        fb_psid = entry['fb_psid'],
-        storefront_name = "{kik_name} e-Shop".format(kik_name=entry['kik_name']),
-        storefront_description = "Buy stuff from {kik_name} here!".format(kik_name=entry['kik_name']),
-        storefront_logo_url = "https://i.imgur.com/dafKv0U.png",
-        product_name = "{kik_name} Money Guide".format(kik_name=entry['kik_name']),
-        product_image = "https://i.imgur.com/dafKv0U.png",
-        product_video = None,
-        product_price = round(random.uniform(0.50, 4.99), 2)
-    )
-    entry['storefronts'].append(storefront_id)
-    entry['products'].append(product_id)
-
-    customer_id, storefront_id, product_id = add_commerce(
-        fb_psid = entry['fb_psid'],
-        storefront_name = "{kik_name} CS:GO".format(kik_name=entry['kik_name']),
-        storefront_description = "Buy CS:GO skins from {kik_name}".format(kik_name=entry['kik_name']),
-        storefront_logo_url = entry['item_img_url'],
-        product_name = "{item_name}".format(item_name=entry['item_name']),
-        product_image = entry['item_img_url'],
-        product_video = None,
-        product_price = round(random.uniform(0.50, 4.99), 2)
-    )
-
-
-
-    with open("{script_path}/log/{file_name}.csv".format(script_path=os.path.dirname(os.path.realpath(__file__)), file_name=(os.path.basename(os.path.realpath(__file__))).rsplit(".", 1)[0]), 'a') as f:
-        row = []
-        for key in entry:
-            row.append(entry[key])
-        csv.writer(f).writerow(row)
-
-        # writer.writerow([value for key, value in entry.items() if key != 'csgo_item' for v in value])
-        # csv.writer(f).writerow(['{0},{1}'.format(key, value) for key, value in entry.items()])
-
-    time.sleep(random.uniform(1, 2))
-
-quit()
-
-
-
-add_commerce(generate_fb_psid(), "Bracelets by Anne", "Custom made jewelry just for you", "https://i.imgur.com/prD7TK3.jpg", "BraceletAnne", "https://i.imgur.com/prD7TK3.jpg", None, 3.99)
-add_commerce(generate_fb_psid(), "CS:GO Skins Cheap", "Discounted CS:GO items", "https://i.imgur.com/lIP7k1z.jpg", "BraceletAnne", "https://i.imgur.com/lIP7k1z.jpg", None, 4.99)
-add_commerce(generate_fb_psid(), "Steam Keys", "Game keys from Steam", "https://i.imgur.com/Z1o0icQ.jpg", "RocketLeague 00", "https://i.imgur.com/Z1o0icQ.jpg", None, 5.99)
-add_commerce(generate_fb_psid(), "Knick Knacks", "Little things", "https://i.imgur.com/lnGGJfI.jpg", "Tiny Sword Stand", "https://i.imgur.com/lnGGJfI.jpg", None, 1.99)
-quit()
 
 
 

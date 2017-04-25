@@ -878,6 +878,8 @@ def add_cc_payment(recipient_id):
 def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
 
+    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None and customer.referrer is not None and re.search(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', customer.referrer) is not None:
         customer.referrer = re.sub(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', r'/\1', customer.referrer)
@@ -890,6 +892,24 @@ def flip_product(recipient_id, product):
 
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('INSERT INTO `flip_wins` (`id`, `user_id`, `storefront_id`, `product_id`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, 0 if storefront is None else storefront.id, product.id))
+                conn.commit()
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `flip_wins`;')
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+
         add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
         send_text(recipient_id, "You won 100 Lemonade Pts. Keep flipping to earn more.\n\nEnjoy the following featured shop.")
         #send_text(recipient_id, "You won {prepo} {product_name} worth ${price:.2f}!\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(prepo="an" if is_vowel(product.display_name_utf8[0]) else "a", product_name=product.display_name_utf8, price=product.price, fb_psid=recipient_id[-4:]))
