@@ -281,13 +281,13 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
-            cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price))
+            logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
+            cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price))
             row = cur.fetchone()
 
             if row is None:
-                logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
-                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `enabled` = 1 ORDER BY `price` DESC LIMIT 1;')
+                logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;', (min_price, max_price)),))
+                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;')
                 row = cur.fetchone()
 
             if row is not None:
