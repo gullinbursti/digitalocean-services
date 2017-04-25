@@ -5,7 +5,9 @@ import logging
 import os
 import random
 import re
+import threading
 import time
+import urllib
 
 from flask import Flask, request
 from linebot import LineBotApi, WebhookHandler
@@ -55,6 +57,15 @@ def default():
                 message="Welcome to Lemonade on Line. The world's largest virtual mall."
             )
 
+            video_message(
+                reply_token=event['replyToken'],
+                thumb_url="https://i.imgur.com/VPr9NZR.jpg",
+                video_url="https://prekey.co/static/stacks.mp4",
+                user_id=event['source']['userId']
+            )
+
+            threading.Timer(1.5, mystery_flip, [event['replyToken'], event['source']['userId']]).start()
+
         elif 'postback' in event:
             handle_postback(
                 reply_token=event['replyToken'],
@@ -63,7 +74,10 @@ def default():
             )
 
         else:
-            main_carousel(event['replyToken'])
+            main_carousel(
+                reply_token=event['replyToken'],
+                user_id=event['source']['userId']
+            )
 
 
     return "OK", 200
@@ -76,30 +90,34 @@ def storefront_templates():
         {
             'title'      : "Win Disney Tsum Tsum!",
             'description': "Win Disney Tsum Tsum!",
-            'image_url'  : "https://i.imgur.com/wcKjgwN.jpg",
+            'image_url'  : "https://i.imgur.com/T8Y7G9S.jpg",
             'price'      : 0.00
         }, {
             'title'      : "Tsum Tsum Rubies 20x Extra",
             'description': "Get 20 extra for buying now",
-            'image_url'  : "https://i.imgur.com/IsDnob1.jpg",
+            'image_url'  : "https://i.imgur.com/7162dOV.jpg",
             'price'      : 1.99
         }, {
-            'title'      : "Tsum Tsum Rubies 50x Extra",
-            'description': "Get 50 extra for buying now",
-            'image_url'  : "https://i.imgur.com/UPVHIpC.jpg",
+            'title'      : "Tsum Tsum Rubies 40x Extra",
+            'description': "Get 40 extra for buying now",
+            'image_url'  : "https://i.imgur.com/Zws3YPT.jpg",
             'price'      : 2.99
         }, {
-            'title'      : "Tsum Tsum Rubies 100x Extra",
-            'description': "Get 100 extra for buying now",
-            'image_url'  : "https://i.imgur.com/NHIjhRU.jpg",
+            'title'      : "Tsum Tsum Rubies 80x Extra",
+            'description': "Get 80 extra for buying now",
+            'image_url'  : "https://i.imgur.com/J8msaKI.jpg",
             'price'      : 4.99
-        }, {
-            'title'      : "Tsum Tsum Extra Rubies",
-            'description': "Get extra for buying now",
-            'image_url'  : "https://i.imgur.com/jLHiZaA.jpg",
-            'price'      : 9.99
         }
     ]
+
+
+def mystery_flip(reply_token, user_id=None):
+    logger.info("mystery_flip(reply_token=%s, user_id=%s)" % (reply_token, user_id))
+
+    flip_card(
+        reply_token=reply_token,
+        user_id=user_id
+    )
 
 
 def handle_postback(reply_token, payload, user_id=None):
@@ -112,7 +130,7 @@ def handle_postback(reply_token, payload, user_id=None):
         )
         image_message(
             reply_token=reply_token,
-            image_url="https://i.imgur.com/OGkZG5U.jpg",
+            image_url="https://i.imgur.com/9svbARK.jpg",
             user_id=user_id
         )
 
@@ -129,6 +147,12 @@ def handle_postback(reply_token, payload, user_id=None):
            reply_token=reply_token,
            index=int(re.match(r'^CREATE_STOREFRONT\-(?P<index>\d)$', payload).group('index')),
            user_id=user_id
+        )
+
+    elif payload == "CREATE_STOREFRONT":
+        text_message(
+            reply_token=reply_token,
+            message="Right now you can only be a reseller of Disney Tsum Tsum items"
         )
 
     elif payload == "FLIP_STOREFRONT":
@@ -148,6 +172,24 @@ def handle_postback(reply_token, payload, user_id=None):
         text_message(
             reply_token=reply_token,
             message="You do not have enough points to redeem this item. Keep flipping to win!"
+        )
+
+    elif payload == "STOREFRONT_SALES":
+        text_message(
+            reply_token=reply_token,
+            message="You have no sales yet! Keep trying"
+        )
+
+    elif payload == "STOREFRONT_POINTS":
+        text_message(
+            reply_token=reply_token,
+            message="You have 1,000 Lemonade on Line points"
+        )
+
+    elif payload == "MYSTERY_FLIP":
+        text_message(
+            reply_token=reply_token,
+            message="Create a group chat to play"
         )
 
 
@@ -185,13 +227,6 @@ def flip_storefront(reply_token, user_id):
         user_id=user_id
     )
 
-    # video_message(
-    #     reply_token=reply_token,
-    #     thumb_url="https://i.imgur.com/VPr9NZR.jpg",
-    #     video_url="https://prekey.co/static/stacks.mp4",
-    #     user_id=user_id
-    # )
-
     text_message(
         reply_token=reply_token,
         message="You won 100 Lemonade on Line Points! You can redeem your points for Tsum Tsum Rubies." if outcome is True else "You lost, try again!",
@@ -215,9 +250,8 @@ def view_storefront(reply_token, index, user_id=None):
         description="{description} - ${price:.2f}".format(description=storefront['description'], price=storefront['price']),
         image_url=storefront['image_url'],
         buttons=[
-            PostbackTemplateAction(label="Share", data="SHARE_STOREFRONT-{index}".format(index=index)),
-            PostbackTemplateAction(label="Buy", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
-            PostbackTemplateAction(label="1,000 Points", data="REDEEM_STOREFRONT-{index}".format(index=index))
+            PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
+            PostbackTemplateAction(label="Share with Friends", data="SHARE_STOREFRONT-{index}".format(index=index))
         ],
         user_id=user_id
     )
@@ -236,6 +270,11 @@ def purchase_storefront(reply_token, index, user_id=None):
     text_message(
         reply_token=reply_token,
         message="Payment approved! Please check Tsum Tsum now for your items to transfer.",
+        user_id=user_id
+    )
+
+    main_carousel(
+        reply_token=reply_token,
         user_id=user_id
     )
 
@@ -342,6 +381,7 @@ def main_carousel(reply_token, user_id=None):
     logger.info("main_carousel(reply_token=%s, user_id=%s)" % (reply_token, user_id))
 
     storefronts = storefront_templates()
+    profile = line_bot_api.get_profile(user_id)
 
     columns = [
         CarouselColumn(
@@ -351,7 +391,7 @@ def main_carousel(reply_token, user_id=None):
             actions=[
                 # URITemplateAction(label="Go to line.me", uri="https://line.me"),
                 PostbackTemplateAction(label="Flip to Win", data="FLIP_STOREFRONT"),
-                PostbackTemplateAction(label="Share", data="SHARE_STOREFRONT")
+                PostbackTemplateAction(label="Share with Friends", data="SHARE_STOREFRONT")
             ]
         ),
         CarouselColumn(
@@ -360,7 +400,7 @@ def main_carousel(reply_token, user_id=None):
             thumbnail_image_url=storefronts[1]['image_url'],
             actions=[
                 PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-1"),
-                PostbackTemplateAction(label="Resell", data="CREATE_STOREFRONT-1")
+                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-1")
             ]
         ),
         CarouselColumn(
@@ -369,7 +409,7 @@ def main_carousel(reply_token, user_id=None):
             thumbnail_image_url=storefronts[2]['image_url'],
             actions=[
                 PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-2"),
-                PostbackTemplateAction(label="Resell", data="CREATE_STOREFRONT-2")
+                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-2")
             ]
         ),
         CarouselColumn(
@@ -378,16 +418,16 @@ def main_carousel(reply_token, user_id=None):
             thumbnail_image_url=storefronts[3]['image_url'],
             actions=[
                 PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-3"),
-                PostbackTemplateAction(label="Resell", data="CREATE_STOREFRONT-3")
+                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-3")
             ]
         ),
         CarouselColumn(
-            text="{description} - ${price:.2f}".format(description=storefronts[4]['description'], price=storefronts[4]['price']),
-            title=storefronts[4]['title'],
-            thumbnail_image_url=storefronts[4]['image_url'],
+            text="Create your own shop below",
+            title=profile.display_name,
+            thumbnail_image_url="https://i.imgur.com/Qu829we.jpg",
             actions=[
-                PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-4"),
-                PostbackTemplateAction(label="Resell", data="CREATE_STOREFRONT-4")
+                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT"),
+                PostbackTemplateAction(label="My Sales", data="STOREFRONT_SALES"),
             ]
         )
     ]
@@ -419,6 +459,46 @@ def main_carousel(reply_token, user_id=None):
         logger.info("LineBotApiError:%s" % (e,))
 
 
+def flip_card(reply_token, user_id=None):
+    logger.info("flip_card(reply_token=%s, user_id=%s)" % (reply_token, user_id))
+
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text="Mystery Flip",
+                    template=ButtonsTemplate(
+                        text="Flip for mystery item",
+                        title="Mystery Flip",
+                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
+                        actions=[
+                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
+                        ]
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text="Mystery Flip",
+                    template=ButtonsTemplate(
+                        text="Flip for mystery item",
+                        title="Mystery Flip",
+                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
+                        actions=[
+                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
+                        ]
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
 def shop_card(reply_token, title, description, image_url, buttons, user_id=None):
     logger.info("shop_card(reply_token=%s, title=%s, description=%s, image_url=%s, buttons=%s, user_id=%s)" % (reply_token, title, description, image_url, buttons, user_id))
     try:
@@ -426,7 +506,7 @@ def shop_card(reply_token, title, description, image_url, buttons, user_id=None)
             line_bot_api.reply_message(
                 reply_token=reply_token,
                 messages=TemplateSendMessage(
-                    alt_text="Confirm alt text",
+                    alt_text=title,
                     template=ButtonsTemplate(
                         text=description,
                         title=title,
@@ -440,7 +520,7 @@ def shop_card(reply_token, title, description, image_url, buttons, user_id=None)
             line_bot_api.push_message(
                 to=user_id,
                 messages=TemplateSendMessage(
-                    alt_text="Confirm alt text",
+                    alt_text=title,
                     template=ButtonsTemplate(
                         text=description,
                         title=title,
