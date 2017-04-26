@@ -54,7 +54,7 @@ def default():
         if event['type'] == "follow":
             text_message(
                 reply_token=event['replyToken'],
-                message="Welcome to Lemonade on Line. The world's largest virtual mall."
+                message="Welcome to Lemonade on Line sponsored by Disney Tsum Tsum"
             )
 
             video_message(
@@ -64,7 +64,7 @@ def default():
                 user_id=event['source']['userId']
             )
 
-            threading.Timer(1.5, mystery_flip, [event['replyToken'], event['source']['userId']]).start()
+            threading.Timer(900, mystery_flip, [event['replyToken'], event['source']['userId']]).start()
 
         elif 'postback' in event:
             handle_postback(
@@ -88,25 +88,47 @@ def storefront_templates():
 
     return [
         {
-            'title'      : "Win Disney Tsum Tsum!",
-            'description': "Win Disney Tsum Tsum!",
-            'image_url'  : "https://i.imgur.com/T8Y7G9S.jpg",
-            'price'      : 0.00
-        }, {
+            'index'      : 0,
             'title'      : "Tsum Tsum Rubies 20x Extra",
             'description': "Get 20 extra for buying now",
             'image_url'  : "https://i.imgur.com/7162dOV.jpg",
             'price'      : 1.99
         }, {
-            'title'      : "Tsum Tsum Rubies 40x Extra",
-            'description': "Get 40 extra for buying now",
-            'image_url'  : "https://i.imgur.com/Zws3YPT.jpg",
-            'price'      : 2.99
+            'index'      : 2,
+            'title'      : "Tsum Tsum Rubies 80x",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/nz9qCZc.jpg",
+            'price'      : 9.99
         }, {
-            'title'      : "Tsum Tsum Rubies 80x Extra",
-            'description': "Get 80 extra for buying now",
-            'image_url'  : "https://i.imgur.com/J8msaKI.jpg",
+            'index'      : 2,
+            'title'      : "Moana Sticker Pack",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/pjxRWSh.png",
             'price'      : 4.99
+        }, {
+            'index'      : 3,
+            'title'      : "Extra Level Disney Crossy Road",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/oaMjnNH.png",
+            'price'      : 4.99
+        }, {
+            'index'      : 4,
+            'title'      : "Unlock Tsum Tsum Ironman",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/S1CTt2H.png",
+            'price'      : 4.99
+        }, {
+            'index'      : 5,
+            'title'      : "Mini: Happy Days Stickers",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/Zz4rJ8L.png",
+            'price'      : 1.99
+        }, {
+            'index'      : 6,
+            'title'      : "Tsum Tsum Stickers (10)",
+            'description': "Disney Company (Japan) Ltd.",
+            'image_url'  : "https://i.imgur.com/A9rS87L.png",
+            'price'      : 1.99
         }
     ]
 
@@ -114,7 +136,22 @@ def storefront_templates():
 def mystery_flip(reply_token, user_id=None):
     logger.info("mystery_flip(reply_token=%s, user_id=%s)" % (reply_token, user_id))
 
-    flip_card(
+    outcome = random.uniform(0, 100) < 50
+
+    video_message(
+        reply_token=reply_token,
+        thumb_url="https://i.imgur.com/VPr9NZR.jpg",
+        video_url="https://prekey.co/static/stacks.mp4",
+        user_id=user_id
+    )
+
+    sticker_message(
+        reply_token=reply_token,
+        package_id=2 if outcome is True else 1,
+        sticker_id=22 if outcome is True else 6
+    )
+
+    mystery_card(
         reply_token=reply_token,
         user_id=user_id
     )
@@ -123,24 +160,24 @@ def mystery_flip(reply_token, user_id=None):
 def handle_postback(reply_token, payload, user_id=None):
     logger.info("handle_postback(reply_token=%s, payload=%s, user_id=%s)" % (reply_token, payload, user_id))
 
-    if re.search(r'^SHARE_STOREFRONT\-(\d)$', payload) is not None:
-        text_message(
+    if payload == "SHARE_STOREFRONT":
+        share_storefront(
             reply_token=reply_token,
-            message="To share your Lemonade on Line Disney Tsum Tsum shop send the following QR code to 20 friends!"
-        )
-        image_message(
-            reply_token=reply_token,
-            image_url="https://i.imgur.com/9svbARK.jpg",
             user_id=user_id
         )
 
-        main_carousel(
+    elif re.search(r'^SHARE_STOREFRONT\-(\d)$', payload) is not None:
+        share_storefront(
             reply_token=reply_token,
+            index=int(re.match(r'^SHARE_STOREFRONT\-(?P<index>\d)$', payload).group('index')),
             user_id=user_id
         )
 
     elif re.search(r'^VIEW_STOREFRONT\-(\d)$', payload) is not None:
-        view_storefront(reply_token, int(re.match(r'^VIEW_STOREFRONT\-(?P<index>\d)$', payload).group('index')))
+        view_storefront(
+            reply_token=reply_token,
+            index=int(re.match(r'^VIEW_STOREFRONT\-(?P<index>\d)$', payload).group('index'))
+        )
 
     elif re.search(r'^CREATE_STOREFRONT\-(\d)$', payload) is not None:
        create_storefront(
@@ -150,9 +187,9 @@ def handle_postback(reply_token, payload, user_id=None):
         )
 
     elif payload == "CREATE_STOREFRONT":
-        text_message(
+        storefront_carousel(
             reply_token=reply_token,
-            message="Right now you can only be a reseller of Disney Tsum Tsum items"
+            user_id=user_id
         )
 
     elif payload == "FLIP_STOREFRONT":
@@ -183,23 +220,25 @@ def handle_postback(reply_token, payload, user_id=None):
     elif payload == "STOREFRONT_POINTS":
         text_message(
             reply_token=reply_token,
-            message="You have 1,000 Lemonade on Line points"
+            message="You have 100 points."
         )
 
     elif payload == "MYSTERY_FLIP":
-        text_message(
+        mystery_flip(
             reply_token=reply_token,
-            message="Create a group chat to play"
+            user_id=user_id
         )
 
 
 def create_storefront(reply_token, index, user_id=None):
     logger.info("create_storefront(reply_token=%s, index=%s, user_id=%s)" % (reply_token, index, user_id))
 
-    profile = line_bot_api.get_profile(user_id)
+    storefront = storefront_templates()[index]
+
     text_message(
         reply_token=reply_token,
-        message="{display_name}'s Tsum Tsum Rubies shop has been created!\n\nPlease share your Disney Tsum Tsum shop with all your Line Friends.".format(display_name=profile.display_name)
+        message="You have created a {storefront_name} shop! Share the shop now with your friends on Line.".format(storefront_name=storefront['title']),
+        user_id=user_id
     )
 
     view_storefront(
@@ -209,33 +248,22 @@ def create_storefront(reply_token, index, user_id=None):
     )
 
 
-def flip_storefront(reply_token, user_id):
+def flip_storefront(reply_token, user_id=None):
     logger.info("view_storefront(reply_token=%s, user_id=%s)" % (reply_token, user_id))
 
-    text_message(
-        reply_token=reply_token,
-        message="Flipping shop Tsum Tsum Rubies..."
-    )
-
-    time.sleep(1.875)
     outcome = random.uniform(0, 100) <= 50
 
     sticker_message(
         reply_token=reply_token,
         package_id=2 if outcome is True else 1,
-        sticker_id=22 if outcome is True else 6,
-        user_id=user_id
+        sticker_id=22 if outcome is True else 6
     )
 
-    text_message(
-        reply_token=reply_token,
-        message="You won 100 Lemonade on Line Points! You can redeem your points for Tsum Tsum Rubies." if outcome is True else "You lost, try again!",
-        user_id=user_id
-    )
+    time.sleep(1.125)
 
-    view_storefront(
+    flip_card(
         reply_token=reply_token,
-        index=random.randint(1, 4),
+        outcome=outcome,
         user_id=user_id
     )
 
@@ -246,8 +274,8 @@ def view_storefront(reply_token, index, user_id=None):
     storefront = storefront_templates()[index]
     shop_card(
         reply_token=reply_token,
-        title=storefront['title'],
-        description="{description} - ${price:.2f}".format(description=storefront['description'], price=storefront['price']),
+        title="{storefront_name} - {price:.2f}".format(storefront_name=storefront['title'], price=storefront['price']),
+        description=storefront['description'],
         image_url=storefront['image_url'],
         buttons=[
             PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
@@ -279,6 +307,251 @@ def purchase_storefront(reply_token, index, user_id=None):
     )
 
 
+def share_storefront(reply_token, index=None, user_id=None):
+    logger.info("share_storefront(reply_token=%s, index=%s, user_id=%s)" % (reply_token, index, user_id))
+
+    storefront = storefront_templates()[index or random.randint(0, 6)]
+
+    text_message(
+        reply_token=reply_token,
+        message="To share your Lemonade on Line {storefront_name} shop send the following QR code to 20 friends!".format(storefront_name=storefront['title'])
+    )
+    image_message(
+        reply_token=reply_token,
+        image_url="https://i.imgur.com/9svbARK.jpg",
+        user_id=user_id
+    )
+
+    main_carousel(
+        reply_token=reply_token,
+        user_id=user_id
+    )
+
+
+def main_carousel(reply_token, user_id=None):
+    logger.info("main_carousel(reply_token=%s, user_id=%s)" % (reply_token, user_id))
+
+    profile = line_bot_api.get_profile(user_id)
+    columns = [
+        CarouselColumn(
+            text="Play Now to Win",
+            title="Flip to Win Disney Points!",
+            thumbnail_image_url="https://i.imgur.com/T8Y7G9S.jpg",
+            actions=[
+                # URITemplateAction(label="Go to line.me", uri="https://line.me"),
+                PostbackTemplateAction(label="Play Now", data="FLIP_STOREFRONT"),
+                PostbackTemplateAction(label="Share Now", data="SHARE_STOREFRONT")
+            ]
+        ),
+        CarouselColumn(
+            text="Create a Shop for 1,000 pts",
+            title="{display_name} - 100pts".format(display_name=profile.display_name),
+            thumbnail_image_url="https://i.imgur.com/Qu829we.jpg",
+            actions=[
+                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT"),
+                PostbackTemplateAction(label="My Points", data="STOREFRONT_POINTS"),
+            ]
+        )
+    ]
+
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text="Lmon8 shops",
+                    template=CarouselTemplate(
+                        columns=columns
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text="Lmon8 shops",
+                    template=CarouselTemplate(
+                        columns=columns
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
+def storefront_carousel(reply_token, user_id=None):
+    logger.info("storefront_carousel(reply_token=%s, user_id=%s)" % (reply_token, user_id))
+
+    storefronts = storefront_templates()
+    random.shuffle(storefronts)
+
+    columns = []
+    for storefront in storefronts:
+        if len(columns) < 5:
+            columns.append(
+                CarouselColumn(
+                    text=storefront['description'],
+                    title=storefront['title'],
+                    thumbnail_image_url=storefront['image_url'],
+                    actions=[
+                        # URITemplateAction(label="Go to line.me", uri="https://line.me"),
+                        PostbackTemplateAction(label="Create", data="CREATE_STOREFRONT-{index}".format(index=storefront['index'])),
+                        PostbackTemplateAction(label="Share Now", data="SHARE_STOREFRONT-{index}".format(index=storefront['index']))
+                    ]
+                )
+            )
+
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text="Disney shops",
+                    template=CarouselTemplate(
+                        columns=columns
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text="Disney shops",
+                    template=CarouselTemplate(
+                        columns=columns
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
+def flip_card(reply_token, outcome, user_id=None):
+    logger.info("flip_card(reply_token=%s, outcome=%s, user_id=%s)" % (reply_token, outcome, user_id))
+
+    index = random.randint(0, 6)
+    storefront = storefront_templates()[index]
+
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text="Flip",
+                    template=ButtonsTemplate(
+                        text=storefront['description'],
+                        title="{storefront_name} - {price:.2f}".format(storefront_name=storefront['title'], price=storefront['price']),
+                        thumbnail_image_url=storefront['image_url'],
+                        actions=[
+                            PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
+                            PostbackTemplateAction(label="Play Again", data="FLIP_STOREFRONT")
+                        ]
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text="Flip",
+                    template=ButtonsTemplate(
+                        text=storefront['description'],
+                        title="{storefront_name} - {price:.2f}".format(storefront_name=storefront['title'], price=storefront['price']),
+                        thumbnail_image_url=storefront['image_url'],
+                        actions=[
+                            PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
+                            PostbackTemplateAction(label="Play Again", data="FLIP_STOREFRONT")
+                        ]
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
+def mystery_card(reply_token, user_id=None):
+    logger.info("mystery_card(reply_token=%s, user_id=%s)" % (reply_token, user_id))
+
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text="Mystery Flip",
+                    template=ButtonsTemplate(
+                        text="Flip for mystery item",
+                        title="Mystery Flip",
+                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
+                        actions=[
+                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
+                        ]
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text="Mystery Flip",
+                    template=ButtonsTemplate(
+                        text="Flip for mystery item",
+                        title="Mystery Flip",
+                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
+                        actions=[
+                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
+                        ]
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
+def shop_card(reply_token, title, description, image_url, buttons, user_id=None):
+    logger.info("shop_card(reply_token=%s, title=%s, description=%s, image_url=%s, buttons=%s, user_id=%s)" % (reply_token, title, description, image_url, buttons, user_id))
+    try:
+        if user_id is None:
+            line_bot_api.reply_message(
+                reply_token=reply_token,
+                messages=TemplateSendMessage(
+                    alt_text=title,
+                    template=ButtonsTemplate(
+                        text=description,
+                        title=title,
+                        thumbnail_image_url=image_url,
+                        actions=buttons
+                    )
+                )
+            )
+
+        else:
+            line_bot_api.push_message(
+                to=user_id,
+                messages=TemplateSendMessage(
+                    alt_text=title,
+                    template=ButtonsTemplate(
+                        text=description,
+                        title=title,
+                        thumbnail_image_url=image_url,
+                        actions=buttons
+                    )
+                )
+            )
+
+    except LineBotApiError as e:
+        logger.info("LineBotApiError:%s" % (e,))
+
+
+
+
 def text_message(reply_token, message, user_id=None):
     logger.info("text_message(reply_token=%s, message=%s, user_id=%s)" % (reply_token, message, user_id))
 
@@ -299,7 +572,7 @@ def text_message(reply_token, message, user_id=None):
         logger.info("LineBotApiError:%s" % (e,))
 
 
-def sticker_message(reply_token, package_id, sticker_id, user_id):
+def sticker_message(reply_token, package_id, sticker_id, user_id=None):
     logger.info("sticker_message(reply_token=%s, package_id=%s, sticker_id=%s, user_id=%s)" % (reply_token, package_id, sticker_id, user_id))
 
     try:
@@ -370,163 +643,6 @@ def video_message(reply_token, thumb_url, video_url, user_id=None):
                 messages=VideoSendMessage(
                     original_content_url=video_url,
                     preview_image_url=thumb_url
-                )
-            )
-
-    except LineBotApiError as e:
-        logger.info("LineBotApiError:%s" % (e,))
-
-
-def main_carousel(reply_token, user_id=None):
-    logger.info("main_carousel(reply_token=%s, user_id=%s)" % (reply_token, user_id))
-
-    storefronts = storefront_templates()
-    profile = line_bot_api.get_profile(user_id)
-
-    columns = [
-        CarouselColumn(
-            text=storefronts[0]['description'],
-            title=storefronts[0]['title'],
-            thumbnail_image_url=storefronts[0]['image_url'],
-            actions=[
-                # URITemplateAction(label="Go to line.me", uri="https://line.me"),
-                PostbackTemplateAction(label="Flip to Win", data="FLIP_STOREFRONT"),
-                PostbackTemplateAction(label="Share with Friends", data="SHARE_STOREFRONT")
-            ]
-        ),
-        CarouselColumn(
-            text="{description} - ${price:.2f}".format(description=storefronts[1]['description'], price=storefronts[1]['price']),
-            title=storefronts[1]['title'],
-            thumbnail_image_url=storefronts[1]['image_url'],
-            actions=[
-                PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-1"),
-                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-1")
-            ]
-        ),
-        CarouselColumn(
-            text="{description} - ${price:.2f}".format(description=storefronts[2]['description'], price=storefronts[2]['price']),
-            title=storefronts[2]['title'],
-            thumbnail_image_url=storefronts[2]['image_url'],
-            actions=[
-                PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-2"),
-                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-2")
-            ]
-        ),
-        CarouselColumn(
-            text="{description} - ${price:.2f}".format(description=storefronts[3]['description'], price=storefronts[3]['price']),
-            title=storefronts[3]['title'],
-            thumbnail_image_url=storefronts[3]['image_url'],
-            actions=[
-                PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-3"),
-                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT-3")
-            ]
-        ),
-        CarouselColumn(
-            text="Create your own shop below",
-            title=profile.display_name,
-            thumbnail_image_url="https://i.imgur.com/Qu829we.jpg",
-            actions=[
-                PostbackTemplateAction(label="Create Shop", data="CREATE_STOREFRONT"),
-                PostbackTemplateAction(label="My Sales", data="STOREFRONT_SALES"),
-            ]
-        )
-    ]
-
-    try:
-        if user_id is None:
-            line_bot_api.reply_message(
-                reply_token=reply_token,
-                messages=TemplateSendMessage(
-                    alt_text="Lmon8 shops",
-                    template=CarouselTemplate(
-                        columns=columns
-                    )
-                )
-            )
-
-        else:
-            line_bot_api.push_message(
-                to=user_id,
-                messages=TemplateSendMessage(
-                    alt_text="Lmon8 shops",
-                    template=CarouselTemplate(
-                        columns=columns
-                    )
-                )
-            )
-
-    except LineBotApiError as e:
-        logger.info("LineBotApiError:%s" % (e,))
-
-
-def flip_card(reply_token, user_id=None):
-    logger.info("flip_card(reply_token=%s, user_id=%s)" % (reply_token, user_id))
-
-    try:
-        if user_id is None:
-            line_bot_api.reply_message(
-                reply_token=reply_token,
-                messages=TemplateSendMessage(
-                    alt_text="Mystery Flip",
-                    template=ButtonsTemplate(
-                        text="Flip for mystery item",
-                        title="Mystery Flip",
-                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
-                        actions=[
-                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
-                        ]
-                    )
-                )
-            )
-
-        else:
-            line_bot_api.push_message(
-                to=user_id,
-                messages=TemplateSendMessage(
-                    alt_text="Mystery Flip",
-                    template=ButtonsTemplate(
-                        text="Flip for mystery item",
-                        title="Mystery Flip",
-                        thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
-                        actions=[
-                            PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
-                        ]
-                    )
-                )
-            )
-
-    except LineBotApiError as e:
-        logger.info("LineBotApiError:%s" % (e,))
-
-
-def shop_card(reply_token, title, description, image_url, buttons, user_id=None):
-    logger.info("shop_card(reply_token=%s, title=%s, description=%s, image_url=%s, buttons=%s, user_id=%s)" % (reply_token, title, description, image_url, buttons, user_id))
-    try:
-        if user_id is None:
-            line_bot_api.reply_message(
-                reply_token=reply_token,
-                messages=TemplateSendMessage(
-                    alt_text=title,
-                    template=ButtonsTemplate(
-                        text=description,
-                        title=title,
-                        thumbnail_image_url=image_url,
-                        actions=buttons
-                    )
-                )
-            )
-
-        else:
-            line_bot_api.push_message(
-                to=user_id,
-                messages=TemplateSendMessage(
-                    alt_text=title,
-                    template=ButtonsTemplate(
-                        text=description,
-                        title=title,
-                        thumbnail_image_url=image_url,
-                        actions=buttons
-                    )
                 )
             )
 
