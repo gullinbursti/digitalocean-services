@@ -789,12 +789,40 @@ def products_sync():
                     conn.close()
 
 
+def autogen_importer():
 
-for i in range(300):
-    add_user(generate_fb_psid())
+    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT `item_name`, `image_url`, `price` FROM `autogen_templates`;')
+            for row in cur.fetchall():
+                fb_psid = generate_fb_psid()
+                add_user(fb_psid)
+                payload = {
+                    'token'                   : "07f5057bb7d5be65101cb251bc26c748",
+                    'fb_psid'                 : fb_psid,
+                    'storefront.display_name' : row['item_name'],
+                    'storefront.description'  : "",
+                    'storefront.logo_url'     : row['image_url'],
+                    'product.display_name'    : row['item_name'],
+                    'product.description'     : "",
+                    'product.image_url'       : row['image_url'],
+                    'product.price'           : row['price']
+                }
+
+                response = requests.post("https://scard.tv/import-storefront", data=payload)
 
 
+    except mysql.Error, e:
+        print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
+    finally:
+        if conn:
+            conn.close()
+
+
+autogen_importer()
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#

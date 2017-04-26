@@ -225,7 +225,7 @@ class Product(db.Model):
     display_name = db.Column(CoerceUTF8)
     description = db.Column(CoerceUTF8)
     tags = db.Column(CoerceUTF8)
-    image_url = db.Column(db.String(255))
+    image_url = db.Column(db.String(500))
     video_url = db.Column(db.String(255))
     broadcast_message = db.Column(db.String(255))
     attachment_id = db.Column(db.String(255))
@@ -339,7 +339,7 @@ class Storefront(db.Model):
     name = db.Column(db.String(255))
     display_name = db.Column(CoerceUTF8)
     description = db.Column(CoerceUTF8)
-    logo_url = db.Column(db.String(255))
+    logo_url = db.Column(db.String(500))
     video_url = db.Column(db.String(255))
     prebot_url = db.Column(db.String(255))
     giveaway = db.Column(db.Integer)
@@ -1144,6 +1144,34 @@ def purchase_product(recipient_id, source):
                         route_purchase_dm(recipient_id, purchase, Const.DM_ACTION_PURCHASE, "Purchase made for {product_name} at {pacific_time}.".format(product_name=product.display_name_utf8, pacific_time=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%I:%M%P %Z').lstrip("0")))
 
                         return True
+
+                elif source == Const.PAYMENT_SOURCE_POINTS:
+                    purchase = Purchase(customer.id, storefront.id, product.id, 3)
+                    purchase.claim_state = 1
+
+                    try:
+                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                        with conn:
+                            cur = conn.cursor(mysql.cursors.DictCursor)
+                            cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
+                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 4))
+                            conn.commit()
+
+                            cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                            row = cur.fetchone()
+                            purchase.id = row['id']
+                            customer.purchase_id = row['id']
+
+                    except mysql.Error as e:
+                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
+
+                    db.session.add(purchase)
+                    db.session.commit()
+                    return True
     return False
 
 def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE, message_text=None):
@@ -1946,7 +1974,7 @@ def build_featured_storefront_elements(amt=3):
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', ("%{tag}%".format(tag="autogen"), min(max(amt, 0), 10)))
+            cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', ("%{tag}%".format(tag="autogen-import"), min(max(amt, 0), 10)))
             for row in cur.fetchall():
                 product = Product.query.filter(Product.id == row['id']).first()
                 if product is not None:
@@ -2463,6 +2491,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 item_url=product.messenger_url,
                 buttons=[
                     build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=locale.format('%d', int(product.price * Const.POINTS_PER_DOLLAR), grouping=True)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ],
                 quick_replies=main_menu_quick_replies(recipient_id)
@@ -2814,7 +2843,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
                 product = None
                 while product is None:
-                    cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen"),))
+                    cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen-import"),))
                     row = cur.fetchone()
                     if row is not None:
                         product = Product.query.filter(Product.id == row['id']).first()
@@ -3201,6 +3230,53 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if purchase_product(recipient_id, Const.PAYMENT_SOURCE_PAYPAL):
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
 
+    elif payload == Const.PB_PAYLOAD_CHECKOUT_POINTS:
+        send_tracker(fb_psid=recipient_id, category="purchase")
+
+        try:
+            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
+
+        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL))
+        db.session.commit()
+
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Are you sure you want to use {points} pts for {product_name}".format(points=locale.format('%d', int(product.price * Const.POINTS_PER_DOLLAR), grouping=True), product_name=product.display_name_utf8),
+                quick_replies=[
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Yes", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_YES),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="No", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_NO)
+                ]
+            )
+
+    elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_YES:
+        product = Product.query.filter(Product.id == customer.product_id).first()
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
+        add_points(recipient_id, -int(product.price * Const.POINTS_PER_DOLLAR))
+
+        if customer.trade_url is None:
+            customer.trade_url = "_{PENDING}_"
+            db.session.commit()
+            send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+
+        else:
+            send_text(
+                recipient_id=customer.fb_psid,
+                message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\nWould you like to change it?".format(trade_url=customer.trade_url),
+                quick_replies=[
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                ])
+
+    elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_NO:
+        send_customer_carousel(recipient_id, customer.product_id)
+
     elif payload == Const.PB_PAYLOAD_PURCHASE_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-purchase")
 
@@ -3312,17 +3388,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_MAIN_MENU:
         # send_tracker(fb_psid=recipient_id, category="button-menu")
 
-        # if customer.purchase_id is not None:
-        #     send_text(
-        #         recipient_id=recipient_id,
-        #         message_text="Did you complete your purchase?",
-        #         quick_replies=[
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_YES, purchase_id=customer.purchase_id)),
-        #             build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_COMPLETED_NO, purchase_id=customer.purchase_id))
-        #         ] + cancel_entry_quick_reply()
-        #     )
-        #
-        # else:
         customer.storefront_id = None
         customer.product_id = None
         customer.purchase_id = None
@@ -3342,7 +3407,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen"),))
+                cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen-import"),))
                 row = cur.fetchone()
                 if row is not None:
                     product = Product.query.filter(Product.id == row['id']).first()
@@ -5091,11 +5156,38 @@ def import_storefront():
 
         customer = Customer.query.filter(Customer.fb_psid == request.form['fb_psid']).first()
 
-        suffix = ""
-        for i in range(4):
-            suffix = "{suffix}{rand}".format(suffix=suffix, rand=random.randint(0, 9))
-        display_name = "{prefix} - {suffix}".format(prefix=request.form['storefront.display_name'], suffix=suffix)
+        if Storefront.query.filter(Storefront.fb_psid == request.form['fb_psid']).count() > 0:
+            for storefront in Storefront.query.filter(Storefront.fb_psid == request.form['fb_psid']):
+                try:
+                    Product.query.filter(Product.storefront_id == storefront.id).delete()
+                    db.session.commit()
+                except:
+                    db.session.rollback()
 
+                try:
+                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                    with conn:
+                        cur = conn.cursor(mysql.cursors.DictCursor)
+                        cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = %s;', (storefront.id,))
+                        cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                        cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                        conn.commit()
+
+                except mysql.Error, e:
+                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+            try:
+                Storefront.query.filter(Storefront.fb_psid == request.form['fb_psid']).delete()
+                db.session.commit()
+            except:
+                db.session.rollback()
+
+
+        display_name = "{prefix} - {suffix}".format(prefix=request.form['storefront.display_name'], suffix=request.form['fb_psid'][-4:])
         storefront = Storefront(request.form['fb_psid'], Const.STOREFRONT_TYPE_IMPORT_GEN)
         storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", display_name.encode('ascii', 'ignore'))
         storefront.display_name = display_name
@@ -5116,6 +5208,7 @@ def import_storefront():
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
                     storefront.id = cur.fetchone()['id']
+                    storefront.added = int(time.time())
                     db.session.commit()
 
         except mysql.Error, e:
@@ -5125,11 +5218,7 @@ def import_storefront():
             if conn:
                 conn.close()
 
-        suffix = ""
-        for i in range(4):
-            suffix = "{suffix}{rand}".format(suffix=suffix, rand=random.randint(0, 9))
-        display_name = "{prefix} - {suffix}".format(prefix=request.form['product.display_name'], suffix=suffix)
-
+        display_name = "{prefix} - {suffix}".format(prefix=request.form['product.display_name'], suffix=request.form['fb_psid'][-4:])
         product = Product(request.form['fb_psid'], storefront.id)
         product.name = re.sub(Const.IGNORED_NAME_PATTERN, "", display_name.encode('ascii', 'ignore'))
         product.display_name = display_name
@@ -5137,11 +5226,11 @@ def import_storefront():
         product.description = request.form['product.description'] or "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
         product.type_id = Const.PRODUCT_TYPE_GAME_ITEM
         product.image_url = request.form['product.image_url']
-        product.video_url = request.form['product.video_url'] or None
-        product.attachment_id = request.form['product.attachment_id'] or None
+        product.video_url = None
+        product.attachment_id = None
         product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
         product.price = request.form['product.price']
-        product.tags = "autogen-import{tags}".format(tags=request.form['product.tags'] or "")
+        product.tags = "autogen-import"
         product.creation_state = 7
         db.session.add(product)
         db.session.commit()
@@ -5156,6 +5245,7 @@ def import_storefront():
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
                     product.id = cur.fetchone()['id']
+                    product.added = int(time.time())
                     db.session.commit()
 
         except mysql.Error, e:
