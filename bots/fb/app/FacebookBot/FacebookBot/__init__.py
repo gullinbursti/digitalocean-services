@@ -763,7 +763,7 @@ def add_points(recipient_id, amount=0):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
-        customer.points += Const.POINT_AMOUNT_VIEW_PRODUCT
+        customer.points += amount
         db.session.commit()
 
         try:
@@ -5141,6 +5141,25 @@ def paypal():
 
 
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
+@app.route('/user-add-points', methods=['POST'])
+def user_add_points():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/user_add_points'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.USER_ADD_POINTS_TOKEN:
+        logger.info("TOKEN VALID!")
+        add_points(request.form['fb_psid'], int(request.form['points']))
+        send_text(
+            recipient_id=request.form['fb_psid'],
+            message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
+            quick_replies=main_menu_quick_replies(request.form['fb_psid'])
+        )
+
+    return "OK", 200
 
 
 @app.route('/import-storefront', methods=['POST'])
