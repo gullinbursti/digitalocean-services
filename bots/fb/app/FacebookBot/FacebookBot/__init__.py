@@ -781,6 +781,10 @@ def add_points(recipient_id, amount=0):
                 conn.close()
 
 
+def points_per_dollar(amount=0):
+    logger.info("points_per_dollar(amount=%s)" % (amount,))
+    return locale.format('%d', int(amount * Const.POINTS_PER_DOLLAR), grouping=True)
+
 
 def add_cc_payment(recipient_id):
     logger.info("add_cc_payment(recipient_id=%s)" % (recipient_id,))
@@ -975,6 +979,67 @@ def view_product(recipient_id, product, welcome_entry=False):
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY if welcome_entry is True else Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
 
+def purchase_points_pak(recipient_id, amount):
+    logger.info("purchase_points_pak(recipient_id=%s, amount=%s)" % (recipient_id, amount))
+
+    if amount == 5:
+        product_id = 2
+
+    elif amount == 10:
+        product_id = 3
+
+    elif amount == 20:
+        product_id = 4
+
+    else:
+        product_id = 0
+
+    product = Product.query.filter(Product.id == product_id).first()
+    if product is not None:
+        customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+        storefront = Storefront.query.filter(Storefront.id == 1).first()
+
+        try:
+            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
+
+        purchase = Purchase(customer.id, storefront.id, product.id, 3)
+        purchase.claim_state = 1
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
+                cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 3))
+                conn.commit()
+
+                cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                row = cur.fetchone()
+                purchase.id = row['id']
+                customer.purchase_id = row['id']
+
+        except mysql.Error as e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        db.session.add(purchase)
+        db.session.commit()
+
+        send_message(json.dumps(build_standard_card(
+            recipient_id=recipient_id,
+            title=product.display_name_utf8,
+            subtitle="{points}pts".format(points=points_per_dollar(product.price)),
+            image_url=product.image_url,
+            buttons=[
+                build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
+            ]
+        )))
 
 def purchase_product(recipient_id, source):
     logger.info("purchase_product(recipient_id=%s, source=%s)" % (recipient_id, source))
@@ -1146,32 +1211,36 @@ def purchase_product(recipient_id, source):
                         return True
 
                 elif source == Const.PAYMENT_SOURCE_POINTS:
-                    purchase = Purchase(customer.id, storefront.id, product.id, 3)
-                    purchase.claim_state = 1
+                    if customer.points >= product.price * Const.POINTS_PER_DOLLAR:
+                        purchase = Purchase(customer.id, storefront.id, product.id, 3)
+                        purchase.claim_state = 1
 
-                    try:
-                        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                        with conn:
-                            cur = conn.cursor(mysql.cursors.DictCursor)
-                            cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
-                            cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 4))
-                            conn.commit()
+                        try:
+                            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                            with conn:
+                                cur = conn.cursor(mysql.cursors.DictCursor)
+                                cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
+                                cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `paid`, `added`) VALUES (NULL, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 4))
+                                conn.commit()
 
-                            cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
-                            row = cur.fetchone()
-                            purchase.id = row['id']
-                            customer.purchase_id = row['id']
+                                cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
+                                row = cur.fetchone()
+                                purchase.id = row['id']
+                                customer.purchase_id = row['id']
 
-                    except mysql.Error as e:
-                        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                        except mysql.Error as e:
+                            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-                    finally:
-                        if conn:
-                            conn.close()
+                        finally:
+                            if conn:
+                                conn.close()
 
-                    db.session.add(purchase)
-                    db.session.commit()
-                    return True
+                        db.session.add(purchase)
+                        db.session.commit()
+                        return True
+
+                    else:
+                        return False
     return False
 
 def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE, message_text=None):
@@ -1270,23 +1339,6 @@ def route_purchase_dm(recipient_id, purchase, dm_action=Const.DM_ACTION_PURCHASE
                     else:
                         send_text(storefront.fb_psid, "Closing out DM with customer...", main_menu_quick_replies(recipient_id))
                     send_text(customer.fb_psid, "Seller closed the DM...", [build_quick_reply(Const.KWIK_BTN_TEXT, "OK", Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
-
-
-def purchase_timeout(purchase):
-    logger.info("purchase_timeout(purchase=%s)" % (purchase,))
-
-    customer = Customer.query.filter(Customer.id == purchase.customer_id).first()
-    # storefront = Storefront.query.filter(Storefront.id == purchase.storefront_id).first()
-    # product = Product.query.filter(Product.id == purchase.product_id).first()
-
-    send_text(
-        recipient_id=customer.fb_psid,
-        message_text="Have you completed the PayPal checkout yet?",
-        quick_replies=[
-            build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_YES, purchase_id=purchase.id)),
-            build_quick_reply(Const.KWIK_BTN_TEXT, "No", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_PURCHASE_NO, purchase_id=purchase.id))
-        ] + cancel_entry_quick_reply()
-    )
 
 
 def clear_entry_sequences(recipient_id):
@@ -1489,72 +1541,52 @@ def autogen_storefront(recipient_id, name_prefix):
         },
 
         #-- latest carousel templates
-        'ak47fireserpent'   : {
+        'lunarweavegloves' : {
             'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "AK-47 | Fire Serpent",
-            'description'   : "AK-47 | Fire Serpent for CS:GO",
-            'price'         : 114.45,
-            'image_url'     : "https://i.imgur.com/0G9LXB0.png",
+            'title'         : "Lunar Weave Gloves",
+            'description'   : "Lunar Weave Gloves in CSGO",
+            'price'         : 230.09,
+            'image_url'     : "https://i.imgur.com/b7A3B4h.png",
             'video_url'     : None,
             'attachment_id' : None,
             'tags'          : "autogen-carousel gamebotsc"
         },
-        'ak47aquamarine' : {
-            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "AK-47 | Aquamarine",
-            'description'   : "AK-47 | Aquamarine for CS:GO",
-            'price'         : 9.98,
-            'image_url'     : "https://i.imgur.com/NzPh6im.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-carousel gamebotsc"
+        'souvenirawppinkddpat': {
+            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'        : "Souvenir AWP Pink DDPAT",
+            'description'  : "Souvenir AWP Pink DDPAT in CSGO",
+            'price'        : 16.57,
+            'image_url'    : "https://i.imgur.com/Ahh0kcn.png",
+            'video_url'    : None,
+            'attachment_id': None,
+            'tags'         : "autogen-carousel gamebotsc"
+        },
+        'm9bayonetmarblefade': {
+            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'        : "M9-Bayonet Marble Fade",
+            'description'  : "M9-Bayonet Marble Fade in CSGO",
+            'price'        : 300.00,
+            'image_url'    : "https://i.imgur.com/NDxI1du.png",
+            'video_url'    : None,
+            'attachment_id': None,
+            'tags'         : "autogen-carousel gamebotsc"
         },
         'awpdragonlore': {
-            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "AWP | Dragon Lore",
-            'description'   : "AWP | Dragon Lore for CS:GO",
-            'price'         : 630.00,
-            'image_url'     : "https://i.imgur.com/Bavlo02.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-carousel gamebotsc"
-        },
-        'awpmedusa': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "AWP | Medusa",
-            'description'  : "AWP | Medusa for CS:GO",
-            'price'        : 516.60,
-            'image_url'    : "https://i.imgur.com/zaDNFLH.png",
+            'title'        : "AWP Dragon Lore",
+            'description'  : "AWP Dragon Lore in CSGO",
+            'price'        : 1799.99,
+            'image_url'    : "https://i.imgur.com/hG8FEZs.png",
             'video_url'    : None,
             'attachment_id': None,
             'tags'         : "autogen-carousel gamebotsc"
         },
-        'awphyperbeast': {
+        'cincinbearcosplay': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "AWP | Hyper Beast",
-            'description'  : "AWP | Hyper Beast for CS:GO",
-            'price'        : 12.10,
-            'image_url'    : "https://i.imgur.com/gjFWUps.png",
-            'video_url'    : None,
-            'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
-        },
-        'linecutestickers': {
-            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "Line Cute Stickers",
-            'description'  : "",
-            'price'        : 2.09,
-            'image_url'    : "https://i.imgur.com/VRp8x8Q.png",
-            'video_url'    : None,
-            'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
-        },
-        'm4a4desolatespace': {
-            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "M4A4 | Desolate Space",
-            'description'  : "M4A4 | Desolate Space for CS:GO",
-            'price'        : 6.80,
-            'image_url'    : "https://i.imgur.com/w5chCJU.png",
+            'title'        : "CinCinBear Cosplay",
+            'description'  : "Daily Message Pack",
+            'price'        : 9.99,
+            'image_url'    : "https://i.imgur.com/0YNOOMB.png",
             'video_url'    : None,
             'attachment_id': None,
             'tags'         : "autogen-carousel gamebotsc"
@@ -1835,6 +1867,15 @@ def cancel_payment_quick_reply():
     ]
 
 
+def point_pak_quick_replies():
+    logger.info("point_pak_quick_replies()")
+
+    return [
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$5 - {points} pts".format(points=points_per_dollar(5)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_5),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$10 - {points} pts".format(points=points_per_dollar(10)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_10),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$20 - {points} pts".format(points=points_per_dollar(20)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_20)
+    ]
+
 
 def build_button(btn_type, caption="", url=None, payload=None, price=None):
     logger.info("build_button(btn_type=%s, caption=%s, url=%s, payload=%s, price=%s)" % (btn_type, caption, url, payload, price))
@@ -2007,45 +2048,30 @@ def build_autogen_storefront_elements(recipient_id):
     elements = []
 
     templates = [{
-    #     'key'       : "AK47FireSerpent",
-    #     'title'     : "AK-47 | Fire Serpent",
-    #     'subtitle'  : None,
-    #     'image_url' : "https://i.imgur.com/0G9LXB0.png"
-    # }, {
-        'key'       : "MAC10NeonRider",
-        'title'     : "MAC-10 | Neon Rider",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/mptKRLk.png"
+        'key'       : "LunarWeaveGloves",
+        'title'     : "Lunar Weave Gloves",
+        'subtitle'  : "Lunar Weave Gloves in CSGO",
+        'image_url' : "https://i.imgur.com/b7A3B4h.png"
     }, {
-        'key'       : "AK47Aquamarine",
-        'title'     : "AK-47 | Aquamarine",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/NzPh6im.png"
+        'key'       : "SouvenirAWPPinkDDPAT",
+        'title'     : "Souvenir AWP Pink DDPAT",
+        'subtitle'  : "Souvenir AWP Pink DDPAT in CSGO",
+        'image_url' : "https://i.imgur.com/Ahh0kcn.png"
     }, {
-    #     'key'       : "AWPDragonLore",
-    #     'title'     : "AWP | Dragon Lore",
-    #     'subtitle'  : None,
-    #     'image_url' : "https://i.imgur.com/Bavlo02.png"
-    # }, {
-        'key'       : "AWPMedusa",
-        'title'     : "AWP | Medusa",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/zaDNFLH.png"
+        'key'       : "M9BayonetMarbleFade",
+        'title'     : "M9-Bayonet Marble Fade",
+        'subtitle'  : "M9-Bayonet Marble Fade in CSGO",
+        'image_url' : "https://i.imgur.com/NDxI1du.png"
     }, {
-        'key'       : "AWPHyperBeast",
-        'title'     : "AWP | Hyper Beast",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/gjFWUps.png"
+        'key'       : "AWPDragonLore",
+        'title'     : "AWP Dragon Lore",
+        'subtitle'  : "AWP Dragon Lore in CSGO",
+        'image_url' : "https://i.imgur.com/hG8FEZs.png"
     }, {
-        'key'       : "LineCuteStickers",
-        'title'     : "Line Cute Stickers",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/VRp8x8Q.png"
-    }, {
-        'key'       : "M4A4DesolateSpace",
-        'title'     : "M4A4 | Desolate Space",
-        'subtitle'  : None,
-        'image_url' : "https://i.imgur.com/w5chCJU.png"
+        'key'       : "CinCinBearCosplay",
+        'title'     : "CinCinBear Cosplay",
+        'subtitle'  : "Daily Message Pack",
+        'image_url' : "https://i.imgur.com/0YNOOMB.png"
     }]
 
     for template in templates:
@@ -2444,7 +2470,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle ="{description} ${price:.2f}".format(description=product.description, price=product.price),
+                subtitle ="{description} - ${price:.2f}".format(description=product.description, price=product.price),
                 image_url = product.image_url,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
@@ -2486,12 +2512,12 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_standard_card(
                 recipient_id=recipient_id,
                 title=product.display_name_utf8,
-                subtitle="${price:.2f}".format(price=product.price),
+                subtitle="{points}pts".format(points=points_per_dollar(product.price)),
                 image_url=product.image_url,
                 item_url=product.messenger_url,
                 buttons=[
-                    build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=locale.format('%d', int(product.price * Const.POINTS_PER_DOLLAR), grouping=True)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Buy Points", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=points_per_dollar(product.price)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ],
                 quick_replies=main_menu_quick_replies(recipient_id)
@@ -2802,7 +2828,7 @@ def received_fb_payment(customer, fb_payment):
                 else:
                     send_text(
                         recipient_id=customer.fb_psid,
-                        message_text="Steam Trade URL set to {trade_url}\nWould you like to change it?".format(trade_url=customer.trade_url),
+                        message_text="Steam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
                         quick_replies=[
                             build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
                             build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
@@ -2817,7 +2843,7 @@ def received_fb_payment(customer, fb_payment):
                 else:
                     send_text(
                         recipient_id=customer.fb_psid,
-                        message_text="Line ID set to {social}\nWould you like to change it?".format(social=customer.social),
+                        message_text="Line ID set to {social}\n\nWould you like to change it?".format(social=customer.social),
                         quick_replies=[
                             build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
                             build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_ALT_SOCIAL_KEEP),
@@ -3137,6 +3163,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         # send_tracker(fb_psid=recipient_id, category="button-support")
         send_text(recipient_id, "Support for Lemonade:\nprebot.me/support")
 
+    elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_PAK:
+        send_text(recipient_id, "Select a Lmon8 point pack below.", point_pak_quick_replies())
+
+    elif re.search('^PURCHASE_POINTS_PAK_(\d+)$', payload) is not None:
+        purchase_points_pak(recipient_id, int(re.match(r'^PURCHASE_POINTS_PAK_(?P<amount>\d+)$', payload).group('amount')))
+
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-reserve")
 
@@ -3213,6 +3245,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             else:
                 add_cc_payment(recipient_id)
 
+
+
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PAYPAL:
         send_tracker(fb_psid=recipient_id, category="purchase")
 
@@ -3247,12 +3281,16 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
             send_text(
                 recipient_id=recipient_id,
-                message_text="Are you sure you want to use {points} pts for {product_name}".format(points=locale.format('%d', int(product.price * Const.POINTS_PER_DOLLAR), grouping=True), product_name=product.display_name_utf8),
+                message_text="Are you sure you want to use {points} pts for {product_name}".format(points=points_per_dollar(product.price), product_name=product.display_name_utf8),
                 quick_replies=[
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="Yes", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_YES),
                     build_quick_reply(Const.KWIK_BTN_TEXT, caption="No", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_NO)
                 ]
             )
+
+        else:
+            send_text(recipient_id, "Sorry, you do not have enough points yet")
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_YES:
         product = Product.query.filter(Product.id == customer.product_id).first()
@@ -3268,7 +3306,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         else:
             send_text(
                 recipient_id=customer.fb_psid,
-                message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\nWould you like to change it?".format(trade_url=customer.trade_url),
+                message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
                 quick_replies=[
                     build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
@@ -3838,7 +3876,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_TRADE_URL_KEEP:
-        send_text(recipient_id, "Steam Trade URL has been set to “{trade_url}”\n\nInstructions:\n1. Confirm your Stream Trade URL is correct.\n\n2. Wait 6 hours.".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
+        send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nSteam Trade URL has been set to “{trade_url}”".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
         send_customer_carousel(recipient_id, customer.product_id)
 
     elif payload == Const.PB_PAYLOAD_ALT_SOCIAL:
@@ -4411,7 +4449,7 @@ def received_text_response(recipient_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(recipient_id, "Steam Trade URL has been set to “{trade_url}”\n\nInstructions:\n1. Confirm your Stream Trade URL is correct.\n\n2. Wait 6 hours.".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nSteam Trade URL has been set to “{trade_url}”".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
             send_customer_carousel(recipient_id, customer.product_id)
 
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
@@ -5099,6 +5137,7 @@ def paypal():
             fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
             product = Product.query.filter(Product.id == product_id).first()
             storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+            add_points(customer.fb_psid, product.price * Const.POINTS_PER_DOLLAR)
 
             slack_outbound(
                 channel_name="lemonade-purchases",
@@ -5106,36 +5145,40 @@ def paypal():
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
 
-            if product.type_id == Const.PRODUCT_TYPE_GAME_ITEM:
-                if customer.trade_url is None:
-                    customer.trade_url = "_{PENDING}_"
-                    db.session.commit()
-                    send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+            customer = Customer.query.filter(Customer.id == customer_id).first()
+            send_text(customer.fb_psid, "Point Pack purchase completed, you now have a total of {points} pts available.".format(points=locale.format('%d', customer.points, grouping=True)))
+            send_product_card(customer.fb_psid, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-                else:
-                    send_text(
-                        recipient_id=customer.fb_psid,
-                        message_text="Steam Trade URL set to {trade_url}\nWould you like to change it?".format(trade_url=customer.trade_url),
-                        quick_replies=[
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
-                        ])
-
-            elif product.type_id == Const.PRODUCT_TYPE_STICKER:
-                if customer.social is None:
-                    customer.social = "_{PENDING}_"
-                    db.session.commit()
-                    send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Line ID.", cancel_entry_quick_reply())
-
-                else:
-                    send_text(
-                        recipient_id=customer.fb_psid,
-                        message_text="Line ID set to {social}\nWould you like to change it?".format(social=customer.social),
-                        quick_replies=[
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_ALT_SOCIAL_KEEP),
-
-                        ])
+            # if product.type_id == Const.PRODUCT_TYPE_GAME_ITEM:
+            #     if customer.trade_url is None:
+            #         customer.trade_url = "_{PENDING}_"
+            #         db.session.commit()
+            #         send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+            #
+            #     else:
+            #         send_text(
+            #             recipient_id=customer.fb_psid,
+            #             message_text="Steam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
+            #             quick_replies=[
+            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
+            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+            #             ])
+            #
+            # elif product.type_id == Const.PRODUCT_TYPE_STICKER:
+            #     if customer.social is None:
+            #         customer.social = "_{PENDING}_"
+            #         db.session.commit()
+            #         send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Line ID.", cancel_entry_quick_reply())
+            #
+            #     else:
+            #         send_text(
+            #             recipient_id=customer.fb_psid,
+            #             message_text="Line ID set to {social}\n\nWould you like to change it?".format(social=customer.social),
+            #             quick_replies=[
+            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
+            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_ALT_SOCIAL_KEEP),
+            #
+            #             ])
 
     return "OK", 200
 
