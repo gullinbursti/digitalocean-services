@@ -758,6 +758,30 @@ def increment_shop_views(recipient_id, product_id, storefront_id=None):
                 conn.close()
 
 
+def flip_wins_for_interval(recipient_id, interval=24):
+    logger.info("flip_wins_for_interval(recipient_id=%s, interval=%s)" % (recipient_id, interval))
+
+    total = 0
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    if customer is not None:
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT COUNT(*) AS `tot` FROM `flip_wins` WHERE `user_id` = %s AND `added` >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR);', (customer.id,))
+                row = cur.fetchone()
+                total = row['tot']
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    return total
+
+
 def add_points(recipient_id, amount=0):
     logger.info("add_points(recipient_id=%s, amount=%s)" % (recipient_id, amount))
 
@@ -779,6 +803,33 @@ def add_points(recipient_id, amount=0):
         finally:
             if conn:
                 conn.close()
+
+
+def customer_points_rank(recipient_id):
+    logger.info("customer_points_rank(recipient_id=%s)" % (recipient_id,))
+
+    rank = 0
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT `fb_psid`, `points` FROM `users` ORDER BY `points` DESC;')
+            cnt = 1
+            for row in cur.fetchall():
+                if row['fb_psid'] == recipient_id:
+                   rank = cnt
+                cnt += 1
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+
+    return (rank, customer.points)
 
 
 def points_per_dollar(amount=0):
@@ -889,7 +940,7 @@ def flip_product(recipient_id, product):
         customer.referrer = re.sub(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', r'/\1', customer.referrer)
         db.session.commit()
 
-    outcome = random.uniform(0, 1) < (1 / float(13)) or recipient_id in Const.ADMIN_FB_PSIDS or "disneyjp" not in product.tag_list_utf8
+    outcome = random.uniform(0, 1) < (1 / float(5)) or recipient_id in Const.ADMIN_FB_PSIDS
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
@@ -915,14 +966,29 @@ def flip_product(recipient_id, product):
 
 
         add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
-        send_text(recipient_id, "You won 100 Lemonade Pts. Keep flipping to earn more.\n\nEnjoy the following featured shop.")
-        #send_text(recipient_id, "You won {prepo} {product_name} worth ${price:.2f}!\n\n1. Text \"{fb_psid}\" to: m.me/gamebotsc\n\n2. Wait 12 hours.".format(prepo="an" if is_vowel(product.display_name_utf8[0]) else "a", product_name=product.display_name_utf8, price=product.price, fb_psid=recipient_id[-4:]))
+        send_text(recipient_id, "You won {points} Lemonade Pts. Keep flipping to earn more.\n\nEnjoy the following featured shop.".format(points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN))
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
             channel_name=Const.SLACK_ORTHODOX_CHANNEL,
-            message_text="*{fb_name}* ({fb_psid}) just won $1 in Gamebots credits by flipping {product_name}.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, product_name=product.display_name_utf8)
+            message_text="*{fb_name}* ({fb_psid}) just won {points} Lemonade Pts by flipping {product_name}.".format(fb_name=recipient_id if fb_user is None else fb_user.full_name_utf8, fb_psid=recipient_id, points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN, product_name=product.display_name_utf8)
         )
+
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('INSERT INTO `user_flips` (`id`, `user_id`, `product_id`, `won`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 0 if outcome is False else 1))
+            conn.commit()
+            cur.execute('SELECT @@IDENTITY AS `id` FROM `user_flips`;')
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
 
     return outcome
 
@@ -969,12 +1035,6 @@ def view_product(recipient_id, product, welcome_entry=False):
                 )
                 send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:], ))
 
-
-            send_text(
-                recipient_id=recipient_id,
-                message_text="{storefront_name}\n\n{product_rating} star{plural} | {points} points".format(storefront_name=storefront.display_name_utf8, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format('%d', customer.points, grouping=True))
-                #message_text="Get a{a_an} {product_name} for ${price:.2f}\n{product_rating} star{plural} | {points} points".format(a_an="n" if is_vowel(product.display_name_utf8[0]) else "", product_name=product.display_name_utf8, price=product.price, product_rating=int(round(product.avg_rating)), plural="" if int(round(product.avg_rating)) == 1 else "s", points=locale.format("%d", customer.points, grouping=True))
-            )
 
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY if welcome_entry is True else Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
@@ -1034,7 +1094,7 @@ def purchase_points_pak(recipient_id, amount):
         send_message(json.dumps(build_standard_card(
             recipient_id=recipient_id,
             title=product.display_name_utf8,
-            subtitle="{points}pts".format(points=points_per_dollar(product.price)),
+            subtitle=product.description,
             image_url=product.image_url,
             buttons=[
                 build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
@@ -1541,52 +1601,52 @@ def autogen_storefront(recipient_id, name_prefix):
         },
 
         #-- latest carousel templates
-        'lunarweavegloves' : {
+        'bayonettigertooth' : {
             'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "Lunar Weave Gloves",
-            'description'   : "Lunar Weave Gloves in CSGO",
-            'price'         : 230.09,
-            'image_url'     : "https://i.imgur.com/b7A3B4h.png",
+            'title'         : "Bayonet Tiger Tooth 15% off",
+            'description'   : "Bayonet Tiger Tooth for CSGO",
+            'price'         : 222.99,
+            'image_url'     : "https://i.imgur.com/W2GDTB6.png",
             'video_url'     : None,
             'attachment_id' : None,
             'tags'          : "autogen-carousel gamebotsc"
         },
-        'souvenirawppinkddpat': {
+        'dota2': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "Souvenir AWP Pink DDPAT",
-            'description'  : "Souvenir AWP Pink DDPAT in CSGO",
-            'price'        : 16.57,
-            'image_url'    : "https://i.imgur.com/Ahh0kcn.png",
+            'title'        : "Dota 2 15% off",
+            'description'  : "Autographed Blades of Voth Domosh",
+            'price'        : 32.99,
+            'image_url'    : "https://i.imgur.com/94PoVEd.png",
             'video_url'    : None,
             'attachment_id': None,
             'tags'         : "autogen-carousel gamebotsc"
         },
-        'm9bayonetmarblefade': {
+        'mysteryflip': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "M9-Bayonet Marble Fade",
-            'description'  : "M9-Bayonet Marble Fade in CSGO",
-            'price'        : 300.00,
-            'image_url'    : "https://i.imgur.com/NDxI1du.png",
+            'title'        : "Mystery Flip",
+            'description'  : "7 Day Mystery Flip",
+            'price'        : 4.99,
+            'image_url'    : "https://i.imgur.com/ApmGnSW.png",
             'video_url'    : None,
             'attachment_id': None,
             'tags'         : "autogen-carousel gamebotsc"
         },
-        'awpdragonlore': {
+        'cosplaygirls': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "AWP Dragon Lore",
-            'description'  : "AWP Dragon Lore in CSGO",
-            'price'        : 1799.99,
-            'image_url'    : "https://i.imgur.com/hG8FEZs.png",
-            'video_url'    : None,
-            'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
-        },
-        'cincinbearcosplay': {
-            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "CinCinBear Cosplay",
-            'description'  : "Daily Message Pack",
+            'title'        : "Cosplay Girls",
+            'description'  : "Daily Cosplay Content",
             'price'        : 9.99,
-            'image_url'    : "https://i.imgur.com/0YNOOMB.png",
+            'image_url'    : "https://i.imgur.com/pCzs59L.png",
+            'video_url'    : None,
+            'attachment_id': None,
+            'tags'         : "autogen-carousel gamebotsc"
+        },
+        'AWPAsiimov': {
+            'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
+            'title'        : "AWP Asiimov 11% off",
+            'description'  : "WP Asiimov for CSGO",
+            'price'        : 22.28,
+            'image_url'    : "https://i.imgur.com/A68m2oy.png",
             'video_url'    : None,
             'attachment_id': None,
             'tags'         : "autogen-carousel gamebotsc"
@@ -1871,9 +1931,9 @@ def point_pak_quick_replies():
     logger.info("point_pak_quick_replies()")
 
     return [
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$5 - {points} pts".format(points=points_per_dollar(5)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_5),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$10 - {points} pts".format(points=points_per_dollar(10)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_10),
-        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$20 - {points} pts".format(points=points_per_dollar(20)), payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_20)
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$5 - 100,00 pts", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_5),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$10 - 300,000 pts", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_10),
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="$20 - 600,000 pts", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK_20)
     ]
 
 
@@ -1999,10 +2059,11 @@ def build_sponsor_element():
     logger.info("build_sponsor_element()")
 
     return build_card_element(
-        title="Flip shops to win points",
+        title="Flip Shops to Win",
+        subtitle="Win Lmon8 Points Now",
         image_url=Const.IMAGE_URL_FLIP_SPONSOR_CARD,
         buttons=[
-            build_button(Const.CARD_BTN_POSTBACK, caption="Flip", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
+            build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
         ]
     )
 
@@ -2027,7 +2088,7 @@ def build_featured_storefront_elements(amt=3):
                             image_url=product.image_url,
                             item_url=product.messenger_url,
                             buttons=[
-                                build_button(Const.CARD_BTN_POSTBACK, caption="Flip", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
                                 build_button(Const.CARD_BTN_INVITE)
                             ]
                         ))
@@ -2048,30 +2109,30 @@ def build_autogen_storefront_elements(recipient_id):
     elements = []
 
     templates = [{
-        'key'       : "LunarWeaveGloves",
-        'title'     : "Lunar Weave Gloves",
-        'subtitle'  : "Lunar Weave Gloves in CSGO",
-        'image_url' : "https://i.imgur.com/b7A3B4h.png"
+        'key'       : "BayonetTigerTooth",
+        'title'     : "Bayonet Tiger Tooth 15% off",
+        'subtitle'  : "Bayonet Tiger Tooth for CSGO",
+        'image_url' : "https://i.imgur.com/W2GDTB6.png"
     }, {
-        'key'       : "SouvenirAWPPinkDDPAT",
-        'title'     : "Souvenir AWP Pink DDPAT",
-        'subtitle'  : "Souvenir AWP Pink DDPAT in CSGO",
-        'image_url' : "https://i.imgur.com/Ahh0kcn.png"
+        'key'       : "Dota2",
+        'title'     : "Dota 2 15% off",
+        'subtitle'  : "Autographed Blades of Voth Domosh",
+        'image_url' : "https://i.imgur.com/94PoVEd.png"
     }, {
-        'key'       : "M9BayonetMarbleFade",
-        'title'     : "M9-Bayonet Marble Fade",
-        'subtitle'  : "M9-Bayonet Marble Fade in CSGO",
-        'image_url' : "https://i.imgur.com/NDxI1du.png"
+        'key'       : "MysteryFlip",
+        'title'     : "Mystery Flip",
+        'subtitle'  : "7 Day Mystery Flip",
+        'image_url' : "https://i.imgur.com/ApmGnSW.png"
     }, {
-        'key'       : "AWPDragonLore",
-        'title'     : "AWP Dragon Lore",
-        'subtitle'  : "AWP Dragon Lore in CSGO",
-        'image_url' : "https://i.imgur.com/hG8FEZs.png"
+        'key'       : "CosplayGirls",
+        'title'     : "Cosplay Girls",
+        'subtitle'  : "Daily Cosplay Content",
+        'image_url' : "https://i.imgur.com/pCzs59L.png"
     }, {
-        'key'       : "CinCinBearCosplay",
-        'title'     : "CinCinBear Cosplay",
-        'subtitle'  : "Daily Message Pack",
-        'image_url' : "https://i.imgur.com/0YNOOMB.png"
+        'key'       : "AWPAsiimov",
+        'title'     : "AWP Asiimov 11% off",
+        'subtitle'  : "AWP Asiimov for CSGO",
+        'image_url' : "https://i.imgur.com/A68m2oy.png"
     }]
 
     for template in templates:
@@ -2080,8 +2141,8 @@ def build_autogen_storefront_elements(recipient_id):
             subtitle=template['subtitle'],
             image_url=template['image_url'],
             buttons=[
-                build_button(Const.CARD_BTN_POSTBACK, "Create", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=template['key'])),
-                build_button(Const.CARD_BTN_POSTBACK, "Shop", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_SEARCH_STOREFRONT, key=template['key']))
+                build_button(Const.CARD_BTN_POSTBACK, "Resell Item", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=template['key'])),
+                build_button(Const.CARD_BTN_POSTBACK, "View Shop", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_SEARCH_STOREFRONT, key=template['key']))
             ]
         ))
 
@@ -2874,7 +2935,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                     if row is not None:
                         product = Product.query.filter(Product.id == row['id']).first()
                         if product is not None:
-                            time.sleep(1.33 if flip_product(customer.fb_psid, product) is True else 0.33)
+                            if flip_wins_for_interval(recipient_id) < Const.FLIPS_PER_24_HOUR:
+                                time.sleep(1.33 if flip_product(recipient_id, product) is True else 0.33)
+
+                            else:
+                                send_text(recipient_id, "You are only allowed up to 100 flip wins per 24 hour period.")
+
                             view_product(recipient_id, product)
 
                     else:
@@ -3267,18 +3333,19 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_CHECKOUT_POINTS:
         send_tracker(fb_psid=recipient_id, category="purchase")
 
-        try:
-            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
-
-        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL))
-        db.session.commit()
-
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
+
+        if customer.points >= product.price * Const.POINTS_PER_DOLLAR:
+            try:
+                Payment.query.filter(Payment.fb_psid == recipient_id).delete()
+                db.session.commit()
+            except:
+                db.session.rollback()
+
+            db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PAYPAL))
+            db.session.commit()
+
             send_text(
                 recipient_id=recipient_id,
                 message_text="Are you sure you want to use {points} pts for {product_name}".format(points=points_per_dollar(product.price), product_name=product.display_name_utf8),
@@ -3295,25 +3362,29 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_YES:
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
+            add_points(recipient_id, -int(product.price * Const.POINTS_PER_DOLLAR))
 
-        add_points(recipient_id, -int(product.price * Const.POINTS_PER_DOLLAR))
+            if customer.trade_url is None:
+                customer.trade_url = "_{PENDING}_"
+                db.session.commit()
+                send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
 
-        if customer.trade_url is None:
-            customer.trade_url = "_{PENDING}_"
-            db.session.commit()
-            send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+            else:
+                send_text(
+                    recipient_id=customer.fb_psid,
+                    message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
+                    quick_replies=[
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                    ])
 
         else:
-            send_text(
-                recipient_id=customer.fb_psid,
-                message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
-                quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
-                ])
+            send_text(recipient_id, "Sorry, you do not have enough points yet")
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_NO:
-        send_customer_carousel(recipient_id, customer.product_id)
+        send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_PRODUCT:
         # send_tracker(fb_psid=recipient_id, category="button-purchase")
@@ -4342,6 +4413,11 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES.split("|"):
         send_text(recipient_id, "You have completed a virtual item giveaway entry. User {queue} of {total}. You will be messaged here when the winner is selected.".format(queue=locale.format('%d', queue_position(recipient_id), grouping=True), total=locale.format('%d', int(queue_position(recipient_id) * 2.125), grouping=True)))
         #send_text(recipient_id, "Instructions:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_replies(recipient_id))
+
+    #-- reserved points reply
+    elif message_text.lower() in Const.RESERVED_POINTS_REPLIES.split("|"):
+        rank, points = customer_points_rank(recipient_id)
+        send_text(recipient_id, "You have {points} Lmon8 Points & are Ranked #{rank}.".format(points=locale.format('%d', points, grouping=True), rank=locale.format('%d', rank, grouping=True)), main_menu_quick_replies(recipient_id))
 
     # -- appnext reply
     elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES.split("|"):

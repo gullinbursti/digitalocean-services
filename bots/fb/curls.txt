@@ -88,9 +88,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
           "type":"postback",
           "payload":"RND_FLIP_STOREFRONT"
         }, {
-          "title":"Remove Item",
+          "title":"Menu",
           "type":"postback",
-          "payload":"DELETE_PRODUCT"
+          "payload":"MAIN_MENU"
         }, {
           "title":"Remove Shop",
           "type":"postback",

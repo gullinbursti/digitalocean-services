@@ -44,6 +44,7 @@ class Const(Constants):
     SUBSCRIBERS_MAX_FREE_TIER = 100
     PREMIUM_SHOP_PRICE = 4.99
     POINTS_PER_DOLLAR = 20000
+    FLIPS_PER_24_HOUR = 100
 
     STOREFRONT_TYPE_OWNER_GEN = 0
     STOREFRONT_TYPE_CUSTOM = 1
@@ -56,10 +57,10 @@ class Const(Constants):
     PRODUCT_TYPE_STICKER = 2
     PRODUCT_TYPE_SKIPPED = 3
 
-    POINT_AMOUNT_NEXT_SHOP = 5
-    POINT_AMOUNT_VIEW_PRODUCT = 10
+    POINT_AMOUNT_NEXT_SHOP = 10
+    POINT_AMOUNT_VIEW_PRODUCT = 5
     POINT_AMOUNT_SHARE_PRODUCT = 10
-    POINT_AMOUNT_FLIP_STOREFRONT_WIN = 50
+    POINT_AMOUNT_FLIP_STOREFRONT_WIN = 100
     POINT_AMOUNT_SUBMIT_STOREFRONT = 100
     POINT_AMOUNT_SUBMIT_PRODUCT = 100
     POINT_AMOUNT_PURCHASE_PRODUCT = 200
@@ -82,7 +83,7 @@ class Const(Constants):
     IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/BJ7d2bn.png"
     IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/BJ7d2bn.png"
     IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/j5GbuHS.png"
-    IMAGE_URL_FLIP_SPONSOR_CARD = "https://i.imgur.com/EI9bBtO.png"
+    IMAGE_URL_FLIP_SPONSOR_CARD = "https://i.imgur.com/eOaYJ0G.png"
 
     IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
     IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"
@@ -256,6 +257,7 @@ class Const(Constants):
     RESERVED_APPNEXT_REPLIES = "f1xgb"
     RESERVED_AUTO_GEN_STOREFRONTS = "autogen|AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate||ShibaMaruPupUps|LINECharactersinLove|AK47FrontsideMisty|FlipDopplerKnife|MAC10NeonRider"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
+    RESERVED_POINTS_REPLIES = "points"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_MODERATOR_REPLIES = "mod"
     RESERVED_GIAVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"

@@ -822,7 +822,14 @@ def autogen_importer():
             conn.close()
 
 
-autogen_importer()
+#autogen_importer()
+
+
+for customer in session.query(Customer).filter(Customer.points > 0).all():
+    customer.points = int(customer.points)
+    session.commit()
+
+    print ("ROUNDING [%s] --> %s" % (customer.fb_psid, customer.points))
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
