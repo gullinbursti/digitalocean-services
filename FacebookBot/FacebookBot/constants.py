@@ -63,5 +63,6 @@ class Const(Constants):
     UPLOAD_REPLIES = "upload"
     GIVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
+    FBPSID_REPLIES = "id"
 
     BANNED_USERS = ""

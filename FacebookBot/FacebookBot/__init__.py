@@ -257,8 +257,7 @@ def send_pay_wall(sender_id, item):
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
     send_text(sender_id, "You must add Gamebots Credits to win higher tier items.")
     pay_wall_carousel(sender_id, 3)
-    #send_paypal_card(sender_id, 1.00, item['image_url'])
-    # send_text(sender_id, "You can unlock credits for free by completing the following below.\n\n1. Install + Open + Screenshot 10 apps: taps.io/skins\n\n\2. Type & send message \"Upload\" to Gamebots\n\n3. Upload each screenshot & wait 1 hour for verification.", main_menu_quick_reply())
+    #send_paypal_card(sender_id, item['price'], item['image_url'])
 
 
 def coin_flip_element(sender_id, pay_wall=False, share=False):
@@ -710,7 +709,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit if sender_id not in Const.ADMIN_FB_PSID else random.choice([0.00, 1.00, 2.00, 3.00, 5.00, 15.00])
+    return deposit if sender_id not in Const.ADMIN_FB_PSID else 0.00#random.choice([0.00, 1.00, 2.00, 3.00, 5.00, 15.00])
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -1487,9 +1486,7 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
-        send_text(sender_id, "Because of high support volume you must purchase credits to access direct message support.")
-        send_text(sender_id, "www.paypal.me/gamebotsc/2\n\nEnter {fb_psid}-support in the buyer's notes.".format(fb_psid=sender_id))
-        send_text(sender_id, "After payment DM: twitter.com/bryantapawan24", main_menu_quick_reply())
+        send_text(sender_id, "For support please direct message us on Twitter.com/gamebotsc")
 
         full_name, f_name, l_name = get_session_name(sender_id)
 
@@ -1699,6 +1696,10 @@ def recieved_text_reply(sender_id, message_text):
 
     elif message_text.lower() in Const.MODERATOR_REPLIES:
         send_text(sender_id, "You have signed up to be a mod. We will send you details shortly.", main_menu_quick_reply())
+
+    elif message_text.lower() in Const.FBPSID_REPLIES:
+        send_text(sender_id, "Your ID is:")
+        send_text(sender_id, sender_id, main_menu_quick_reply())
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
