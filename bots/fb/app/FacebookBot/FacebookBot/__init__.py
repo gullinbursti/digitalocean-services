@@ -966,7 +966,7 @@ def flip_product(recipient_id, product):
 
 
         add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
-        send_text(recipient_id, "You won {points} Lemonade Pts. Keep flipping to earn more.\n\nEnjoy the following featured shop.".format(points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN))
+        send_image(recipient_id, "https://i.imgur.com/kZXYBld.gif")
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
@@ -1072,7 +1072,6 @@ def purchase_points_pak(recipient_id, amount):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
                 cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, product.id, 3))
                 conn.commit()
 
@@ -1190,7 +1189,7 @@ def purchase_product(recipient_id, source):
 
 
                 elif source == Const.PAYMENT_SOURCE_FB:
-                    purchase = Purchase(customer.id, storefront.id, product.id, 4)
+                    purchase = Purchase(customer.id, storefront.id, product.id, 5)
                     purchase.claim_state = 1
 
                     try:
@@ -1514,7 +1513,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             )
 
         else:
-            send_text(recipient_id, Const.ORTHODOX_GREETING.format(first_name=fb_user.first_name))
+            send_text(recipient_id, Const.ORTHODOX_GREETING.format(first_name="there" if fb_user is None else fb_user.first_name))
             send_admin_carousel(recipient_id)
 
     else:
@@ -1846,14 +1845,8 @@ def main_menu_quick_replies(fb_psid):
     if storefront is None:
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Create Shop", payload=Const.PB_PAYLOAD_BUILD_STOREFRONT))
 
+    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_APP))
 
-    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT if product is not None else Const.PB_PAYLOAD_SHARE_APP))
-
-
-    if product is not None:
-        # quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Sales", payload=Const.PB_PAYLOAD_PRODUCT_PURCHASES))
-        # quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Orders", payload=Const.PB_PAYLOAD_PRODUCTS_PURCHASED))
-        quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption=product.messenger_url, payload=Const.PB_PAYLOAD_PREBOT_URL))
 
     return quick_replies
 
@@ -2063,7 +2056,7 @@ def build_sponsor_element():
         subtitle="Win Lmon8 Points Now",
         image_url=Const.IMAGE_URL_FLIP_SPONSOR_CARD,
         buttons=[
-            build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
+            build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now ({points} Pts)".format(points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN), payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)
         ]
     )
 
@@ -2429,8 +2422,7 @@ def send_customer_carousel(recipient_id, product_id):
                     image_url = product.image_url,
                     buttons = [
                         build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Message Shop", payload="{payload}-{purchase_id}".format(payload=Const.PB_PAYLOAD_DM_OPEN, purchase_id=purchase.id))
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
                     ]
                 )
             )
@@ -2462,6 +2454,32 @@ def send_featured_carousel(recipient_id):
     data = build_carousel(
         recipient_id=recipient_id,
         cards=build_featured_storefront_elements(recipient_id, 10),
+        quick_replies=main_menu_quick_replies(recipient_id)
+    )
+
+    send_message(json.dumps(data))
+
+
+def send_point_pak_carousel(recipient_id):
+    logger.info("send_point_pak_carousel(recipient_id=%s)" % (recipient_id,))
+
+    elements = []
+    for product_id in range(2, 4):
+        product = Product.query.filter(Product.id == 2).first()
+        elements.append(
+            build_card_element(
+                title=product.display_name_utf8,
+                subtitle=product.description,
+                image_url=product.image_url,
+                buttons=[
+                    build_button(Const.CARD_BTN_URL_TALL, caption="${price:.2f} Confirm".format(price=product.price), url="http://lmon.us/paypal/{product_id}/{user_id}".format(product_id=product.id, user_id=customer.id))
+                ]
+            )
+        )
+
+    data = build_carousel(
+        recipient_id=recipient_id,
+        cards=elements,
         quick_replies=main_menu_quick_replies(recipient_id)
     )
 
@@ -2535,7 +2553,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_PRODUCT),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Create", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=product.name))
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2579,7 +2597,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 buttons=[
                     build_button(Const.CARD_BTN_POSTBACK, caption="Buy Points", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK),
                     build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=points_per_dollar(product.price)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Share", payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ],
                 quick_replies=main_menu_quick_replies(recipient_id)
             )
@@ -2818,7 +2836,8 @@ def send_app_card(recipient_id):
 
     data = build_standard_card(
         recipient_id=recipient_id,
-        title="Lemonade on Messenger",
+        title="Welcome to Lmon8",
+        subtitle="The world's largest virtual mall.",
         image_url="https://scard.tv/static/images/lmon8-logo.jpg",
         item_url="http://m.me/lmon8?ref=/",
         buttons=[
@@ -2844,7 +2863,7 @@ def received_fb_payment(customer, fb_payment):
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
         if storefront is not None:
             customer.email = fb_payment['requested_user_info']['contact_email']
-            purchase = Purchase(customer.id, storefront.id, product.id, 4, fb_payment['payment_credential']['charge_id'])
+            purchase = Purchase(customer.id, storefront.id, product.id, 5, fb_payment['payment_credential']['charge_id'])
             purchase.claim_state = 1
             db.session.add(purchase)
 
@@ -2852,7 +2871,7 @@ def received_fb_payment(customer, fb_payment):
                 conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                 with conn:
                     cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `paid`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 4, purchase.charge_id, fb_payment['payment_credential']['fb_payment_id']))
+                    cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `charge_id`, `transaction_id`, `paid`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 5, purchase.charge_id, fb_payment['payment_credential']['fb_payment_id']))
                     conn.commit()
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `purchases`;')
                     purchase.id = cur.fetchone()['id']
@@ -3231,6 +3250,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_PAK:
         send_text(recipient_id, "Select a Lmon8 point pack below.", point_pak_quick_replies())
+        #send_point_pak_carousel(recipient_id)
 
     elif re.search('^PURCHASE_POINTS_PAK_(\d+)$', payload) is not None:
         purchase_points_pak(recipient_id, int(re.match(r'^PURCHASE_POINTS_PAK_(?P<amount>\d+)$', payload).group('amount')))
@@ -3350,8 +3370,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 recipient_id=recipient_id,
                 message_text="Are you sure you want to use {points} pts for {product_name}".format(points=points_per_dollar(product.price), product_name=product.display_name_utf8),
                 quick_replies=[
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Yes", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_YES),
-                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="No", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_NO)
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Confirm", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_YES),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, caption="Cancel", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_NO)
                 ]
             )
 
@@ -3373,10 +3393,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             else:
                 send_text(
                     recipient_id=customer.fb_psid,
-                    message_text="Your item is being approved and will transferred shortly.\n\nSteam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
+                    message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
                     quick_replies=[
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
                     ])
 
         else:
@@ -4525,7 +4545,7 @@ def received_text_response(recipient_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nSteam Trade URL has been set to “{trade_url}”".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Your purchase is complete.\n\nPlease allow time for your points to be verified and item to transfer.", main_menu_quick_replies(recipient_id))
             send_customer_carousel(recipient_id, customer.product_id)
 
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()

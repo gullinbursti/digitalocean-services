@@ -824,12 +824,26 @@ def autogen_importer():
 
 #autogen_importer()
 
+def points_sync():
+    for customer in session.query(Customer).filter(Customer.points > 0).all():
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `points` FROM `users` WHERE `id` = %s ORDER BY `id` LIMIT 1;', (customer.id,))
+                row = cur.fetchone()
+                if row is not None:
+                    if customer.points != row['points']:
+                        print ("UPDATING [%s] (%s)--> %s" % (customer.id, customer.points, row['points']))
+                        customer.points = row['points']
+                        session.commit()
 
-for customer in session.query(Customer).filter(Customer.points > 0).all():
-    customer.points = int(customer.points)
-    session.commit()
+        except mysql.Error, e:
+            print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
 
-    print ("ROUNDING [%s] --> %s" % (customer.fb_psid, customer.points))
+        finally:
+            if conn:
+                conn.close()
 
 
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
