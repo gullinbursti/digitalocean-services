@@ -442,7 +442,7 @@ def coin_flip_results(sender_id, item_id=None):
             if conn:
                 conn.close()
 
-        send_text(sender_id, "You won {item_name}.\n\n1. Enter your Steam Trade URL.\n\n2. Text \"{fb_psid}\" to: m.me/lmon8".format(item_name=flip_item['asset_name'], fb_psid=sender_id[-4:]), main_menu_quick_reply())
+        send_text(sender_id, "You won {item_name}.".format(item_name=flip_item['asset_name']))
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -452,19 +452,15 @@ def coin_flip_results(sender_id, item_id=None):
             trade_url = get_session_trade_url(sender_id)
             send_text(
                 recipient_id=sender_id,
-                message_text="Steam Trade URL is set to: {trade_url}".format(trade_url=trade_url),
+                message_text="Your Steam Trade URL is set to:\n\n{trade_url}".format(trade_url=trade_url),
                 quick_replies=[{
                     'content_type': "text",
-                    'title'       : "OK",
+                    'title'       : "Confirm",
                     'payload'     : "TRADE_URL_OK"
                 }, {
                     'content_type': "text",
-                    'title'       : "Change",
+                    'title'       : "Edit URL",
                     'payload'     : "TRADE_URL_CHANGE"
-                }, {
-                    'content_type': "text",
-                    'title'       : "Cancel",
-                    'payload'     : "MAIN_MENU"
                 }]
             )
 
@@ -1414,7 +1410,7 @@ def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
 
     elif action == Const.TRADE_URL_FLIP_ITEM:
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
-            send_text(sender_id, "Steam Trade URL is set to: {url}".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Re-Enter"]))
+            send_text(sender_id, "Your Steam Trade URL is set to:\n\n{url}".format(url=url), quick_replies=submit_quick_replies(["Confirm", "Enter URL"]))
 
 
 
