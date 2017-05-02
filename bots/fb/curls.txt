@@ -22,7 +22,7 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Hi {{user_first_name}}, this is Lemonade. The fastest way to sell on Messenger. Use Lemonade to set up a shopbot and start selling immediately. To begin tap the Get Started button below."
+    "text":"{{user_first_name}}! Welcome to Lmon8. The world’s largest virtual mall."
   }
 }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
 
@@ -68,7 +68,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "attachment":{
       "type":"image",
       "payload":{
-        "url":"https://i.imgur.com/rsiKG84.gif",
+        "url":"https://i.imgur.com/qTjYxy2.gif",
         "is_reusable":true
       }
     }

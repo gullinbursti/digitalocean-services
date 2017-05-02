@@ -768,7 +768,7 @@ def flip_wins_for_interval(recipient_id, interval=24):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT COUNT(*) AS `tot` FROM `flip_wins` WHERE `user_id` = %s AND `added` >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR);', (customer.id,))
+                cur.execute('SELECT COUNT(*) AS `tot` FROM `flip_wins` WHERE `user_id` = %s AND `added` >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL %s HOUR);', (customer.id, interval))
                 row = cur.fetchone()
                 total = row['tot']
 
@@ -787,7 +787,7 @@ def add_points(recipient_id, amount=0):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
-        customer.points += amount
+        customer.points = max(0, customer.points + amount)
         db.session.commit()
 
         try:
@@ -943,8 +943,8 @@ def flip_product(recipient_id, product):
     outcome = random.uniform(0, 1) < (1 / float(5)) or recipient_id in Const.ADMIN_FB_PSIDS
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
-
+    #send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "247918285684008")
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
 
@@ -966,7 +966,8 @@ def flip_product(recipient_id, product):
 
 
         add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
-        send_image(recipient_id, "https://i.imgur.com/kZXYBld.gif")
+        #send_video(recipient_id, "https://scard.tv/videos/output_cCFqWP.mp4", "247917669017403")
+        time.sleep(0.875)
 
         fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         slack_outbound(
@@ -1845,7 +1846,7 @@ def main_menu_quick_replies(fb_psid):
     if storefront is None:
         quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Create Shop", payload=Const.PB_PAYLOAD_BUILD_STOREFRONT))
 
-    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_APP))
+    quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP))
 
 
     return quick_replies
@@ -2381,6 +2382,20 @@ def send_admin_carousel(recipient_id):
 
             cards += build_autogen_storefront_elements(recipient_id)
 
+
+    cards.append(
+        build_card_element(
+            title="Refer a Friend",
+            subtitle="Earn 50 Pts Per Invite",
+            image_url=Const.IMAGE_URL_REFERRAL_CARD,
+            buttons=[
+                # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
+                build_button(Const.CARD_BTN_POSTBACK, caption="FAQ", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP),
+            ]
+        )
+    )
+
     data = build_carousel(
         recipient_id=recipient_id,
         cards=cards,
@@ -2580,8 +2595,8 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url = product.image_url,
                 item_url = product.messenger_url,
                 buttons = [
-                    build_button(Const.CARD_BTN_URL, caption="View", url=product.messenger_url),
-                    build_button(Const.CARD_BTN_URL, caption="Flip", url=re.sub(r'\/([A-Za-z0-9_\.\-]+)$', r'/flip/\1', product.messenger_url)),
+                    build_button(Const.CARD_BTN_URL, caption="View Shop", url=product.messenger_url),
+                    #build_button(Const.CARD_BTN_URL, caption="Flip", url=re.sub(r'\/([A-Za-z0-9_\.\-]+)$', r'/flip/\1', product.messenger_url)),
                     build_button(Const.CARD_BTN_INVITE)
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
@@ -2838,10 +2853,10 @@ def send_app_card(recipient_id):
         recipient_id=recipient_id,
         title="Welcome to Lmon8",
         subtitle="The world's largest virtual mall.",
-        image_url="https://scard.tv/static/images/lmon8-logo.jpg",
+        image_url=Const.IMAGE_URL_SHARE_MESSENGER_CARD,
         item_url="http://m.me/lmon8?ref=/",
         buttons=[
-            build_button(Const.CARD_BTN_URL, caption="View Bot", url="http://m.me/lmon8?ref=/"),
+            build_button(Const.CARD_BTN_URL, caption="View Shop", url="http://m.me/lmon8?ref=/"),
             build_button(Const.CARD_BTN_INVITE)
         ],
         quick_replies=main_menu_quick_replies(recipient_id)
@@ -2955,7 +2970,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                         product = Product.query.filter(Product.id == row['id']).first()
                         if product is not None:
                             if flip_wins_for_interval(recipient_id) < Const.FLIPS_PER_24_HOUR:
-                                time.sleep(1.33 if flip_product(recipient_id, product) is True else 0.33)
+                                flip_product(recipient_id, product)
 
                             else:
                                 send_text(recipient_id, "You are only allowed up to 100 flip wins per 24 hour period.")
@@ -3042,6 +3057,13 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             ] + cancel_entry_quick_reply()
         )
 
+    elif payload == Const.PB_PAYLOAD_CUSTOMER_POINTS:
+        rank, points = customer_points_rank(recipient_id)
+        send_text(recipient_id, "You have {points} Lmon8 Points & are Ranked #{rank}.".format(points=locale.format('%d', points, grouping=True), rank=locale.format('%d', rank, grouping=True)), main_menu_quick_replies(recipient_id))
+
+    elif payload == Const.PB_PAYLOAD_REFERRAL_FAQ:
+        send_text(recipient_id, "Give your invite code to friends. Each friend that enters this code into Lmon8 will reward you with {points} Pts.".format(points=Const.POINT_AMOUNT_REFFERAL))
+        send_text(recipient_id, "fb{fb_psid}".format(fb_psid=recipient_id), main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).first()
@@ -3395,8 +3417,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                     recipient_id=customer.fb_psid,
                     message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
                     quick_replies=[
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                        build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL),
                     ])
 
         else:
@@ -3967,7 +3989,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_TRADE_URL_KEEP:
-        send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nSteam Trade URL has been set to “{trade_url}”".format(trade_url=customer.trade_url), main_menu_quick_replies(recipient_id))
+        send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nPurchase ID: {purchase_id}".format(purchase_id=customer.purchase_id), main_menu_quick_replies(recipient_id))
         send_customer_carousel(recipient_id, customer.product_id)
 
     elif payload == Const.PB_PAYLOAD_ALT_SOCIAL:
@@ -4398,16 +4420,46 @@ def received_text_response(recipient_id, message_text):
         recieved_pizza(recipient_id)
         return "OK", 200
 
-    #-- gamebots referral code
-    elif message_text.startswith(":"):
-        pass
+    #-- share referral code
+    elif re.search(r'^fb(\d+)$', message_text.lower()) is not None:
+        ref_customer = Customer.query.filter(Customer.fb_psid == re.match(r'^fb(?P<fb_psid>\d+)$', message_text.lower()).group('fb_psid')).first()
+        if ref_customer is not None:
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `referral_entries` WHERE `source_id` = %s AND `entry_id` = %s LIMIT 1;', (ref_customer.id, customer.id))
+                    if cur.fetchone() is None:
+                        if customer.fb_psid != ref_customer.fb_psid:
+                            cur.execute('INSERT INTO `referral_entries` (`id`, `source_id`, `entry_id`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (ref_customer.id, customer.id))
+                            conn.commit()
+                            add_points(ref_customer.fb_psid, Const.POINT_AMOUNT_REFFERAL)
+                            send_text(recipient_id, "{points} Pts have been added to {message_text}".format(points=Const.POINT_AMOUNT_REFFERAL, message_text=message_text), main_menu_quick_replies(recipient_id))
+                            send_text(ref_customer.fb_psid, "{points} Pts have been added because someone entered your referral code!".format(points=Const.POINT_AMOUNT_REFFERAL), main_menu_quick_replies(recipient_id))
+
+                        else:
+                            send_text(recipient_id, "You cannot enter your own referral code", main_menu_quick_replies(recipient_id))
+
+                    else:
+                        send_text(recipient_id, "You already entered the referral code {message_text}".format(message_text=message_text), main_menu_quick_replies(recipient_id))
+
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+        else:
+            send_text(recipient_id, "Couldn't locate that referral code, try again", main_menu_quick_replies(recipient_id))
 
 
     #-- force referral
     elif message_text.startswith("/"):
         welcome_message(recipient_id, Const.ENTRY_CUSTOMER_REFERRAL, message_text)
 
-    # -- protected entry
+    #-- protected entry
     elif message_text in Const.RESERVED_PROTECTED_REPLIES.split("|"):
         #send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "240305683111935")
         product = Product.query.filter(Product.id == customer.product_id).first()
@@ -4420,12 +4472,17 @@ def received_text_response(recipient_id, message_text):
 
         return "OK", 200
 
-    # -- show admin carousel
+    #-- show admin carousel
     elif message_text.lower() in Const.RESERVED_COMMAND_REPLIES.split("|"):
         clear_entry_sequences(recipient_id)
         send_admin_carousel(recipient_id)
 
-    # -- moderator reply
+    #-- fbpsid reply
+    elif message_text.lower() in Const.RESERVED_FBPSID_REPLIES.split("|"):
+        send_text(recipient_id, "Your referral ID is:")
+        send_text(recipient_id, recipient_id)
+
+    #-- moderator reply
     elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES.split("|"):
         send_text(recipient_id, "You have signed up to be a mod. We will send you details shortly. ", main_menu_quick_replies(recipient_id))
 
@@ -4545,7 +4602,7 @@ def received_text_response(recipient_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(recipient_id, "Your purchase is complete.\n\nPlease allow time for your points to be verified and item to transfer.", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nPurchase ID: {purchase_id}".format(purchase_id=customer.purchase_id), main_menu_quick_replies(recipient_id))
             send_customer_carousel(recipient_id, customer.product_id)
 
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
@@ -5284,7 +5341,7 @@ def paypal():
 @app.route('/user-add-points', methods=['POST'])
 def user_add_points():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/user_add_points'")
+    logger.info("=-=-=-=-=-= POST --\  '/user-add-points'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -5294,7 +5351,8 @@ def user_add_points():
         add_points(request.form['fb_psid'], int(request.form['points']))
         send_text(
             recipient_id=request.form['fb_psid'],
-            message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
+            #message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
+            message_text="Welcome to Lmon8 (live beta). You have been rewarded 500 Points. Flip On!",
             quick_replies=main_menu_quick_replies(request.form['fb_psid'])
         )
 
