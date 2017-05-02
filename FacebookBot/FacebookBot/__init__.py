@@ -1147,7 +1147,7 @@ def purchase_item(sender_id, payment):
                 item_name = row['asset_name']
 
             full_name, f_name, l_name = get_session_name(sender_id)
-            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (sender_id, f_name or "", l_name or "", customer_email, item_id, amount, fb_payment_id, provider, charge_id, int(time.time())))
+            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UNIX_TIMESTAMP());', (sender_id, f_name or "", l_name or "", customer_email, item_id, amount, fb_payment_id, provider, charge_id))
             conn.commit()
 
             cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1357,7 +1357,7 @@ def paypal():
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, FROM_UNIXTIME(%s));', (fb_psid, f_name, l_name, amount, int(time.time())))
+                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, UNIX_TIMESTAMP());', (fb_psid, f_name, l_name, amount))
                 conn.commit()
 
                 cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1372,7 +1372,7 @@ def paypal():
             if conn:
                 conn.close()
 
-
+    
         send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount), main_menu_quick_reply())
         payload = {
             'channel' : "#gamebots-purchases",
