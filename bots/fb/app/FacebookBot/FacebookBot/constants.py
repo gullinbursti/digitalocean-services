@@ -21,6 +21,7 @@ class Const(Constants):
     PAYPAL_TOKEN = "882499ef6be6c2575a7a8b2be032e42f"
     IMPORT_STOREFRONT_TOKEN = "07f5057bb7d5be65101cb251bc26c748"
     USER_ADD_POINTS_TOKEN = "7da9c27d7ea2ed899df79bcb71de72db"
+    MYSTERY_FLIP_TOKEN = "476b5353b4ea9a12e778ea445d0a4043"
 
     SLACK_ORTHODOX_CHANNEL = "pre"
     SLACK_ORTHODOX_HANDLE = "lemon8-fb"
@@ -96,7 +97,7 @@ class Const(Constants):
     IMAGE_URL_MAIN_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
     IMAGE_URL_MENU_COMMAND = "https://i.imgur.com/2q1eEGP.gif"
 
-    IMAGE_URL_FLIP_START = "https://i.imgur.com/qTjYxy2.gif" #"https://i.imgur.com/48w05cY.gif"
+    IMAGE_URL_FLIP_START = "https://i.imgur.com/EXev63l.gif"
     IMAGE_URL_FLIP_WIN = "http://i.imgur.com/TAayas0.gif"
     IMAGE_URL_FLIP_LOSE = "http://i.imgur.com/CdwqcSD.gif"
 
@@ -199,6 +200,7 @@ class Const(Constants):
     PB_PAYLOAD_MESSAGE_CUSTOMERS = 'MESSAGE_CUSTOMERS'
     PB_PAYLOAD_REFERRAL_FAQ = 'REFERRAL_FAQ'
     PB_PAYLOAD_CUSTOMER_POINTS = 'CUSTOMER_POINTS'
+    PB_PAYLOAD_MYSTERY_FLIP = 'MYSTERY_FLIP'
 
     PB_PAYLOAD_PRODUCT_RATE_1_STAR = 'PRODUCT_RATE_1_STAR'
     PB_PAYLOAD_PRODUCT_RATE_2_STAR = 'PRODUCT_RATE_2_STAR'
@@ -260,7 +262,7 @@ class Const(Constants):
 
     RESERVED_COMMAND_REPLIES = "lemonade|lmon8|admin|main|main menu|menu|support|help|subs"
     RESERVED_APPNEXT_REPLIES = "f1xgb"
-    RESERVED_AUTO_GEN_STOREFRONTS = "autogen|AK47MistyShop|AK47VulcanShop|MAC10NeonShop|SteamCardShop|PrivateSnapchat|GamebotsCrate||ShibaMaruPupUps|LINECharactersinLove|AK47FrontsideMisty|FlipDopplerKnife|MAC10NeonRider"
+    RESERVED_AUTO_GEN_STOREFRONTS = "autogen"
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_POINTS_REPLIES = "points"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"

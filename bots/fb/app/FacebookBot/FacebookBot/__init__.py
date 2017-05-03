@@ -944,7 +944,7 @@ def flip_product(recipient_id, product):
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
     #send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "247918285684008")
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "248316088977561")
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
 
@@ -1526,80 +1526,6 @@ def autogen_storefront(recipient_id, name_prefix):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     templates = {
-        'ak47mistyshop'   : {
-            'description'   : "Selling the cheapest Misty.",
-            'price'         : 4.25,
-            'image_url'     : "http://i.imgur.com/TQOAnps.jpg",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-        'ak47vulcanshop'  : {
-            'description'   : "Selling the cheapest Vulcan.",
-            'price'         : 9.25,
-            'image_url'     : "http://i.imgur.com/CnYFbzD.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-        'mac10neonshop'   : {
-            'description'   : "Selling the cheapest Neon.",
-            'price'         : 0.95,
-            'image_url'     : "http://i.imgur.com/mLDaoyA.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-        'steamcardshop'   : {
-            'description'   : "Selling the cheapest Steam card.",
-            'price'         : 18.00,
-            'image_url'     : "http://i.imgur.com/iKexmpe.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-
-        'privatesnapchat' : {
-            'description'   : "Selling access to Death By Candys Snapchat",
-            'price'         : 5.00,
-            'image_url'     : "http://i.imgur.com/mFm9Nlk.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-        'gamebotscrate'   : {
-            'description'   : "Gamebots daily crate. Items up to 15.00.",
-            'price'         : 5.00,
-            'image_url'     : "http://i.imgur.com/J4pzcki.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebotsc"
-        },
-        'bonus'           : {
-            'description'   : "3 bonus flips inside Gamebots!",
-            'price'         : 5.99,
-            'image_url'     : "http://lmon.us/thumbs/1489878300_741.jpg",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "gamebots"
-        },
-        'neonrider'       : {
-            'description'   : "Get a MAC-10 Neon Rider for $1.20",
-            'price'         : 1.20,
-            'image_url'     : "https://i.imgur.com/Lzay82s.jpg",
-            'video_url'     : "http://lmon.us/videos/neon.mp4",
-            'attachment_id' : "226330947842742",
-            'tags'          : "gamebotsc"
-        },
-        'ak47redline'     : {
-            'description'   : "Get an AK47 Redline for $4.25",
-            'price'         : 4.25,
-            'image_url'     : "http://i.imgur.com/pcgbhwv.jpg",
-            'video_url'     : "http://lmon.us/videos/redline.mp4",
-            'attachment_id' : "226331167842720",
-            'tags'          : "gamebotsc"
-        },
-
         #-- latest carousel templates
         'bayonettigertooth' : {
             'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -1609,7 +1535,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'     : "https://i.imgur.com/W2GDTB6.png",
             'video_url'     : None,
             'attachment_id' : None,
-            'tags'          : "autogen-carousel gamebotsc"
+            'tags'          : "autogen-carousel"
         },
         'dota2': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -1619,7 +1545,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'    : "https://i.imgur.com/94PoVEd.png",
             'video_url'    : None,
             'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
+            'tags'         : "autogen-carousel"
         },
         'mysteryflip': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -1629,7 +1555,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'    : "https://i.imgur.com/ApmGnSW.png",
             'video_url'    : None,
             'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
+            'tags'         : "autogen-carousel"
         },
         'cosplaygirls': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -1639,7 +1565,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'    : "https://i.imgur.com/pCzs59L.png",
             'video_url'    : None,
             'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
+            'tags'         : "autogen-carousel"
         },
         'AWPAsiimov': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -1649,59 +1575,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'    : "https://i.imgur.com/A68m2oy.png",
             'video_url'    : None,
             'attachment_id': None,
-            'tags'         : "autogen-carousel gamebotsc"
-        },
-
-        #-- autogen via referral
-        'shibamarupupups'     : {
-            'type_id'       : Const.PRODUCT_TYPE_STICKER,
-            'title'         : "Shiba Maru Pup-Ups",
-            'description'   : "The Shiba pup with over 2.5 million Instagram",
-            'price'         : 1.59,
-            'image_url'     : "http://i.imgur.com/K5FcycA.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-referral instagram"
-        },
-        'linecharactersinlove': {
-            'type_id'       : Const.PRODUCT_TYPE_STICKER,
-            'title'         : "LINE Characters in Love!",
-            'description'   : "This new set of stickers brings you love!",
-            'price'         : 1.59,
-            'image_url'     : "http://i.imgur.com/FWe9RoW.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-referral line"
-        },
-        'ak47frontsidemisty'  : {
-            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "AK-47 | Frontside Misty",
-            'description'   : "Super Cheap AK-47 | Frontside Misty for CS:GO (Battle Scared)",
-            'price'         : 5.00,
-            'image_url'     : "http://i.imgur.com/RLMa1eH.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-referral gamebotsc"
-        },
-        'flipdopplerknife'    : {
-            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "Flip Doppler Knife",
-            'description'   : "Cheap Flip Doppler Knife for CS:GO (Battle Scared)",
-            'price'         : 100.00,
-            'image_url'     : "http://i.imgur.com/r8xrkO5.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-referral gamebotsc"
-        },
-        'mac10neonrider'      : {
-            'type_id'       : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'         : "MAC-10 | Neon Rider",
-            'description'   : "MAC-10 | Neon Rider for CS:GO",
-            'price'         : 1.56,
-            'image_url'     : "https://i.imgur.com/mptKRLk.png",
-            'video_url'     : None,
-            'attachment_id' : None,
-            'tags'          : "autogen-referral gamebotsc"
+            'tags'         : "autogen-carousel"
         }
     }
 
@@ -2311,17 +2185,18 @@ def send_home_content(recipient_id):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer.product_id is not None:
         product = Product.query.filter(Product.id == customer.product_id).first()
-
         if product is not None:
             increment_shop_views(recipient_id, product.id)
-            purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-            if purchase is not None:
-                customer.purchase_id = purchase.id
-                db.session.commit()
-                send_customer_carousel(recipient_id, product.id)
+            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-            else:
-                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            # purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
+            # if purchase is not None:
+            #     customer.purchase_id = purchase.id
+            #     db.session.commit()
+            #     send_customer_carousel(recipient_id, product.id)
+            #
+            # else:
+            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
         else:
             send_admin_carousel(recipient_id)
     else:
@@ -2390,7 +2265,7 @@ def send_admin_carousel(recipient_id):
             image_url=Const.IMAGE_URL_REFERRAL_CARD,
             buttons=[
                 # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
-                build_button(Const.CARD_BTN_POSTBACK, caption="FAQ", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                build_button(Const.CARD_BTN_POSTBACK, caption="My ID", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
                 build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP),
             ]
         )
@@ -2865,6 +2740,34 @@ def send_app_card(recipient_id):
     send_message(json.dumps(data))
 
 
+def send_mystery_flip_card(recipient_id):
+    logger.info("send_app_card(recipient_id=%s)" % (recipient_id,))
+
+    bonus_code = hashlib.md5(recipient_id.encode()).hexdigest()
+    payload = {
+        'token'      : Const.MYSTERY_FLIP_TOKEN,
+        'bonus_code' : bonus_code
+    }
+
+    response = requests.post("https://gamebot.tv/mystery-flip", data=payload)
+    if response.text != "code-exists":
+        data = build_standard_card(
+            recipient_id=recipient_id,
+            title="Mystery Flip",
+            subtitle="7 Day Mystery Flip",
+            image_url="https://i.imgur.com/ApmGnSW.png",
+            item_url="http://m.me/gamebotsc?ref=/{bonus_code}".fomrat(bonus_code=bonus_code),
+            buttons=[
+                build_button(Const.CARD_BTN_URL, caption="Activate", url="http://m.me/gamebotsc?ref=/{bonus_code}".fomrat(bonus_code=bonus_code))
+            ],
+            quick_replies=main_menu_quick_replies(recipient_id)
+        )
+
+        send_message(json.dumps(data))
+
+    else:
+        send_text(recipient_id, "You can only perform one mystery flip in a 24 hour period", return_home_quick_reply())
+
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 def received_fb_payment(customer, fb_payment):
@@ -2987,6 +2890,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             if conn:
                 conn.close()
 
+    elif payload == Const.PB_PAYLOAD_MYSTERY_FLIP:
+        send_mystery_flip_card(recipient_id)
+
     elif payload == Const.PB_PAYLOAD_PIZZA_FAQ:
         send_text(recipient_id, "Pizza is awesome and wedge shaped!", [build_quick_reply(Const.KWIK_BTN_TEXT, "Menu", payload=Const.PB_PAYLOAD_PIZZA_CLAIM)])
 
@@ -3094,7 +3000,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
         if storefront is not None and product is not None:
             send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
-            send_text(recipient_id, "Instructions to earn 100 points.\n\n1. Share your shop with 20 friends on Messenger.\n\n2. Sell them an item & take a screenshot.\n\n3. Text \"Upload\" to m.me/gamebotsc", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
 
         else:
             send_text(recipient_id, "{storefront_name} is not available to resell at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
@@ -5351,8 +5257,8 @@ def user_add_points():
         add_points(request.form['fb_psid'], int(request.form['points']))
         send_text(
             recipient_id=request.form['fb_psid'],
-            #message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
-            message_text="Welcome to Lmon8 (live beta). You have been rewarded 500 Points. Flip On!",
+            message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
+            #message_text="Welcome to Lmon8 (live beta). You have been rewarded 500 Points. Flip On!",
             quick_replies=main_menu_quick_replies(request.form['fb_psid'])
         )
 

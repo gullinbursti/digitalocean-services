@@ -340,7 +340,7 @@ def add_commerce(fb_psid, storefront_name, storefront_description, storefront_lo
 
 
 def add_user(fb_psid):
-    print("add_user(fb_psid={fb_psid})".format(fb_psid=fb_psid))
+    # print("add_user(fb_psid={fb_psid})".format(fb_psid=fb_psid))
 
     try:
         conn = mysql.connect(Const.MYSQL_HOST, Const.MYSQL_USER, Const.MYSQL_PASS, Const.MYSQL_NAME)
@@ -533,7 +533,7 @@ def add_product(fb_psid, storefront_id, name, image_url, price=1.99):
 
 
 def generate_fb_psid():
-    print("generate_fb_psid()")
+    # print("generate_fb_psid()")
 
     psid = "808"
     for i in range(10):
@@ -606,6 +606,29 @@ def products_changer():
         session.commit()
 
         print(product)
+
+
+def points_sync():
+    for customer in session.query(Customer).filter(Customer.points > 0).all():
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `points` FROM `users` WHERE `id` = %s ORDER BY `id` LIMIT 1;', (customer.id,))
+                row = cur.fetchone()
+                if row is not None:
+                    if customer.points != row['points']:
+                        print ("UPDATING [%s] (%s)--> %s" % (customer.id, customer.points, row['points']))
+                        customer.points = row['points']
+                        session.commit()
+
+        except mysql.Error, e:
+            print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
 
 def storefronts_from_owner(fb_psid=None):
     try:
@@ -795,7 +818,7 @@ def autogen_importer():
     try:
         with conn:
             cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `item_name`, `image_url`, `price` FROM `autogen_templates`;')
+            cur.execute('SELECT `id`, `item_name`, `image_url`, `price` FROM `autogen_templates` WHERE `id` > 238;')
             for row in cur.fetchall():
                 fb_psid = generate_fb_psid()
                 add_user(fb_psid)
@@ -812,6 +835,7 @@ def autogen_importer():
                 }
 
                 response = requests.post("https://scard.tv/import-storefront", data=payload)
+                print("ADDING TEMPLATE [%s]" % (row['id'],))
 
 
     except mysql.Error, e:
@@ -822,30 +846,7 @@ def autogen_importer():
             conn.close()
 
 
-#autogen_importer()
-
-def points_sync():
-    for customer in session.query(Customer).filter(Customer.points > 0).all():
-        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        try:
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT `points` FROM `users` WHERE `id` = %s ORDER BY `id` LIMIT 1;', (customer.id,))
-                row = cur.fetchone()
-                if row is not None:
-                    if customer.points != row['points']:
-                        print ("UPDATING [%s] (%s)--> %s" % (customer.id, customer.points, row['points']))
-                        customer.points = row['points']
-                        session.commit()
-
-        except mysql.Error, e:
-            print("MySqlError ({errno}): {errstr}".format(errno=e.args[0], errstr=e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
+autogen_importer()
