@@ -254,7 +254,7 @@ def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
-    send_text(sender_id, "You must add Gamebots Credits to win higher tier items.")
+    send_text(sender_id, "You must purchase to be able to win these type of items.")
     pay_wall_carousel(sender_id, 3)
     #send_paypal_card(sender_id, item['price'], item['image_url'])
 
@@ -1160,7 +1160,7 @@ def purchase_item(sender_id, payment):
                 item_name = row['asset_name']
 
             full_name, f_name, l_name = get_session_name(sender_id)
-            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UNIX_TIMESTAMP());', (sender_id, f_name or "", l_name or "", customer_email, item_id, amount, fb_payment_id, provider, charge_id))
+            cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `email`, `item_id`, `amount`, `fb_payment_id`, `provider`, `charge_id`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (sender_id, f_name or "", l_name or "", customer_email, item_id, amount, fb_payment_id, provider, charge_id))
             conn.commit()
 
             cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1260,9 +1260,6 @@ def webook():
                 logger.info("QR --> %s" % (quick_reply or None,))
 
 
-
-
-
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
@@ -1285,12 +1282,24 @@ def webook():
                             default_carousel(sender_id)
                             return "OK", 200
 
+
+                        send_text(sender_id, "You have unlocked a Mystery Flip.")
                         send_card(
                             recipient_id=sender_id,
                             title=row['asset_name'].encode('utf8'),
-                            image_url=row['image_url']
+                            subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
+                            image_url=row['image_url'],
+                            buttons=[{
+                                'type'   : "postback",
+                                'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
+                                'title'  : "Flip Coin"
+                            }, {
+                                'type'   : "postback",
+                                'payload': "MAIN_MENU",
+                                'title'  : "Cancel"
+                            }]
                         )
-                        coin_flip_results(sender_id, item_id)
+                    return "OK", 200
 
 
 
@@ -1390,7 +1399,7 @@ def paypal():
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, UNIX_TIMESTAMP());', (fb_psid, f_name, l_name, amount))
+                cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (fb_psid, f_name, l_name, amount))
                 conn.commit()
 
                 cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1444,7 +1453,6 @@ def bonus_flip():
 
                         cur.execute('SELECT @@IDENTITY AS `id` FROM `bonus_codes`;')
                         row = cur.fetchone()
-                        return row['id'], 200
 
                     else:
                         return "code-exists", 200
@@ -1554,6 +1562,9 @@ def handle_payload(sender_id, payload_type, payload):
             if item is None:
                 send_text(sender_id, "Can't find that item! Try flipping again")
                 return "OK", 200
+
+            if get_session_bonus(sender_id) is not None:
+                coin_flip_results(sender_id, item_id)
 
             if deposit_amount_for_price(item['price']) < 1:
                 if wins_last_day(sender_id) < Const.MAX_INTERVAL_WINS or get_session_deposit(sender_id) > 0:
