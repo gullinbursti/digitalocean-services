@@ -1555,7 +1555,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'image_url'    : "https://i.imgur.com/ApmGnSW.png",
             'video_url'    : None,
             'attachment_id': None,
-            'tags'         : "autogen-carousel"
+            'tags'         : "autogen-carousel bonus-flip"
         },
         'cosplaygirls': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
@@ -2749,16 +2749,16 @@ def send_mystery_flip_card(recipient_id):
         'bonus_code' : bonus_code
     }
 
-    response = requests.post("https://gamebot.tv/mystery-flip", data=payload)
+    response = requests.post("https://gamebot.tv/bonus-flip", data=payload)
     if response.text != "code-exists":
         data = build_standard_card(
             recipient_id=recipient_id,
             title="Mystery Flip",
             subtitle="7 Day Mystery Flip",
             image_url="https://i.imgur.com/ApmGnSW.png",
-            item_url="http://m.me/gamebotsc?ref=/{bonus_code}".fomrat(bonus_code=bonus_code),
+            item_url="http://m.me/gamebotsc?ref=/{bonus_code}".format(bonus_code=bonus_code),
             buttons=[
-                build_button(Const.CARD_BTN_URL, caption="Activate", url="http://m.me/gamebotsc?ref=/{bonus_code}".fomrat(bonus_code=bonus_code))
+                build_button(Const.CARD_BTN_URL, caption="Activate", url="http://m.me/gamebotsc?ref=/{bonus_code}".format(bonus_code=bonus_code))
             ],
             quick_replies=main_menu_quick_replies(recipient_id)
         )
@@ -3313,19 +3313,25 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
             add_points(recipient_id, -int(product.price * Const.POINTS_PER_DOLLAR))
 
-            if customer.trade_url is None:
-                customer.trade_url = "_{PENDING}_"
-                db.session.commit()
-                send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+            logger.info(":::::::TAGS --> %s" % (product.tag_list_utf8,))
+
+            if "bonus-flip" in product.tag_list_utf8:
+                send_mystery_flip_card(recipient_id)
 
             else:
-                send_text(
-                    recipient_id=customer.fb_psid,
-                    message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
-                    quick_replies=[
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
-                        build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL),
-                    ])
+                if customer.trade_url is None:
+                    customer.trade_url = "_{PENDING}_"
+                    db.session.commit()
+                    send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+
+                else:
+                    send_text(
+                        recipient_id=customer.fb_psid,
+                        message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
+                        quick_replies=[
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                            build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL),
+                        ])
 
         else:
             send_text(recipient_id, "Sorry, you do not have enough points yet")
@@ -4312,6 +4318,9 @@ def received_text_response(recipient_id, message_text):
     elif message_text == "/featured":
         send_featured_carousel(recipient_id)
 
+    # -- show mysteryflip card
+    elif message_text == "/mysteryflip":
+        send_mystery_flip_card(recipient_id)
 
     #-- disney special
     elif message_text.lower() == "tsum tsum":
@@ -5207,37 +5216,6 @@ def paypal():
             customer = Customer.query.filter(Customer.id == customer_id).first()
             send_text(customer.fb_psid, "Point Pack purchase completed, you now have a total of {points} pts available.".format(points=locale.format('%d', customer.points, grouping=True)))
             send_product_card(customer.fb_psid, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
-
-            # if product.type_id == Const.PRODUCT_TYPE_GAME_ITEM:
-            #     if customer.trade_url is None:
-            #         customer.trade_url = "_{PENDING}_"
-            #         db.session.commit()
-            #         send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
-            #
-            #     else:
-            #         send_text(
-            #             recipient_id=customer.fb_psid,
-            #             message_text="Steam Trade URL set to {trade_url}\n\nWould you like to change it?".format(trade_url=customer.trade_url),
-            #             quick_replies=[
-            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_TRADE_URL),
-            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
-            #             ])
-            #
-            # elif product.type_id == Const.PRODUCT_TYPE_STICKER:
-            #     if customer.social is None:
-            #         customer.social = "_{PENDING}_"
-            #         db.session.commit()
-            #         send_text(customer.fb_psid, "Purchase complete.\nPlease enter your Line ID.", cancel_entry_quick_reply())
-            #
-            #     else:
-            #         send_text(
-            #             recipient_id=customer.fb_psid,
-            #             message_text="Line ID set to {social}\n\nWould you like to change it?".format(social=customer.social),
-            #             quick_replies=[
-            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "OK", payload=Const.PB_PAYLOAD_ALT_SOCIAL),
-            #                 build_quick_reply(Const.KWIK_BTN_TEXT, "Keep", payload=Const.PB_PAYLOAD_ALT_SOCIAL_KEEP),
-            #
-            #             ])
 
     return "OK", 200
 
