@@ -1505,7 +1505,13 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     send_text(recipient_id, "Loading {storefront_name}…".format(storefront_name=product.display_name_utf8 if storefront is None else storefront.display_name_utf8))
                     flip_product(recipient_id, product)
 
-                view_product(recipient_id, product, True)
+                if "gamebots-points" in product.tag_list_utf8:
+                    customer.product_id = product.id
+                    db.session.commit()
+                    send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+
+                else:
+                    view_product(recipient_id, product, True)
 
             slack_outbound(
                 channel_name=Const.SLACK_ORTHODOX_CHANNEL,
@@ -1546,10 +1552,10 @@ def autogen_storefront(recipient_id, name_prefix):
             'attachment_id': None,
             'tags'         : "autogen-carousel"
         },
-        'mysteryflip': {
+        'gamebotsmysteryflip': {
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
-            'title'        : "Mystery Flip",
-            'description'  : "7 Day Mystery Flip",
+            'title'        : "Gamebots Mystery Flip",
+            'description'  : "1 Flip High Tier Item",
             'price'        : 2.99,
             'image_url'    : "https://i.imgur.com/ApmGnSW.png",
             'video_url'    : None,
@@ -1986,9 +1992,9 @@ def build_autogen_storefront_elements(recipient_id):
         'subtitle'  : "Autographed Blades of Voth Domosh",
         'image_url' : "https://i.imgur.com/94PoVEd.png"
     }, {
-        'key'       : "MysteryFlip",
-        'title'     : "Mystery Flip",
-        'subtitle'  : "7 Day Mystery Flip",
+        'key'       : "GamebotsMysteryFlip",
+        'title'     : "Gamebots Mystery Flip",
+        'subtitle'  : "1 Flip High Tier Item",
         'image_url' : "https://i.imgur.com/ApmGnSW.png"
     }, {
         'key'       : "CosplayGirls",
@@ -2425,7 +2431,7 @@ def send_storefront_card(recipient_id, storefront_id, card_type=Const.CARD_TYPE_
         send_message(json.dumps(data))
 
 
-def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUCT_SHARE):
+def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUCT_CHECKOUT):
     logger.info("send_product_card(recipient_id=%s, product_id=%s, card_type=%s)" % (recipient_id, product_id, card_type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     product = Product.query.filter(Product.id == product_id).first()
@@ -2771,19 +2777,23 @@ def send_mystery_flip_card(recipient_id):
 def send_gamebots_card(recipient_id):
     logger.info("send_gamebots_card(recipient_id=%s)" % (recipient_id,))
 
+    customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
+    product = Product.query.filter(Product.id == customer.product_id).first()
+
     purchase_code = "gb.{md5}".format(md5=hashlib.md5(recipient_id.encode()).hexdigest())
     payload = {
-        'token'        : Const.GAMEBOTS_POINTS_TOKEN,
-        'purchase_code': purchase_code
+        'token'         : Const.GAMEBOTS_POINTS_TOKEN,
+        'purchase_code' : purchase_code,
+        'amount'        : product.price
     }
 
     response = requests.post("https://gamebot.tv/points-purchase", data=payload)
     if response.text != "code-exists":
         data = build_standard_card(
             recipient_id=recipient_id,
-            title="Gamebots Credits",
-            subtitle="",
-            image_url="https://i.imgur.com/s4C4rHh.png",
+            title=product.display_name_utf8,
+            subtitle=product.description,
+            image_url=product.image_url,
             item_url="http://m.me/gamebotsc?ref=/{purchase_code}".format(purchase_code=purchase_code),
             buttons=[
                 build_button(Const.CARD_BTN_URL, caption="Activate", url="http://m.me/gamebotsc?ref=/{purchase_code}".format(purchase_code=purchase_code))
@@ -2889,8 +2899,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     # postback btn
     if payload == Const.PB_PAYLOAD_RND_FLIP_STOREFRONT:
         send_tracker(fb_psid=recipient_id, category="next-shop")
-        add_points(recipient_id, Const.POINT_AMOUNT_NEXT_SHOP)
-
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
@@ -2904,6 +2912,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                         product = Product.query.filter(Product.id == row['id']).first()
                         if product is not None:
                             if flip_wins_for_interval(recipient_id) < Const.FLIPS_PER_24_HOUR:
+                                add_points(recipient_id, Const.POINT_AMOUNT_NEXT_SHOP)
                                 flip_product(recipient_id, product)
 
                             else:
