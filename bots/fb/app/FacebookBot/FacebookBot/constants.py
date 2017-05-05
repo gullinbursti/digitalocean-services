@@ -22,6 +22,7 @@ class Const(Constants):
     IMPORT_STOREFRONT_TOKEN = "07f5057bb7d5be65101cb251bc26c748"
     USER_ADD_POINTS_TOKEN = "7da9c27d7ea2ed899df79bcb71de72db"
     MYSTERY_FLIP_TOKEN = "476b5353b4ea9a12e778ea445d0a4043"
+    GAMEBOTS_POINTS_TOKEN = "457a7fa6c8319c5e6c2fcc990b423981"
 
     SLACK_ORTHODOX_CHANNEL = "pre"
     SLACK_ORTHODOX_HANDLE = "lemon8-fb"
@@ -58,7 +59,7 @@ class Const(Constants):
     PRODUCT_TYPE_STICKER = 2
     PRODUCT_TYPE_SKIPPED = 3
 
-    POINT_AMOUNT_NEXT_SHOP = 10
+    POINT_AMOUNT_NEXT_SHOP = 100
     POINT_AMOUNT_VIEW_PRODUCT = 5
     POINT_AMOUNT_SHARE_PRODUCT = 10
     POINT_AMOUNT_SHARE_APP = 10
@@ -87,7 +88,7 @@ class Const(Constants):
     IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/eOaYJ0G.png"
     IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/j5GbuHS.png"
     IMAGE_URL_FLIP_SPONSOR_CARD = "https://i.imgur.com/eOaYJ0G.png"
-    IMAGE_URL_REFERRAL_CARD = "https://i.imgur.com/So1VOMf.png"
+    IMAGE_URL_REFERRAL_CARD = "https://i.imgur.com/87sSmeV.png"
 
     IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
     IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"

@@ -787,15 +787,15 @@ def add_points(recipient_id, amount=0):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
-        customer.points = max(0, customer.points + amount)
-        db.session.commit()
-
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `users` SET `points` = %s WHERE `id` = %s LIMIT 1;', (customer.points, customer.id))
+                cur.execute('UPDATE `users` SET `points` = `points` + %s WHERE `id` = %s LIMIT 1;', (amount, customer.id))
                 conn.commit()
+                cur.execute('SELECT `points` FROM `users` WHERE `id` = %s LIMIT 1;', (customer.id,))
+                customer.points = int(cur.fetchone()['points'])
+                db.session.commit()
 
         except mysql.Error, e:
             logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
@@ -1279,7 +1279,6 @@ def purchase_product(recipient_id, source):
                             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                             with conn:
                                 cur = conn.cursor(mysql.cursors.DictCursor)
-                                cur.execute('UPDATE `users` SET `paypal_email` = %s WHERE `id` = %s AND `paypal_email` != %s LIMIT 1;', (customer.paypal_email, customer.id, customer.paypal_email))
                                 cur.execute('INSERT INTO `purchases` (`id`, `user_id`, `product_id`, `type`, `paid`, `added`) VALUES (NULL, %s, %s, %s, 1, UTC_TIMESTAMP());', (customer.id, product.id, 4))
                                 conn.commit()
 
@@ -1551,7 +1550,7 @@ def autogen_storefront(recipient_id, name_prefix):
             'type_id'      : Const.PRODUCT_TYPE_GAME_ITEM,
             'title'        : "Mystery Flip",
             'description'  : "7 Day Mystery Flip",
-            'price'        : 4.99,
+            'price'        : 2.99,
             'image_url'    : "https://i.imgur.com/ApmGnSW.png",
             'video_url'    : None,
             'attachment_id': None,
@@ -2741,9 +2740,9 @@ def send_app_card(recipient_id):
 
 
 def send_mystery_flip_card(recipient_id):
-    logger.info("send_app_card(recipient_id=%s)" % (recipient_id,))
+    logger.info("send_mystery_flip_card(recipient_id=%s)" % (recipient_id,))
 
-    bonus_code = hashlib.md5(recipient_id.encode()).hexdigest()
+    bonus_code = hashlib.md5(time.time().encode()).hexdigest()
     payload = {
         'token'      : Const.MYSTERY_FLIP_TOKEN,
         'bonus_code' : bonus_code
@@ -2768,7 +2767,39 @@ def send_mystery_flip_card(recipient_id):
     else:
         send_text(recipient_id, "You can only perform one mystery flip in a 24 hour period", return_home_quick_reply())
 
+
+def send_gamebots_card(recipient_id):
+    logger.info("send_gamebots_card(recipient_id=%s)" % (recipient_id,))
+
+    purchase_code = "gb.{md5}".format(md5=hashlib.md5(recipient_id.encode()).hexdigest())
+    payload = {
+        'token'        : Const.GAMEBOTS_POINTS_TOKEN,
+        'purchase_code': purchase_code
+    }
+
+    response = requests.post("https://gamebot.tv/points-purchase", data=payload)
+    if response.text != "code-exists":
+        data = build_standard_card(
+            recipient_id=recipient_id,
+            title="Gamebots Credits",
+            subtitle="",
+            image_url="https://i.imgur.com/s4C4rHh.png",
+            item_url="http://m.me/gamebotsc?ref=/{purchase_code}".format(purchase_code=purchase_code),
+            buttons=[
+                build_button(Const.CARD_BTN_URL, caption="Activate", url="http://m.me/gamebotsc?ref=/{purchase_code}".format(purchase_code=purchase_code))
+            ],
+            quick_replies=main_menu_quick_replies(recipient_id)
+        )
+
+        send_message(json.dumps(data))
+
+    else:
+        send_text(recipient_id, "You can only perform one mystery flip in a 24 hour period", return_home_quick_reply())
+
+
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
+
 
 def received_fb_payment(customer, fb_payment):
     logger.info("received_fb_payment(customer=%s, fb_payment=%s)" % (customer, fb_payment))
@@ -2876,7 +2907,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                                 flip_product(recipient_id, product)
 
                             else:
-                                send_text(recipient_id, "You are only allowed up to 100 flip wins per 24 hour period.")
+                                send_text(recipient_id, "You are only allowed up to {max_flips} flip wins per 24 hour period.".format(max_flips=Const.FLIPS_PER_24_HOUR))
 
                             view_product(recipient_id, product)
 
@@ -3317,6 +3348,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
             if "bonus-flip" in product.tag_list_utf8:
                 send_mystery_flip_card(recipient_id)
+
+            elif "gamebots-points" in product.tag_list_utf8:
+                send_gamebots_card(recipient_id)
 
             else:
                 if customer.trade_url is None:
