@@ -213,7 +213,7 @@ def default_carousel(sender_id, amount=1):
     )
 
 
-def pay_wall_carousel(sender_id, amount=3):
+def pay_wall_carousel(sender_id, amount=1):
     logger.info("pay_wall_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
     set_session_item(sender_id)
 
@@ -266,7 +266,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(1, 100) > 65:
+    if pay_wall is True or random.uniform(1, 100) > 65 or sender_id in Const.ADMIN_FB_PSID:
         deposit_cycle = cycle([0.00, 1.00, 2.00, 5.00, 15.00])
         next_deposit = deposit_cycle.next()
         while next_deposit <= deposit:
@@ -318,15 +318,46 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
         item_id = row['id']
         set_session_item(sender_id, item_id)
 
-        element = {
-            'title'    : row['asset_name'].encode('utf8'),
-            'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id in Const.ADMIN_FB_PSID else "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['price'])),
-            'image_url': row['image_url'],
-            'item_url' : None,
-            'buttons'  : []
-        }
+        if pay_wall is False:
+            element = {
+                'title'    : row['asset_name'].encode('utf8'),
+                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id in Const.ADMIN_FB_PSID else "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['price'])),
+                'image_url': row['image_url'],
+                'item_url' : None,
+                'buttons'  : [{
+                    'type'   : "postback",
+                    'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
+                    'title'  : "Flip Coin"
+                }, {
+                    'type'   : "postback",
+                    'payload': "INVITE",
+                    'title'  : "Share"
+                }]
+            }
 
-        if pay_wall is True:
+        else:
+            image_url = ""
+            if deposit_amount_for_price(row['price']) == 1:
+                image_url = "https://i.imgur.com/j3zxHam.png"
+
+            elif deposit_amount_for_price(row['price']) == 2:
+                image_url = "https://i.imgur.com/jdqSWbe.png"
+
+            elif deposit_amount_for_price(row['price']) == 5:
+                image_url = "https://i.imgur.com/KDngY5d.png"
+
+            elif deposit_amount_for_price(row['price']) == 10:
+                image_url = "https://i.imgur.com/DAPjlMQ.png"
+
+
+            element = {
+                'title'    : "Flip ${price:.2f} Dollar Items".format(price=deposit_amount_for_price(row['price'])),
+                'subtitle' : "Buy Now to Win",
+                'image_url': image_url,
+                'item_url' : None,
+                'buttons'  : []
+            }
+
             graph = fb_graph_user(sender_id)
             if graph is not None and graph['is_payment_enabled'] is True:
                 element['buttons'].append(buy_credits_button(sender_id, item_id, deposit_amount_for_price(row['price'])))
@@ -338,20 +369,11 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
                 'webview_height_ratio': "tall"
             })
 
-            if share is True:
-                element['buttons'].append({
-                    'type'   : "postback",
-                    'payload': "INVITE",
-                    'title'  : "Share"
-                })
-
-        else:
-            element['buttons'] = [{
+            element['buttons'].append({
                 'type'   : "postback",
-                'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
-                'title'  : "Flip Coin"
-            }]
-
+                'payload': "POINTS-{price}".format(price=deposit_amount_for_price(row['price'])),
+                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 20000), grouping=True))
+            })
 
     return element
 
@@ -1009,14 +1031,11 @@ def deposit_amount_for_price(price):
     if price < 1.50:
         amount = 0
 
-    elif price < 2.50:
+    elif price < 2.00:
         amount = 1
 
     elif price < 4.00:
         amount = 2
-
-    elif price < 6.00:
-        amount = 3
 
     elif price < 10.00:
         amount = 5
@@ -1049,8 +1068,8 @@ def price_range_for_deposit(deposit):
 
 
 
-def valid_deeplink_code(sender_id, deeplink=None):
-    logger.info("valid_deeplink_code(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
+def valid_bonus_code(sender_id, deeplink=None):
+    logger.info("valid_bonus_code(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
 
     is_valid = False
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -1058,6 +1077,27 @@ def valid_deeplink_code(sender_id, deeplink=None):
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute('SELECT `id` FROM `bonus_codes` WHERE `code` = %s AND `enabled` = 1 AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;', (deeplink.split("/")[-1],))
+            is_valid = cur.fetchone() is not None
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return is_valid
+
+
+def valid_purchase_code(sender_id, deeplink=None):
+    logger.info("valid_purchase_code(sender_id=%s, deeplink=%s)" % (sender_id, deeplink))
+
+    is_valid = False
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id` FROM `fb_purchases` WHERE `charge_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;', (deeplink.split("/")[-1],))
             is_valid = cur.fetchone() is not None
 
     except mdb.Error, e:
@@ -1207,7 +1247,9 @@ def purchase_item(sender_id, payment):
     response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
     time.sleep(3.33)
-    send_text(sender_id, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=float(amount)), main_menu_quick_reply())
+
+    min_price, max_price = price_range_for_deposit(amount)
+    send_text(sender_id, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
 
 
 @app.route('/', methods=['GET'])
@@ -1267,7 +1309,7 @@ def webook():
                 if referral is not None:
                     send_tracker(fb_psid=sender_id, category="referral", label=referral)
                     logger.info("REFERRAL ---> %s", (referral,))
-                    if valid_deeplink_code(sender_id, referral):
+                    if valid_bonus_code(sender_id, referral):
                         set_session_bonus(sender_id, referral.split("/")[-1])
 
                         row = next_coin_flip_item(sender_id)
@@ -1299,6 +1341,30 @@ def webook():
                                 'title'  : "Cancel"
                             }]
                         )
+
+
+                    elif valid_purchase_code(sender_id, referral):
+                        purchase_code = referral.split("/")[-1]
+                        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                        try:
+                            with conn:
+                                cur = conn.cursor(mdb.cursors.DictCursor)
+                                cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s WHERE `charge_id` = %s LIMIT 1;', (sender_id, purchase_code))
+                                conn.commit()
+                                cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `fb_psid` = %s;', (sender_id,))
+                                row = cur.fetchone()
+                                send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
+
+                        except mdb.Error, e:
+                            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                        finally:
+                            if conn:
+                                conn.close()
+
+                        default_carousel(sender_id)
+
+
                     return "OK", 200
 
 
@@ -1414,8 +1480,9 @@ def paypal():
             if conn:
                 conn.close()
 
-    
-        send_text(fb_psid, "Your Gamebots credit for ${amount:.2f} has been applied!".format(amount=amount), main_menu_quick_reply())
+
+        min_price, max_price = price_range_for_deposit(amount)
+        send_text(fb_psid, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
         payload = {
             'channel' : "#gamebots-purchases",
             'username': "gamebotsc",
@@ -1446,16 +1513,57 @@ def bonus_flip():
             try:
                 with conn:
                     cur = conn.cursor(mdb.cursors.DictCursor)
-                    cur.execute('SELECT `id` FROM `bonus_codes` WHERE `code` = %s AND `added` > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) LIMIT 1;', (bonus_code,))
-                    if cur.fetchone() is None:
-                        cur.execute('INSERT INTO `bonus_codes` (`id`, `code`, `added`) VALUES (NULL, %s, UTC_TIMESTAMP());', (bonus_code,))
-                        conn.commit()
+                    # cur.execute('SELECT `id` FROM `bonus_codes` WHERE `code` = %s AND `added` > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) LIMIT 1;', (bonus_code,))
+                    # if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `bonus_codes` (`id`, `code`, `added`) VALUES (NULL, %s, UTC_TIMESTAMP());', (bonus_code,))
+                    conn.commit()
 
-                        cur.execute('SELECT @@IDENTITY AS `id` FROM `bonus_codes`;')
-                        row = cur.fetchone()
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `bonus_codes`;')
+                    row = cur.fetchone()
 
-                    else:
-                        return "code-exists", 200
+                    # else:
+                    #     return "code-exists", 200
+
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+    return "OK", 200
+
+
+@app.route('/points-purchase', methods=['POST'])
+def points_purchase():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/points-purchase'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.POINTS_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        if 'purchase_code' in request.form and 'amount' in request.form:
+            purchase_code = request.form['purchase_code']
+            amount = request.form['amount']
+            logger.info("amount=%s" % (amount,))
+
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `fb_purchases` WHERE `charge_id` = %s AND `added` > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) LIMIT 1;', (purchase_code,))
+                    # if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `fb_purchases` (`id`, `charge_id`, `added`) VALUES (NULL, %s, UTC_TIMESTAMP());', (purchase_code,))
+                    conn.commit()
+
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
+                    row = cur.fetchone()
+
+                    # else:
+                    #     return "code-exists", 200
 
             except mdb.Error, e:
                 logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -1585,6 +1693,25 @@ def handle_payload(sender_id, payload_type, payload):
             return "OK", 200
 
 
+    elif re.search('POINTS-(\d+)', payload) is not None:
+        price = int(re.match(r'POINTS-(?P<price>\d+)', payload).group('price'))
+        send_text(sender_id, "Welcome to Lmon8, Tap Below to buy with points")
+        send_card(
+            recipient_id=sender_id,
+            title="Share Gamebots",
+            image_url="https://i.imgur.com/s4C4rHh.png",
+            card_url="http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),
+            buttons=[{
+                'type'                 : "web_url",
+                'url'                  : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+                'title'                : "{points} Points".format(points=locale.format('%d', (price * 20000), grouping=True))
+            }, {
+                'type' : "element_share"
+            }],
+            quick_replies=main_menu_quick_reply()
+        )
+
+
     elif payload == "INVITE":
         send_tracker(fb_psid=sender_id, category="invite-friends")
 
@@ -1596,6 +1723,7 @@ def handle_payload(sender_id, payload_type, payload):
             buttons=[{ 'type' : "element_share" }],
             quick_replies=main_menu_quick_reply()
         )
+
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
