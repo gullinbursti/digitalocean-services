@@ -266,7 +266,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(1, 100) > 65 or sender_id in Const.ADMIN_FB_PSID:
+    if pay_wall is True or random.uniform(1, 100) > 65:# or sender_id in Const.ADMIN_FB_PSID:
         deposit_cycle = cycle([0.00, 1.00, 2.00, 5.00, 15.00])
         next_deposit = deposit_cycle.next()
         while next_deposit <= deposit:
@@ -743,7 +743,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit if sender_id not in Const.ADMIN_FB_PSID else 0.00#random.choice([0.00, 1.00, 2.00, 5.00, 15.00])
+    return deposit# if sender_id not in Const.ADMIN_FB_PSID else random.choice([0.00, 1.00, 2.00, 5.00, 15.00])
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -1351,7 +1351,7 @@ def webook():
                                 cur = conn.cursor(mdb.cursors.DictCursor)
                                 cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s WHERE `charge_id` = %s LIMIT 1;', (sender_id, purchase_code))
                                 conn.commit()
-                                cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `fb_psid` = %s;', (sender_id,))
+                                cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s;', (purchase_code,))
                                 row = cur.fetchone()
                                 send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
 
@@ -1556,7 +1556,7 @@ def points_purchase():
                     cur = conn.cursor(mdb.cursors.DictCursor)
                     cur.execute('SELECT `id` FROM `fb_purchases` WHERE `charge_id` = %s AND `added` > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) LIMIT 1;', (purchase_code,))
                     # if cur.fetchone() is None:
-                    cur.execute('INSERT INTO `fb_purchases` (`id`, `charge_id`, `added`) VALUES (NULL, %s, UTC_TIMESTAMP());', (purchase_code,))
+                    cur.execute('INSERT INTO `fb_purchases` (`id`, `amount`, `charge_id`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (request.form['amount'], purchase_code,))
                     conn.commit()
 
                     cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
@@ -1696,10 +1696,24 @@ def handle_payload(sender_id, payload_type, payload):
     elif re.search('POINTS-(\d+)', payload) is not None:
         price = int(re.match(r'POINTS-(?P<price>\d+)', payload).group('price'))
         send_text(sender_id, "Welcome to Lmon8, Tap Below to buy with points")
+
+        image_url = ""
+        if price == 1:
+            image_url = "https://i.imgur.com/j3zxHam.png"
+
+        elif price == 2:
+            image_url = "https://i.imgur.com/jdqSWbe.png"
+
+        elif price == 5:
+            image_url = "https://i.imgur.com/KDngY5d.png"
+
+        elif price == 10:
+            image_url = "https://i.imgur.com/DAPjlMQ.png"
+
         send_card(
             recipient_id=sender_id,
             title="Share Gamebots",
-            image_url="https://i.imgur.com/s4C4rHh.png",
+            image_url=image_url,
             card_url="http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),
             buttons=[{
                 'type'                 : "web_url",
@@ -1738,6 +1752,7 @@ def handle_payload(sender_id, payload_type, payload):
             'text'     : "*{user}* needs help…".format(user=sender_id if full_name is None else full_name),
         }
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        default_carousel(sender_id)
 
     elif payload == "NO_THANKS":
         send_tracker(fb_psid=sender_id, category="no-thanks")
@@ -1999,7 +2014,7 @@ def recieved_text_reply(sender_id, message_text):
 def recieved_attachment(sender_id, attachment_type, attachment):
     logger.info("recieved_attachment(sender_id=%s, attachment_type=%s, attachment=%s)" % (sender_id, attachment_type, attachment))
 
-    if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1]:
+    if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1] and re.search('^.*t39\.1997\-6.*$', attachment['url']) is None:
         full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
             'channel'     : "#mods",
