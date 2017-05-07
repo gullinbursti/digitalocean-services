@@ -1302,6 +1302,10 @@ def webook():
                 logger.info("QR --> %s" % (quick_reply or None,))
 
 
+                if sender_id == "1395098457218675":
+                    logger.info("-=- BYPASS-USER -=-")
+                    return "OK", 200
+
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
@@ -1349,9 +1353,9 @@ def webook():
                         try:
                             with conn:
                                 cur = conn.cursor(mdb.cursors.DictCursor)
-                                cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s WHERE `charge_id` = %s LIMIT 1;', (sender_id, purchase_code))
+                                cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (sender_id, purchase_code))
                                 conn.commit()
-                                cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s;', (purchase_code,))
+                                cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (purchase_code,))
                                 row = cur.fetchone()
                                 send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
 
@@ -1695,7 +1699,7 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif re.search('POINTS-(\d+)', payload) is not None:
         price = int(re.match(r'POINTS-(?P<price>\d+)', payload).group('price'))
-        send_text(sender_id, "Welcome to Lmon8, Tap Below to buy with points")
+        send_text(sender_id, "Tap below to purchase the item in Lmon8 using Points.")
 
         image_url = ""
         if price == 1:
