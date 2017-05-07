@@ -609,6 +609,8 @@ def products_changer():
 
 
 def points_sync():
+    print("points_sync()")
+
     for customer in session.query(Customer).filter(Customer.points > 0).all():
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
         try:
@@ -849,4 +851,4 @@ def autogen_importer():
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 #=- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
-autogen_importer()
+points_sync()

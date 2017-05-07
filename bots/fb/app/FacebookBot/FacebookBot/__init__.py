@@ -1272,7 +1272,7 @@ def purchase_product(recipient_id, source):
 
                 elif source == Const.PAYMENT_SOURCE_POINTS:
                     if customer.points >= product.price * Const.POINTS_PER_DOLLAR:
-                        purchase = Purchase(customer.id, storefront.id, product.id, 3)
+                        purchase = Purchase(customer.id, storefront.id, product.id, 4)
                         purchase.claim_state = 1
 
                         try:
@@ -2748,7 +2748,7 @@ def send_app_card(recipient_id):
 def send_mystery_flip_card(recipient_id):
     logger.info("send_mystery_flip_card(recipient_id=%s)" % (recipient_id,))
 
-    bonus_code = hashlib.md5(time.time().encode()).hexdigest()
+    bonus_code = hashlib.md5(("%s" % time.time()).encode()).hexdigest()
     payload = {
         'token'      : Const.MYSTERY_FLIP_TOKEN,
         'bonus_code' : bonus_code
@@ -2780,7 +2780,7 @@ def send_gamebots_card(recipient_id):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     product = Product.query.filter(Product.id == customer.product_id).first()
 
-    purchase_code = "gb.{md5}".format(md5=hashlib.md5(recipient_id.encode()).hexdigest())
+    purchase_code = "gb.{md5}".format(md5=hashlib.md5(("%s" % time.time()).encode()).hexdigest())
     payload = {
         'token'         : Const.GAMEBOTS_POINTS_TOKEN,
         'purchase_code' : purchase_code,
@@ -3039,6 +3039,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif re.search(r'^AUTO_GEN_STOREFRONT\-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
         if storefront is not None and product is not None:
+            add_points(recipient_id, Const.POINT_AMOUNT_RESELL_STOREFRONT)
+            send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
             send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
             send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
 
@@ -5035,9 +5037,9 @@ def fbbot():
                 message_text = None
                 quick_reply = None
 
-                # if sender_id == "1214675165306847":
-                #     logger.info("-=- BYPASS-USER -=-")
-                #     return "OK", 200
+                if sender_id == "1426425780755191" or sender_id == "1513404505377049" or sender_id == "1203828066395166":
+                    logger.info("-=- BYPASS-USER -=-")
+                    return "OK", 200
 
                 if 'echo' in messaging_event:
                     logger.info("-=- MESSAGE-ECHO -=-")
@@ -5208,10 +5210,10 @@ def slack():
 
 
 
-@app.route('/paypal', methods=['POST'])
+@app.route('/paypal2017', methods=['POST'])
 def paypal():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/paypal'")
+    logger.info("=-=-=-=-=-= POST --\  '/paypal2017'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -5252,7 +5254,7 @@ def paypal():
 
             slack_outbound(
                 channel_name="lemonade-purchases",
-                message_text="*{customer}* just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via PayPal.".format(customer=recipient_id if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8),
+                message_text="*{customer}* *({fb_psid})* just purchased _{product_name}_ for ${price:.2f} from _{storefront_name}_ via PayPal.".format(fb_psid=customer.fb_psid, customer=customer.fb_psid if fb_user is None else fb_user.full_name_utf8, product_name=product.display_name_utf8, price=product.price, storefront_name=storefront.display_name_utf8),
                 webhook=Const.SLACK_PURCHASES_WEBHOOK
             )
 
