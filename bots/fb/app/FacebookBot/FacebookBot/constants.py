@@ -4,7 +4,8 @@ class Const(Constants):
     FB_APP_ID = "267184583696625"
     FB_PAGE_ID = "177712676037903"
 
-    ADMIN_FB_PSIDS = "1448213991869039"#|1328567820538012|996171033817503|1117769054987142"
+    # toofus|jason|kalvin|bryan|charles
+    ADMIN_FB_PSIDS = "1448213991869039|996171033817503|1108749299253610|1263941553690055|888707194565351"
 
     VERIFY_TOKEN = "AC7F552BD16A775B653F6EF6CD3902E6"
     ACCESS_TOKEN = "EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
@@ -77,7 +78,7 @@ class Const(Constants):
     GOODBYE_MESSAGE = "Ok, Thanks. Goodbye!"
     UNKNOWN_MESSAGE = "I'm sorry, I cannot understand that type of message."
 
-    IMAGE_URL_GREETING = "https://media.giphy.com/media/3o6wrlOBmtEI8OUi5y/giphy.gif" #"http://i.imgur.com/Qa1iPak.gif"
+    IMAGE_URL_GREETING = "https://media.giphy.com/media/3o6wrlOBmtEI8OUi5y/giphy.gif" #"https://i.imgur.com/sdV0hkv.png"
     IMAGE_URL_NEW_SUBSCRIBER = "https://media.giphy.com/media/MaxKN8dORncpG/giphy.gif" #"http://i.imgur.com/zBTx8Xy.gif"
     IMAGE_URL_PRODUCT_PURCHASED = "https://media.giphy.com/media/VUie5h5B1NDfq/giphy.gif" #"http://i.imgur.com/vdMdrVT.gif"
     IMAGE_URL_PRODUCT_CREATED = "http://i.imgur.com/WsjHWej.gif"
@@ -85,11 +86,11 @@ class Const(Constants):
 
     IMAGE_URL_CREATE_STOREFRONT_CARD = "https://i.imgur.com/dT2KO63.png"
     IMAGE_URL_ADD_PRODUCT_CARD = "https://i.imgur.com/rrEWTrd.png"
-    IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/BJ7d2bn.png"
-    IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/eOaYJ0G.png"
+    IMAGE_URL_SHARE_STOREFRONT_CARD = "https://i.imgur.com/D7qNhRa.png"
+    IMAGE_URL_SHARE_MESSENGER_CARD = "https://i.imgur.com/D7qNhRa.png"
     IMAGE_URL_PURCHASES_CARD = "https://i.imgur.com/j5GbuHS.png"
     IMAGE_URL_FLIP_SPONSOR_CARD = "https://i.imgur.com/eOaYJ0G.png"
-    IMAGE_URL_REFERRAL_CARD = "https://i.imgur.com/87sSmeV.png"
+    IMAGE_URL_REFERRAL_CARD = "https://i.imgur.com/PQgFYSG.png"
 
     IMAGE_URL_HELP_COMMAND = "https://i.imgur.com/Sv26pNs.gif"
     IMAGE_URL_CANCEL_COMMAND = "https://i.imgur.com/KChXWd4.gif"
@@ -269,6 +270,7 @@ class Const(Constants):
     RESERVED_POINTS_REPLIES = "points"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_MODERATOR_REPLIES = "mod"
+    RESERVED_TASKS_REPLIES = "tasks"
     RESERVED_GIAVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     RESERVED_FBPSID_REPLIES = "id|referral"
     RESERVED_PROTECTED_REPLIES = "4x78"
