@@ -14,7 +14,8 @@ class Const(Constants):
     BONUS_TOKEN = "476b5353b4ea9a12e778ea445d0a4043"
     POINTS_TOKEN = "457a7fa6c8319c5e6c2fcc990b423981"
 
-    ADMIN_FB_PSID = "1298454546880273"#|1219553058088713"#894483894011953
+    #-- toofus|jason|charles|bryan|kelvin
+    ADMIN_FB_PSID = "1298454546880273|894483894011953|1273333236086624|1051754691601951|1890115771013966"
 
     # TEST_PAYMENTS = 1
     TEST_PAYMENTS = 0
@@ -33,8 +34,9 @@ class Const(Constants):
     GA_TRACKING_ID = "UA-79705534-3"
     GA_TRACKING_URL = "http://www.google-analytics.com/collect"
 
-    MAX_INTERVAL_WINS = 2
+    MAX_TIER_WINS = 2
     MAX_LOSSING_STREAK = 12
+    MAX_FLIPS_PER_DAY = 100
 
     SESSION_STATE_UNKNOWN                 = -1
     SESSION_STATE_NEW_USER                = 0
@@ -66,5 +68,6 @@ class Const(Constants):
     GIVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"
     FBPSID_REPLIES = "id"
+    TASK_REPLIES = "tasks"
 
     BANNED_USERS = ""
