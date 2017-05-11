@@ -44,6 +44,7 @@ class Const(Constants):
     SESSION_STATE_FLIPPING                = 2
     SESSION_STATE_FLIP_TRADE_URL          = 3
     SESSION_STATE_FLIP_LMON8_URL          = 4
+    SESSION_STATE_SUPPORT                 = 5
 
     SESSION_STATE_PURCHASED_ITEM          = 10
     SESSION_STATE_PURCHASED_TRADE_URL     = 11
@@ -64,6 +65,7 @@ class Const(Constants):
     APPNEXT_REPLIES = "f1xgb"
     MODERATOR_REPLIES = "mod"
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
+    SUPPORT_REPLIES = "support|help"
     UPLOAD_REPLIES = "upload"
     GIVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"

@@ -266,7 +266,8 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(1, 100) >80:# or sender_id in Const.ADMIN_FB_PSID:
+    if pay_wall is True or random.uniform(1, 100) > 80:# or sender_id in Const.ADMIN_FB_PSID:
+        pay_wall = True
         deposit_cycle = cycle([0.00, 1.00, 2.00, 5.00, 15.00])
         next_deposit = deposit_cycle.next()
         while next_deposit <= deposit:
@@ -373,7 +374,7 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             element['buttons'].append({
                 'type'   : "postback",
                 'payload': "POINTS-{price}".format(price=deposit_amount_for_price(row['price'])),
-                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 20000), grouping=True))
+                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 50000), grouping=True))
             })
 
     return element
@@ -384,16 +385,28 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
 
     item = get_item_details(item_id)
     # return False if sender_id in Const.ADMIN_FB_PSID else coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
-    return coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
+    return coin_flip(
+        wins=wins_last_day(sender_id),
+        losses=min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)),
+        deposit=deposit,
+        item_cost=item['price'],
+        quantity=item['quantity'],
+        total_quantity=all_available_quantity()
+    )
 
 
 def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01, quantity=1, total_quantity=1):
     # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s, quantity=%s)" % (wins, losses, deposit, item_cost, quantity))]
 
-    probility = (losses * (1.0 / (Const.MAX_LOSSING_STREAK ** 1.1))) + statistics.stdev([min(max(random.expovariate(1.0 / float(wins * 3.0) if wins >= 1 else float(3.0)), 0), 1) for i in range(int(random.gauss(21, 3 + (1 / float(3)))))]) if deposit >= deposit_amount_for_price(item_cost) else 0.00
+    if losses >= Const.MAX_LOSSING_STREAK:
+        return True
+
+    probility = statistics.stdev([min(max(random.expovariate(1.0 / float(wins * 3.0) if wins >= 1 else float(3.0)), 0), 1) for i in range(int(random.gauss(21, 3 + (1 / float(3)))))]) if deposit >= deposit_amount_for_price(item_cost) else 0.00
+    probility += (losses / float(Const.MAX_LOSSING_STREAK))
+    probility *= (1 / float(2)) if deposit == 0 else 1.125
     # dice_roller = 1 - int(round(random.uniform(1, 6))) / float(6)
     dice_roller = 1 - random.uniform(0, 1)
-    outcome = probility * (1.50 if deposit >= 1 else 1) >= dice_roller
+    outcome = probility >= dice_roller
     logger.info("[:::::::] wins=%02d, losses=%02d, dep=$%05.2f, cost=$%05.2f, quant=%03d, tot_quant=%03d [::::] FLIP-CHANCE --> %5.2f%% // %.2f -[%s]-" % (wins, losses, deposit, item_cost, quantity, total_quantity, probility * 100, dice_roller, ("%s" % (outcome,)[0])))
 
     return outcome
@@ -1412,16 +1425,17 @@ def webook():
                 logger.info("QR --> %s" % (quick_reply or None,))
 
 
-                if sender_id == "1395098457218675" or sender_id == "1034583493310197":
+                if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
                     logger.info("-=- BYPASS-USER -=-")
                     return "OK", 200
 
 
 
                 #-- catch all
-                if sender_id not in Const.ADMIN_FB_PSID:
-                    send_text(sender_id, "Gamebots is currently down for maintenance.")
-                    return "OK", 200
+                # if sender_id not in Const.ADMIN_FB_PSID:
+                #     send_text(sender_id, "Gamebots is currently down for maintenance.")
+                #     return "OK", 200
+
 
 
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
@@ -1818,18 +1832,48 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
-        send_text(sender_id, "For support please direct message us on Twitter.com/gamebotsc")
+        # send_text(sender_id, "For support please direct message us on Twitter.com/gamebotsc")
+        #
+        # full_name, f_name, l_name = get_session_name(sender_id)
+        #
+        # payload = {
+        #     'channel'  : "#pre",
+        #     'username' : "gamebotsc",
+        #     'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+        #     'text'     : "*{user}* needs help…".format(user=sender_id if full_name is None else full_name),
+        # }
+        # response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        # default_carousel(sender_id)
 
-        full_name, f_name, l_name = get_session_name(sender_id)
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+            row = cur.fetchone()
+            if row['support'] < int(time.time()) - 864000:
+                set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
 
-        payload = {
-            'channel'  : "#pre",
-            'username' : "gamebotsc",
-            'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'     : "*{user}* needs help…".format(user=sender_id if full_name is None else full_name),
-        }
-        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-        default_carousel(sender_id)
+                send_text(sender_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=sender_id))
+                send_text(
+                    recipient_id=sender_id,
+                    message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+                    quick_replies=[{
+                        'content_type': "text",
+                        'title'       : "Cancel",
+                        'payload'     : "NO_THANKS"
+                    }]
+                )
+
+            else:
+                send_text(sender_id, "You can only submit 1 support ticket per 24 hours")
+
+        except sqlite3.Error as er:
+            logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+        finally:
+            if conn:
+                conn.close()
 
     elif payload == "NO_THANKS":
         send_tracker(fb_psid=sender_id, category="no-thanks")
@@ -1847,8 +1891,6 @@ def handle_payload(sender_id, payload_type, payload):
         finally:
             if conn:
                 conn.close()
-
-        # set_session_state(sender_id, Const.SESSION_STATE_FLIP_LMON8_URL)
 
         trade_url = get_session_trade_url(sender_id)
         send_tracker(fb_psid=sender_id, category="trade-url-set")
@@ -2000,6 +2042,40 @@ def recieved_text_reply(sender_id, message_text):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
+    elif message_text.lower() in Const.SUPPORT_REPLIES.split("|"):
+        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        try:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+            row = cur.fetchone()
+            if row['support'] < int(time.time()) - 864000:
+                cur.execute('UPDATE sessions SET support = ? WHERE fb_psid = ?;', (int(time.time()), sender_id))
+                conn.commit()
+
+                set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
+
+                send_text(sender_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=sender_id))
+                send_text(
+                    recipient_id=sender_id,
+                    message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+                    quick_replies=[{
+                        'content_type': "text",
+                        'title'       : "Cancel",
+                        'payload'     : "NO_THANKS"
+                    }]
+                )
+
+            else:
+                send_text(sender_id, "You can only submit 1 support ticket per 24 hours", main_menu_quick_reply())
+
+        except sqlite3.Error as er:
+            logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+        finally:
+            if conn:
+                conn.close()
+
     elif message_text.lower() in Const.GIVEAWAY_REPLIES.split("|"):
         queue_index = 0
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -2059,7 +2135,34 @@ def recieved_text_reply(sender_id, message_text):
 
 
     else:
-        if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
+        if get_session_state(sender_id) == Const.SESSION_STATE_SUPPORT:
+            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+            try:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute('UPDATE `sessions` SET `support` = ? WHERE `fb_psid` = ?;', (int(time.time()), sender_id))
+                conn.commit()
+
+            except sqlite3.Error as er:
+                logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(sender_id, "Your message has been sent to support. Note you can only submit 1 support request every 24 hours.", main_menu_quick_reply())
+
+            full_name, f_name, l_name = get_session_name(sender_id)
+            payload = {
+                'channel'    : "#bot-support",
+                'username '  : "gamebotsc",
+                'icon_url'   : "https://i.imgur.com/bhSzZiO.png",
+                'text'       : "*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=sender_id if full_name is None else full_name, fb_psid=sender_id, message_text=message_text)
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+            clear_session_dub(sender_id)
+
+        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
             if re.search(r'.*steamcommunity\.com\/tradeoffer\/.*$', message_text) is not None:
                 set_session_trade_url(sender_id, message_text)
                 recieved_trade_url(sender_id, message_text)
