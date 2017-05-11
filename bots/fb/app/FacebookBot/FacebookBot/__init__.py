@@ -168,6 +168,7 @@ class FBUser(db.Model):
 
     @property
     def profile_image(self):
+        return None
         try:
             return Image.open(requests.get(self.profile_pic_url, stream=True).raw)
         except IOError:
@@ -1002,6 +1003,11 @@ def view_product(recipient_id, product, welcome_entry=False):
     db.session.commit()
 
     if product is not None:
+
+        if product.price >= 10.00 and customer.points < 10.00 * Const.POINTS_PER_DOLLAR:
+            send_text(recipient_id, "You need at least {points} Points to have access to this item.".format(points=locale.format('%d', int(10.00 * Const.POINTS_PER_DOLLAR), grouping=True)), main_menu_quick_replies(recipient_id))
+            return "OK", 200
+
         customer.product_id = product.id
         db.session.commit()
 
@@ -2004,6 +2010,11 @@ def build_autogen_storefront_elements(recipient_id):
     elements = []
 
     templates = [{
+        'key'      : "GamebotsMysteryFlip",
+        'title'    : "Gamebots Mystery Flip",
+        'subtitle' : "1 Flip High Tier Item",
+        'image_url': "https://i.imgur.com/lGxBTQR.png"
+    }, {
         'key'       : "M4A4DesolateSpace",
         'title'     : "M4A4 | Desolate Space",
         'subtitle'  : "CSGO Item",
@@ -2033,11 +2044,6 @@ def build_autogen_storefront_elements(recipient_id):
         'title'    : "M4A1-S | Hyper Beast",
         'subtitle' : "CSGO Item",
         'image_url': "https://i.imgur.com/FP7wGYk.png"
-    }, {
-        'key'      : "GamebotsMysteryFlip",
-        'title'    : "Gamebots Mystery Flip",
-        'subtitle' : "1 Flip High Tier Item",
-        'image_url': "https://i.imgur.com/lGxBTQR.png"
     }]
 
     for template in templates:
@@ -2046,7 +2052,7 @@ def build_autogen_storefront_elements(recipient_id):
             subtitle=template['subtitle'],
             image_url=template['image_url'],
             buttons=[
-                build_button(Const.CARD_BTN_POSTBACK, "Resell Item ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=template['key'])),
+                build_button(Const.CARD_BTN_POSTBACK, "Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=template['key'])),
                 build_button(Const.CARD_BTN_POSTBACK, "View Shop", payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_SEARCH_STOREFRONT, key=template['key']))
             ]
         ))
@@ -2294,11 +2300,10 @@ def send_admin_carousel(recipient_id):
 
             cards += build_autogen_storefront_elements(recipient_id)
 
-
     cards.append(
         build_card_element(
             title="Refer a Friend",
-            subtitle="Earn 50 Pts Per Invite",
+            subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
             image_url=Const.IMAGE_URL_REFERRAL_CARD,
             buttons=[
                 # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
@@ -2307,6 +2312,7 @@ def send_admin_carousel(recipient_id):
             ]
         )
     )
+
 
     data = build_carousel(
         recipient_id=recipient_id,
@@ -2481,7 +2487,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_PRODUCT),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Resell Item ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=product.name))
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=product.name[:-4]))
                 ],
                 quick_replies = main_menu_quick_replies(recipient_id)
             )
@@ -2523,6 +2529,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 item_url=product.messenger_url,
                 buttons=[
                     #build_button(Const.CARD_BTN_POSTBACK, caption="Buy Points", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK),
+                    #build_button(Const.CARD_BTN_POSTBACK, "Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload="{payload}-{key}".format(payload=Const.PB_PAYLOAD_AUTO_GEN_STOREFRONT, key=product.name[:-4])),
                     build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=points_per_dollar(product.price)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_PRODUCT), payload=Const.PB_PAYLOAD_SHARE_PRODUCT)
                 ],
@@ -2964,66 +2971,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_MYSTERY_FLIP:
         send_mystery_flip_card(recipient_id)
-
-    elif payload == Const.PB_PAYLOAD_PIZZA_FAQ:
-        send_text(recipient_id, "Pizza is awesome and wedge shaped!", [build_quick_reply(Const.KWIK_BTN_TEXT, "Menu", payload=Const.PB_PAYLOAD_PIZZA_CLAIM)])
-
-    elif payload == Const.PB_PAYLOAD_PIZZA_CLAIM:
-        customer.referrer = "/pizza"
-        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PIZZA))
-        db.session.commit()
-
-        send_text(recipient_id, "Offer only valid in the SF/South Bay Area between April 18th through 21st.\n\nEnter your F8 pizza code.", [build_quick_reply(Const.KWIK_BTN_TEXT, "What is Lmon8?", payload=Const.PB_PAYLOAD_LMON8_FAQ)] + return_home_quick_reply("Menu"))
-
-    elif payload == Const.PB_PAYLOAD_PIZZA_TRY_AGAIN:
-        recieved_pizza(recipient_id)
-
-    elif payload == Const.PB_PAYLOAD_PIZZA_CONFIRM:
-        payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
-        if payment is not None:
-            slack_outbound(
-                channel_name="lmon8-pizza",
-                message_text="{fb_user} used \"pizza\" delievery to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(fb_user=fb_psid_profile(recipient_id).full_name_utf8, address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
-                webhook=Const.SLACK_PIZZA_WEBHOOK
-            )
-
-            try:
-                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                with conn:
-                    cur = conn.cursor(mysql.cursors.DictCursor)
-                    cur.execute('INSERT INTO `pizza_orders` (`id`, `fb_psid`, `info`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (recipient_id, "Phone #:{phone_number}, Address:{address}, Time:{delivery_time}:00{ampm}".format(phone_number=payment.full_name, address=payment.email, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm")))
-                    conn.commit()
-
-            except mysql.Error, e:
-                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-            finally:
-                if conn:
-                    conn.close()
-
-
-        customer.referrer = None
-        try:
-            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
-        db.session.commit()
-
-        send_admin_carousel(recipient_id)
-
-
-    elif payload == Const.PB_PAYLOAD_PIZZA_REENTER:
-        try:
-            Payment.query.filter(Payment.fb_psid == recipient_id).delete()
-            db.session.commit()
-        except:
-            db.session.rollback()
-
-        customer.referrer = "/pizza"
-        db.session.add(Payment(recipient_id, Const.PAYMENT_SOURCE_PIZZA))
-        db.session.commit()
-        send_text(recipient_id, "🍕enter your phone number.", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_LMON8_FAQ:
         send_text(
@@ -3935,41 +3882,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         else:
             send_text(recipient_id, "Couldn't locate your shop!", main_menu_quick_replies(recipient_id))
 
-    elif payload == Const.PB_PAYLOAD_GIVEAWAYS_YES:
-        # send_tracker(fb_psid=recipient_id, category="button-giveaways-yes")
+    elif payload == Const.PB_PAYLOAD_MOD_TASK_YES:
+        send_admin_carousel(recipient_id)
 
-        storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 4).first()
-        storefront.giveaway = 1
-        db.session.commit()
-
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `storefronts` SET `giveaway` = 1 WHERE `id` = %s;', (storefront.id,))
-                conn.commit()
-
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-        product = Product.query.filter(Product.storefront_id == storefront.id).first()
-        if product is not None:
-            subscriptions = Subscription.query.filter(Subscription.product_id == product.id).filter(Subscription.enabled == 1).all()
-            send_text(
-                recipient_id=recipient_id,
-                message_text="Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name_utf8) if len(subscriptions) < 20 else "Great! Item giveaways will now be unlocked for {storefront_name}.".format(storefront_name=storefront.display_name_utf8),
-                quick_replies=main_menu_quick_replies(recipient_id)
-            )
-
-        else:
-            send_text(recipient_id, "Great! Once you have 20 customers subscribed to {storefront_name} item giveaways will unlock.".format(storefront_name=storefront.display_name_utf8), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU)])
-
-    elif payload == Const.PB_PAYLOAD_GIVEAWAYS_NO:
-        # send_tracker(fb_psid=recipient_id, category="button-giveaways-no")
+    elif payload == Const.PB_PAYLOAD_MOD_TASK_NO:
         send_admin_carousel(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_TRADE_URL:
@@ -4030,10 +3946,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
     elif payload == Const.PB_PAYLOAD_PAYOUT_PAYPAL:
         # send_tracker(fb_psid=recipient_id, category="button-paypal-payout")
-
-        # customer.paypal_name = "_{PENDING}_"
-        # db.session.commit()
-        # send_text(recipient_id, "Enter your PayPal.Me handle", cancel_entry_quick_reply())
 
         customer.paypal_email = "_{PENDING}_"
         db.session.commit()
@@ -4408,11 +4320,6 @@ def received_text_response(recipient_id, message_text):
         return "OK", 200
 
 
-    #-- special pizza reserved word
-    elif message_text.lower() == "pizza":
-        recieved_pizza(recipient_id)
-        return "OK", 200
-
     #-- share referral code
     elif re.search(r'^fb(\d+)$', message_text.lower()) is not None:
         ref_customer = Customer.query.filter(Customer.fb_psid == re.match(r'^fb(?P<fb_psid>\d+)$', message_text.lower()).group('fb_psid')).first()
@@ -4475,6 +4382,33 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, "Your referral ID is:")
         send_text(recipient_id, recipient_id)
 
+    #-- support replies
+    elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES.split("|"):
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = %s AND `support` >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR) LIMIT 1;', (recipient_id,))
+                if cur.fetchone() is None:
+                    customer.paypal_name = "__{PENDING}__"
+                    db.session.commit()
+
+                    send_text(recipient_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=recipient_id))
+                    send_text(
+                        recipient_id=recipient_id,
+                        message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+                        quick_replies=return_home_quick_reply("Cancel"))
+
+                else:
+                    send_text(recipient_id, "You can only submit 1 support ticket per 24 hours", main_menu_quick_replies(recipient_id))
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
     #-- moderator reply
     elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES.split("|"):
         send_text(recipient_id, "You have signed up to be a mod. We will send you details shortly. ", main_menu_quick_replies(recipient_id))
@@ -4531,62 +4465,6 @@ def received_text_response(recipient_id, message_text):
 
     #-- all others
     else:
-        if customer.referrer == "/pizza":
-            payment = Payment.query.filter(Payment.fb_psid == recipient_id).first()
-            logger.info("Payment: %s" % (payment))
-            if payment is not None:
-                if payment.creation_state == 0: #-- code entered
-                    if message_text.lower() in Const.RESERVED_PIZZA_CODES.split("|"):
-                        payment.creation_state = 1
-                        db.session.commit()
-                        send_text(recipient_id, "Enter your phone number.", cancel_entry_quick_reply())
-
-                    else:
-                        send_text(recipient_id, "Incorrect code, please try again.", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 1: #-- phone #
-                    payment.full_name = message_text
-                    payment.creation_state = 2
-                    db.session.commit()
-                    send_text(recipient_id, "Enter your address.", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 2: #-- address
-                    payment.email = message_text
-                    payment.creation_state = 3
-                    db.session.commit()
-                    send_text(recipient_id, "Enter a time between 11am & 8pm (PDT)", cancel_entry_quick_reply())
-
-                elif payment.creation_state == 3: #-- time
-                    #payment.expiration = calendar.timegm((datetime.now()).replace(hour=int(message_text) + 12 if int(message_text) < 12 else int(message_text), minute=0, second=0, microsecond=0).utctimetuple())
-
-                    if re.search(r'^(\d+)[ap]m$', message_text) is not None:
-                        payment.cvc = re.sub(r'^(\d+).*$', r'\1', message_text)
-                        payment.creation_state = 4
-                        db.session.commit()
-                        send_text(
-                            recipient_id=recipient_id,
-                            message_text="Your pizza will be delievered to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
-                            quick_replies=[
-                                build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_PIZZA_CONFIRM),
-                                build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Enter", payload=Const.PB_PAYLOAD_PIZZA_REENTER),
-                            ] + cancel_entry_quick_reply()
-                        )
-
-                    else:
-                        send_text(recipient_id, "Please enter a time like 4pm", cancel_entry_quick_reply())
-
-                elif payment.creation_state >= 4:  # -- time
-                    send_text(
-                        recipient_id=recipient_id,
-                        message_text="Your pizza will be delievered to:\n{address}\n\nContact #: {phone_number}\n\nAt {delivery_time}:00{ampm}".format(address=payment.email, phone_number=payment.full_name, delivery_time=payment.cvc, ampm="am" if int(payment.cvc) > 8 else "pm"),
-                        quick_replies=[
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_PIZZA_CONFIRM),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Re-Enter", payload=Const.PB_PAYLOAD_PIZZA_REENTER),
-                        ] + cancel_entry_quick_reply()
-                    )
-
-                return "OK", 200
-
         if customer.fb_name == "_{PENDING}_":
             purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
             if purchase is not None:
@@ -4649,6 +4527,35 @@ def received_text_response(recipient_id, message_text):
             send_customer_carousel(recipient_id, customer.product_id)
             return "OK", 200
 
+        #-- support
+        if customer.paypal_name == "__{PENDING}__":
+            customer.paypal_name = None
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `support` = UTC_TIMESTAMP() WHERE `id` = %s LIMIT 1;', (customer.id,))
+                    conn.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(recipient_id, "Your message has been sent to support. Note you can only submit 1 support request every 24 hours.", main_menu_quick_replies(recipient_id))
+
+            fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
+            slack_outbound(
+                channel_name="bot-support",
+                message_text="*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=fb_user.full_name_utf8, fb_psid=recipient_id, message_text=message_text),
+                webhook=Const.SLACK_SUPPORT_WEBHOOK
+            )
+
+            return "OK", 200
 
         #-- entering paypal payout info
         if customer.paypal_email == "_{PENDING}_":
@@ -5151,9 +5058,9 @@ def fbbot():
 
 
                 #-- catch all
-                if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
-                    send_text(customer.fb_psid, "Lmon8 is currently down for maintenance.")
-                    return "OK", 200
+                # if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
+                #     send_text(customer.fb_psid, "Lmon8 is currently down for maintenance.")
+                #     return "OK", 200
 
 
                 #-- payment response
@@ -5459,6 +5366,34 @@ def import_storefront():
         finally:
             if conn:
                 conn.close()
+
+
+    return "OK", 200
+
+
+@app.route('/refund', methods=['POST'])
+def refund():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/refund'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.REFUND_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        add_points(request.form['fb_psid'], int(request.form['points']))
+        send_text(
+            recipient_id=request.form['fb_psid'],
+            message_text="Your recent Lmon8 Point purchase has been refunded because of activity on your account, a recent price change in the item marketplace, or your trade url is not active.",
+            quick_replies=main_menu_quick_replies(request.form['fb_psid'])
+        )
+
+        try:
+            Purchase.query.filter(Purchase.id == request.form['purchase_id']).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
 
 
     return "OK", 200
