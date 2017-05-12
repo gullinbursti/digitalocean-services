@@ -111,17 +111,19 @@ def main_menu_quick_reply():
 
 def home_quick_replies():
     logger.info("home_quick_replies()")
-    return main_menu_quick_reply() + [
-        {
-            'content_type' : "text",
-            'title'        : "Invite Friends Now",
-            'payload'      : "INVITE"
-        }, {
-            'content_type' : "text",
-            'title'        : "Support",
-            'payload'      : "SUPPORT"
-        }
-    ]
+    return main_menu_quick_reply() + [{
+        'content_type' : "text",
+        'title'        : "lmon8 Referral",
+        'payload'      : "LMON8_REFERRAL"
+    }, {
+        'content_type' : "text",
+        'title'        : "Invite Friends Now",
+        'payload'      : "INVITE"
+    }, {
+        'content_type' : "text",
+        'title'        : "Support",
+        'payload'      : "SUPPORT"
+    }]
 
 
 def submit_quick_replies(captions=["Yes", "No"]):
@@ -357,7 +359,11 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
                 'subtitle' : "Buy Now to Win",
                 'image_url': image_url,
                 'item_url' : None,
-                'buttons'  : []
+                'buttons'  : [{
+                    'type'   : "postback",
+                    'payload': "LMON8_REFERRAL",
+                    'title'  : "lmon8 Referral"
+                }]
             }
 
             graph = fb_graph_user(sender_id)
@@ -1715,6 +1721,26 @@ def points_purchase():
     return "OK", 200
 
 
+@app.route('/slack/', methods=['POST'])
+def slack():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\»  '/slack/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form)))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.SLACK_TOKEN:
+        if re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('fb_psid')
+            message_text = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('message_text')
+
+            send_text(fb_psid, "Support says:\n{message_text}".format(message_text=message_text), main_menu_quick_reply())
+
+
+    return "OK", 200
+
+
+
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
@@ -1826,6 +1852,25 @@ def handle_payload(sender_id, payload_type, payload):
             image_url=Const.SHARE_IMAGE_URL,
             card_url="http://m.me/gamebotsc",
             buttons=[{ 'type' : "element_share" }],
+            quick_replies=main_menu_quick_reply()
+        )
+
+
+    elif payload == "LMON8_REFERRAL":
+        send_tracker(fb_psid=sender_id, category="lmon8-referral")
+
+        send_card(
+            recipient_id=sender_id,
+            title="Earn Points for More Flips",
+            subtitle="Launch Lmon8 Now",
+            image_url="https://i.imgur.com/eOaYJ0G.png",
+            buttons=[{
+                'type'  : "web_url",
+                'url'   : "https://m.me/lmon8",
+                'title' : "Launch Lmon8"
+            }, {
+                'type'  : "element_share"
+            }],
             quick_replies=main_menu_quick_reply()
         )
 
