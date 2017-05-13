@@ -1629,13 +1629,15 @@ def paypal():
 
         min_price, max_price = price_range_for_deposit(amount)
         send_text(fb_psid, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
-        payload = {
-            'channel' : "#gamebots-purchases",
-            'username': "gamebotsc",
-            'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text': "*{user}* just added ${amount:.2f} in credits.".format(user=fb_psid if full_name is None else full_name, amount=amount),
-        }
-        response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+
+        if amount >= 1.00:
+            payload = {
+                'channel' : "#gamebots-purchases",
+                'username': "gamebotsc",
+                'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
+                'text': "*{user}* just added ${amount:.2f} in credits.".format(user=fb_psid if full_name is None else full_name, amount=amount),
+            }
+            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
 
     return "OK", 200
 
