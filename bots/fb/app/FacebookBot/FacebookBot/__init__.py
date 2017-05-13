@@ -788,10 +788,12 @@ def add_points(recipient_id, amount=0):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     if customer is not None:
+        fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('INSERT INTO `points` (`id`, `user_id`, `fb_psid`, `full_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP);', (customer.id, recipient_id, "" if fb_user is None else fb_user.full_name_utf8, amount))
                 cur.execute('UPDATE `users` SET `points` = `points` + %s WHERE `id` = %s LIMIT 1;', (amount, customer.id))
                 conn.commit()
                 cur.execute('SELECT `points` FROM `users` WHERE `id` = %s LIMIT 1;', (customer.id,))
@@ -805,8 +807,7 @@ def add_points(recipient_id, amount=0):
             if conn:
                 conn.close()
 
-        fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-        send_tracker(fb_psid=recipient_id, category="add-points", action="{fb_psid} / {full_name}".format(fb_psid=recipient_id, full_name=fb_user.full_name_utf8), label=customer.points)
+        send_tracker(fb_psid=recipient_id, category="add-points", action="{fb_psid} / {full_name}".format(fb_psid=recipient_id, full_name="N/A" if fb_user is None else fb_user.full_name_utf8), label=customer.points)
 
 
 def customer_points_rank(recipient_id):
@@ -1013,9 +1014,7 @@ def view_product(recipient_id, product, welcome_entry=False):
 
         customer.product_id = product.id
         db.session.commit()
-
-        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-        send_tracker(fb_psid=recipient_id, category="view-shop", label=storefront.display_name_utf8)
+        send_tracker(fb_psid=recipient_id, category="view-shop", label=product.display_name_utf8)
         increment_shop_views(recipient_id, product.id)
 
         add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
@@ -1540,9 +1539,8 @@ def clone_storefront(recipient_id, storefront_id):
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_ref = Storefront.query.filter(Storefront.id == storefront_id).first()
-    product_ref = Product.query.filter(Product.storefront_id == storefront_ref.id).first()
-
     if storefront_ref is not None:
+        product_ref = Product.query.filter(Product.storefront_id == storefront_ref.id).first()
         if Storefront.query.filter(Storefront.fb_psid == recipient_id).count() > 0:
             for storefront in Storefront.query.filter(Storefront.fb_psid == recipient_id):
                 # send_text(recipient_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name_utf8))
@@ -1575,73 +1573,73 @@ def clone_storefront(recipient_id, storefront_id):
             except:
                 db.session.rollback()
 
+        if storefront_ref is not None and product_ref is not None:
+            storefront_name = "{storefront_name} - {fb_psid}".format(storefront_name=re.match('^(?P<storefront_name>.*)\ \-\ \d{4}$', storefront_ref.display_name).group('storefront_name'), fb_psid=recipient_id[-4:])
+            product_name = storefront_name
 
-        storefront_name = "{storefront_name} - {fb_psid}".format(storefront_name=re.match('^(?P<storefront_name>.*)\ \-\ \d{4}$', storefront_ref.display_name).group('storefront_name'), fb_psid=recipient_id[-4:])
-        product_name = storefront_name
+            storefront = Storefront(recipient_id)
+            storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", storefront_name.encode('ascii', 'ignore'))
+            storefront.display_name = storefront_name
+            storefront.description = storefront_ref.description
+            storefront.logo_url = storefront_ref.logo_url
+            storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
+            storefront.creation_state = 4
+            db.session.add(storefront)
+            db.session.commit()
 
-        storefront = Storefront(recipient_id)
-        storefront.name = re.sub(Const.IGNORED_NAME_PATTERN, "", storefront_name.encode('ascii', 'ignore'))
-        storefront.display_name = storefront_name
-        storefront.description = storefront_ref.description
-        storefront.logo_url = storefront_ref.logo_url
-        storefront.prebot_url = "http://prebot.me/{storefront_name}".format(storefront_name=storefront.name)
-        storefront.creation_state = 4
-        db.session.add(storefront)
-        db.session.commit()
-
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
-                conn.commit()
-                cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
-                storefront.id = cur.fetchone()['id']
-                db.session.commit()
-
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-        product = Product(recipient_id, storefront.id)
-        product.name = re.sub(Const.IGNORED_NAME_PATTERN, "", product_name.encode('ascii', 'ignore'))
-        product.display_name = product_name
-        product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=0)).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
-        product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
-        product.type_id = product_ref.type_id
-        product.image_url = product_ref.image_url
-        product.video_url = product_ref.video_url
-        product.attachment_id = product_ref.attachment_id
-        product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
-        product.price = product_ref.price
-        product.tags = "autogen-resell {tags}".format(tags=product_ref.tags)
-        product.creation_state = 7
-        db.session.add(product)
-        db.session.commit()
-
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
-                if cur.fetchone() is None:
-                    cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('INSERT INTO `storefronts` (`id`, `owner_id`, `name`, `display_name`, `description`, `logo_url`, `prebot_url`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, storefront.name, storefront.display_name_utf8, storefront.description_utf8, storefront.logo_url, storefront.prebot_url))
                     conn.commit()
-                    cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
-                    product.id = cur.fetchone()['id']
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `storefronts`;')
+                    storefront.id = cur.fetchone()['id']
                     db.session.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
 
-        finally:
-            if conn:
-                conn.close()
+            finally:
+                if conn:
+                    conn.close()
 
-        return (storefront, product)
+            product = Product(recipient_id, storefront.id)
+            product.name = re.sub(Const.IGNORED_NAME_PATTERN, "", product_name.encode('ascii', 'ignore'))
+            product.display_name = product_name
+            product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=0)).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
+            product.description = "For sale starting on {release_date}".format(release_date=datetime.utcfromtimestamp(product.release_date).strftime('%a, %b %-d'))
+            product.type_id = product_ref.type_id
+            product.image_url = product_ref.image_url
+            product.video_url = product_ref.video_url
+            product.attachment_id = product_ref.attachment_id
+            product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
+            product.price = product_ref.price
+            product.tags = "autogen-resell {tags}".format(tags=product_ref.tags)
+            product.creation_state = 7
+            db.session.add(product)
+            db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT * FROM `products` WHERE `name` = %s AND `enabled` = 1;', (product.name,))
+                    if cur.fetchone() is None:
+                        cur.execute('INSERT INTO `products` (`id`, `storefront_id`, `type`, `name`, `display_name`, `description`, `tags`, `image_url`, `video_url`, `attachment_id`, `price`, `prebot_url`, `physical_url`, `release_date`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FROM_UNIXTIME(%s), UTC_TIMESTAMP());', (product.storefront_id, product.type_id, product.name, product.display_name_utf8, product.description, "" if product.tags is None else product.tags.encode('utf-8'), product.image_url, product.video_url or "", product.attachment_id or "", product.price, product.prebot_url, product.physical_url or "", product.release_date))
+                        conn.commit()
+                        cur.execute('SELECT @@IDENTITY AS `id` FROM `products`;')
+                        product.id = cur.fetchone()['id']
+                        db.session.commit()
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            return (storefront, product)
 
     return (None, None)
 
@@ -3137,7 +3135,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
 
         else:
-            send_text(recipient_id, "This is not available to resell at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
 
     elif re.search(r'^AUTO_GEN_STOREFRONT\-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
