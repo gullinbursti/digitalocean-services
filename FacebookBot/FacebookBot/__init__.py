@@ -41,6 +41,18 @@ logger.setLevel(logging.INFO)
 
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
 
+def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
+    logger.info("bot_type_token(bot_type=%s)" % (bot_type,))
+
+    if bot_type == Const.BOT_TYPE_GAMEBOTS:
+        return Const.GAMEBOTS_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_GAMEBAE:
+        return Const.GAMEBAE_ACCESS_TOKEN
+
+    else:
+        return Const.GAMEBOTS_ACCESS_TOKEN
+
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
     logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
@@ -113,7 +125,7 @@ def home_quick_replies():
     logger.info("home_quick_replies()")
     return main_menu_quick_reply() + [{
         'content_type' : "text",
-        'title'        : "lmon8 Referral",
+        'title'        : "Shop Lmon8",
         'payload'      : "LMON8_REFERRAL"
     }, {
         'content_type' : "text",
@@ -258,6 +270,9 @@ def send_pay_wall(sender_id, item):
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
     send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if get_session_deposit(sender_id) < 1 else "You have hit the daily win limit for credit users. Please purchase another pack to continue.")
     pay_wall_carousel(sender_id, 3)
+    send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
+    send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
+
     #send_paypal_card(sender_id, item['price'], item['image_url'])
 
 
@@ -353,17 +368,13 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             elif deposit_amount_for_price(row['price']) == 10:
                 image_url = "https://i.imgur.com/9s1JeqD.png"
 
-
+            row['price'] += 1
             element = {
                 'title'    : "Flip ${price:.2f} Dollar Items".format(price=deposit_amount_for_price(row['price'])),
                 'subtitle' : "Buy Now to Win",
                 'image_url': image_url,
                 'item_url' : None,
-                'buttons'  : [{
-                    'type'   : "postback",
-                    'payload': "LMON8_REFERRAL",
-                    'title'  : "lmon8 Referral"
-                }]
+                'buttons': []
             }
 
             graph = fb_graph_user(sender_id)
@@ -391,7 +402,7 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
 
     item = get_item_details(item_id)
     # return False if sender_id in Const.ADMIN_FB_PSID else coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
-    return coin_flip(
+    return True if sender_id in Const.ADMIN_FB_PSID else coin_flip(
         wins=wins_last_day(sender_id),
         losses=min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)),
         deposit=deposit,
@@ -596,6 +607,49 @@ def record_coin_flip(sender_id, item_id, won):
             conn.close()
 
 
+def get_session_bot_type(sender_id):
+    logger.info("get_session_bot_type(sender_id=%s)" % (sender_id))
+
+    bot_type = 0
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT bot_type FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+
+        if row is not None:
+            bot_type = row['bot_type']
+
+        logger.info("bot_type=%s" % (bot_type,))
+
+    except sqlite3.Error as er:
+        logger.info("::::::get_session_state[sqlite3.connect] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return bot_type
+
+
+def set_session_bot_type(sender_id, bot_type):
+    logger.info("set_session_bot_type(sender_id=%s, bot_type=%s)" % (sender_id, bot_type))
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('UPDATE sessions SET bot_type = ? WHERE fb_psid = ?;', (bot_type, sender_id))
+        conn.commit()
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+
 def get_session_state(sender_id):
     logger.info("get_session_state(sender_id=%s)" % (sender_id))
     state = Const.SESSION_STATE_NEW_USER
@@ -620,6 +674,7 @@ def get_session_state(sender_id):
             conn.close()
 
     return state
+
 
 def set_session_state(sender_id, state=Const.SESSION_STATE_HOME):
     logger.info("set_session_state(sender_id=%s, state=%s)" % (sender_id, state))
@@ -1157,7 +1212,9 @@ def valid_bonus_code(sender_id, deeplink=None):
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
             cur.execute('SELECT `enabled` FROM `bonus_codes` WHERE `code` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1;', (deeplink.split("/")[-1],))
-            is_valid = False if cur.fetchone() is None else cur.fetchone()['enabled'] == 1
+            row = cur.fetchone()
+            if row is not None:
+                is_valid = True
 
     except mdb.Error, e:
         logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -1367,6 +1424,7 @@ def item_setup(sender_id, item_id, preview=False):
         else:
             send_pay_wall(sender_id, item)
 
+
     else:
         if wins_last_day(sender_id) < Const.MAX_TIER_WINS * win_mulitplier(sender_id):
             if preview:
@@ -1381,8 +1439,189 @@ def item_setup(sender_id, item_id, preview=False):
             send_pay_wall(sender_id, item)
 
 
-@app.route('/', methods=['GET'])
-def verify():
+
+
+@app.route('/gameBAE/', methods=['POST'])
+def gameBAE_webhook():
+    data = request.get_json()
+
+    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    logger.info(data)
+
+    time.sleep(random.uniform(1.5, 3.5))
+
+    if data['object'] == "page":
+        for entry in data['entry']:
+            for messaging_event in entry['messaging']:
+                if 'delivery' in messaging_event:  # delivery confirmation
+                    logger.info("-=- DELIVERY CONFIRM -=-")
+                    return "OK", 200
+
+                if 'read' in messaging_event:  # read confirmation
+                    logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
+                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    return "OK", 200
+
+                if 'optin' in messaging_event:  # optin confirmation
+                    logger.info("-=- OPT-IN -=-")
+                    return "OK", 200
+
+                sender_id = messaging_event['sender']['id']
+                message = messaging_event['message'] if 'message' in messaging_event else None
+                message_id = message['mid'] if message is not None and 'mid' in message else messaging_event['id'] if 'id' not in entry else entry['id']
+                quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None  # (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
+                logger.info("QR --> %s" % (quick_reply or None,))
+
+                if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
+                    logger.info("-=- BYPASS-USER -=-")
+                    return "OK", 200
+
+
+                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
+                if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
+                    referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
+
+                # -- insert to log
+                write_message_log(sender_id, message_id, {key: messaging_event[key] for key in messaging_event if key != 'timestamp'})
+                sync_session_deposit(sender_id)
+
+                if 'payment' in messaging_event:  # payment result
+                    logger.info("-=- PAYMENT -=-")
+                    set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
+                    purchase_item(sender_id, messaging_event['payment'])
+                    return "OK", 200
+
+                # -- new entry
+                if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
+                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
+                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
+
+                    set_session_state(sender_id)
+                    set_session_bot_type(sender_id, Const.BOT_TYPE_GAMEBAE)
+                    send_text(sender_id, "Welcome to GameBAE. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
+                    send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
+                    default_carousel(sender_id)
+                    graph = fb_graph_user(sender_id)
+                    if graph is not None:
+                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+
+                # -- existing
+                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+                    if referral is not None:
+                        send_tracker(fb_psid=sender_id, category="referral", label=referral)
+                        logger.info("REFERRAL ---> %s", (referral,))
+                        if referral.split("/")[-1].startswith("gb"):
+                            if valid_purchase_code(sender_id, referral):
+                                purchase_code = referral.split("/")[-1]
+                                full_name, first_name, last_name = get_session_name(sender_id)
+                                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                                try:
+                                    with conn:
+                                        cur = conn.cursor(mdb.cursors.DictCursor)
+                                        cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s, `first_name` = %s, `last_name` = %s WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (sender_id, first_name, last_name, purchase_code))
+                                        conn.commit()
+                                        cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (purchase_code,))
+                                        row = cur.fetchone()
+                                        send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
+
+                                except mdb.Error, e:
+                                    logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                                finally:
+                                    if conn:
+                                        conn.close()
+
+                                default_carousel(sender_id)
+
+                        else:
+                            if valid_bonus_code(sender_id, referral):
+                                set_session_bonus(sender_id, referral.split("/")[-1])
+
+                                row = next_coin_flip_item(sender_id)
+                                if row is not None:
+                                    item_id = row['id']
+                                    set_session_item(sender_id, item_id)
+                                    item = get_item_details(item_id)
+                                    logger.info("ITEM --> %s", item)
+
+                                    send_text(sender_id, "You have unlocked a Mystery Flip.")
+                                    send_card(
+                                        recipient_id=sender_id,
+                                        title=row['asset_name'].encode('utf8'),
+                                        # subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
+                                        subtitle=None,
+                                        image_url=row['image_url'],
+                                        buttons=[{
+                                            'type'   : "postback",
+                                            'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
+                                            'title'  : "Flip Coin"
+                                        }, {
+                                            'type'   : "postback",
+                                            'payload': "MAIN_MENU",
+                                            'title'  : "Cancel"
+                                        }]
+                                    )
+
+                                else:
+                                    send_text(sender_id, "You can only use 1 Mystery Flip per day. Please try again in 24 hours.")
+                                    default_carousel(sender_id)
+
+                            else:
+                                send_text(sender_id, "You have already used this Mystery Flip.")
+                                default_carousel(sender_id)
+
+                        return "OK", 200
+
+                    # if sender_id in Const.ADMIN_FB_PSID:
+                    #     for losses in range(Const.MAX_LOSSING_STREAK + 1):
+                    #         for wins in range(Const.MAX_TIER_WINS + 1):
+                    #             for cost in [0.11 + random.uniform(0.01, 0.10), 0.43 + random.uniform(0.2, 0.13), 0.85 + random.uniform(0.3, 0.11), 1.23 + random.uniform(0.06, 0.15), 2.22 + random.uniform(0.07, 0.10), 3.60 + random.uniform(0.14, 0.18), 4.20 + random.uniform(0.16, 0.19), 5.00 + random.uniform(0.25, 0.30), 7.32 + random.uniform(0.23, 0.57), 9.69 + random.uniform(0.46, 0.91), 13.71 + random.uniform(0.93, 2.10)]:
+                    #                 for deposit in [0, 1, 2, 3, 5]:
+                    #                     if deposit < deposit_amount_for_price(cost):
+                    #                         continue
+                    #
+                    #                     coin_flip(wins, losses, deposit, cost)
+
+                    # ------- POSTBACK BUTTON MESSAGE
+                    if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                        logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
+                        handle_payload(sender_id, Const.PAYLOAD_TYPE_POSTBACK, messaging_event['postback']['payload'])
+                        return "OK", 200
+
+                    # -- actual message w/ txt
+                    if 'message' in messaging_event:
+                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
+
+                        # ------- QUICK REPLY BUTTON
+                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
+                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
+                            handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
+                            return "OK", 200
+
+                        # ------- TYPED TEXT MESSAGE
+                        if 'text' in message:
+                            recieved_text_reply(sender_id, message['text'])
+                            return "OK", 200
+
+                        # ------- ATTACHMENT SENT
+                        if 'attachments' in message:
+                            for attachment in message['attachments']:
+                                recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+                            return "OK", 200
+
+                    set_session_state(sender_id)
+                    default_carousel(sender_id)
+
+                else:
+                    set_session_state(sender_id)
+                    default_carousel(sender_id)
+
+    return "OK", 200
+
+
+@app.route('/gameBAE/', methods=['GET'])
+def gameBAE_verify():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1395,8 +1634,25 @@ def verify():
     return "OK", 200
 
 
-@app.route('/', methods=['POST'])
-def webook():
+@app.route('/gamebots/', methods=['GET'])
+def gamebots_verify():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
+        if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
+            return "Verification token mismatch", 403
+        return request.args['hub.challenge'], 200
+
+    return "OK", 200
+
+
+
+
+
+@app.route('/gamebots/', methods=['POST'])
+def gamebots_webook():
     # return "OK", 200
 
     data = request.get_json()
@@ -1448,72 +1704,6 @@ def webook():
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
 
-                if referral is not None:
-                    send_tracker(fb_psid=sender_id, category="referral", label=referral)
-                    logger.info("REFERRAL ---> %s", (referral,))
-                    if referral.split("/")[-1].startswith("gb"):
-                        if valid_purchase_code(sender_id, referral):
-                            purchase_code = referral.split("/")[-1]
-                            full_name, first_name, last_name = get_session_name(sender_id)
-                            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                            try:
-                                with conn:
-                                    cur = conn.cursor(mdb.cursors.DictCursor)
-                                    cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s, `first_name` = %s, `last_name` = %s WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (sender_id, first_name, last_name, purchase_code))
-                                    conn.commit()
-                                    cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (purchase_code,))
-                                    row = cur.fetchone()
-                                    send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
-
-                            except mdb.Error, e:
-                                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                            finally:
-                                if conn:
-                                    conn.close()
-
-                            default_carousel(sender_id)
-
-                    else:
-                        if valid_bonus_code(sender_id, referral):
-                            set_session_bonus(sender_id, referral.split("/")[-1])
-
-                            row = next_coin_flip_item(sender_id)
-                            if row is not None:
-                                item_id = row['id']
-                                set_session_item(sender_id, item_id)
-                                item = get_item_details(item_id)
-                                logger.info("ITEM --> %s", item)
-
-                                send_text(sender_id, "You have unlocked a Mystery Flip.")
-                                send_card(
-                                    recipient_id=sender_id,
-                                    title=row['asset_name'].encode('utf8'),
-                                    # subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
-                                    subtitle=None,
-                                    image_url=row['image_url'],
-                                    buttons=[{
-                                        'type'   : "postback",
-                                        'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
-                                        'title'  : "Flip Coin"
-                                    }, {
-                                        'type'   : "postback",
-                                        'payload': "MAIN_MENU",
-                                        'title'  : "Cancel"
-                                    }]
-                                )
-
-                            else:
-                                send_text(sender_id, "You can only use 1 Mystery Flip per day. Please try again in 24 hours.")
-                                default_carousel(sender_id)
-
-                        else:
-                            send_text(sender_id, "You have already used this Mystery Flip.")
-                            default_carousel(sender_id)
-
-                    return "OK", 200
-
-
 
                 # -- insert to log
                 write_message_log(sender_id, message_id, { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
@@ -1532,6 +1722,7 @@ def webook():
                     send_tracker(fb_psid=sender_id, category="sign-up-fb")
 
                     set_session_state(sender_id)
+                    set_session_bot_type(sender_id, Const.BOT_TYPE_GAMEBOTS)
                     send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
@@ -1541,6 +1732,70 @@ def webook():
 
                 #-- existing
                 elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+                    if referral is not None:
+                        send_tracker(fb_psid=sender_id, category="referral", label=referral)
+                        logger.info("REFERRAL ---> %s", (referral,))
+                        if referral.split("/")[-1].startswith("gb"):
+                            if valid_purchase_code(sender_id, referral):
+                                purchase_code = referral.split("/")[-1]
+                                full_name, first_name, last_name = get_session_name(sender_id)
+                                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                                try:
+                                    with conn:
+                                        cur = conn.cursor(mdb.cursors.DictCursor)
+                                        cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s, `first_name` = %s, `last_name` = %s WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (sender_id, first_name, last_name, purchase_code))
+                                        conn.commit()
+                                        cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (purchase_code,))
+                                        row = cur.fetchone()
+                                        send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
+
+                                except mdb.Error, e:
+                                    logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                                finally:
+                                    if conn:
+                                        conn.close()
+
+                                default_carousel(sender_id)
+
+                        else:
+                            if valid_bonus_code(sender_id, referral):
+                                set_session_bonus(sender_id, referral.split("/")[-1])
+
+                                row = next_coin_flip_item(sender_id)
+                                if row is not None:
+                                    item_id = row['id']
+                                    set_session_item(sender_id, item_id)
+                                    item = get_item_details(item_id)
+                                    logger.info("ITEM --> %s", item)
+
+                                    send_text(sender_id, "You have unlocked a Mystery Flip.")
+                                    send_card(
+                                        recipient_id=sender_id,
+                                        title=row['asset_name'].encode('utf8'),
+                                        # subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
+                                        subtitle=None,
+                                        image_url=row['image_url'],
+                                        buttons=[{
+                                            'type'   : "postback",
+                                            'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
+                                            'title'  : "Flip Coin"
+                                        }, {
+                                            'type'   : "postback",
+                                            'payload': "MAIN_MENU",
+                                            'title'  : "Cancel"
+                                        }]
+                                    )
+
+                                else:
+                                    send_text(sender_id, "You can only use 1 Mystery Flip per day. Please try again in 24 hours.")
+                                    default_carousel(sender_id)
+
+                            else:
+                                send_text(sender_id, "You have already used this Mystery Flip.")
+                                default_carousel(sender_id)
+
+                        return "OK", 200
 
                     # if sender_id in Const.ADMIN_FB_PSID:
                     #     for losses in range(Const.MAX_LOSSING_STREAK + 1):
@@ -1589,10 +1844,10 @@ def webook():
     return "OK", 200
 
 
-@app.route('/paypal', methods=['POST'])
-def paypal():
+@app.route('/gamebots/paypal/', methods=['POST'])
+def gamebots_paypal():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/paypal'")
+    logger.info("=-=-=-=-=-= POST --\  '/gamebots/paypal'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1642,10 +1897,10 @@ def paypal():
     return "OK", 200
 
 
-@app.route('/bonus-flip', methods=['POST'])
-def bonus_flip():
+@app.route('/gamebots/bonus-flip/', methods=['POST'])
+def gamebots_bonus_flip():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/bonus-flip'")
+    logger.info("=-=-=-=-=-= POST --\  '/gamebots/bonus-flip/'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1682,10 +1937,10 @@ def bonus_flip():
     return "OK", 200
 
 
-@app.route('/points-purchase', methods=['POST'])
-def points_purchase():
+@app.route('/gamebots/points-purchase/', methods=['POST'])
+def gaembots_points_purchase():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/points-purchase'")
+    logger.info("=-=-=-=-=-= POST --\  '/gamebots/points-purchase/'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1723,10 +1978,10 @@ def points_purchase():
     return "OK", 200
 
 
-@app.route('/slack/', methods=['POST'])
-def slack():
+@app.route('/gamebots/slack/', methods=['POST'])
+def gamebots_slack():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\»  '/slack/'")
+    logger.info("=-=-=-=-=-= POST --\»  '/gamebots/slack/'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form)))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1837,7 +2092,7 @@ def handle_payload(sender_id, payload_type, payload):
             buttons=[{
                 'type'                 : "web_url",
                 'url'                  : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                'title'                : "{points} Points".format(points=locale.format('%d', (price * 20000), grouping=True))
+                'title'                : "{points} Points".format(points=locale.format('%d', (price * 50000), grouping=True))
             }, {
                 'type' : "element_share"
             }],
@@ -2144,6 +2399,35 @@ def recieved_text_reply(sender_id, message_text):
         #send_text(sender_id, "Follow instructions to complete your entry:\n\n1. OPEN 3 free games: taps.io/skins\n\n2. GET m.me/lmon8\n\n3. CREATE an auto shop off the main menu\n\n4. Upload screenshots to m.me/gamebotsc\n\nSupport: @gamebotsc", main_menu_quick_reply())
         send_text(sender_id, "You have completed a virtual item giveaway entry. User {queue} of {total}. You will be messaged here when the winner is selected.".format(queue=locale.format('%d', queue_index, grouping=True), total=locale.format('%d', queue_index * 2.125, grouping=True)), main_menu_quick_reply())
 
+    elif message_text.lower() in Const.TRADE_STATUS_REPLIES.split("|"):
+        trades = {
+            'open'  : 0,
+            'traded': 0
+        }
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `claimed` FROM `item_winners` WHERE `fb_id` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL 24 HOUR);', (sender_id,))
+                for row in cur.fetchall():
+                    if row['claimed'] == 0:
+                        trades['open'] += 1
+
+                    else:
+                        trades['traded'] += 1
+
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(sender_id, "You have {open_total} trade{p1} outstanding and {traded_total} trade{p2} completed.".format(open_total=trades['open'], p1="" if trades['open'] == 1 else "s", traded_total=trades['traded'], p2="" if trades['traded'] == 1 else "s"))
+        send_text(sender_id, "Trades may be rejected from abuse, spamming the system, or a dramatic change in market place prices.", main_menu_quick_reply())
+
+
     elif message_text.lower() in Const.UPLOAD_REPLIES.split("|"):
         send_text(sender_id, "Upload screenshots now.")
 
@@ -2272,7 +2556,7 @@ def send_typing_indicator(recipient_id, is_typing):
         'sender_action' : "typing_on" if is_typing else "typing_off"
     }
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
 
 
 def send_text(recipient_id, message_text, quick_replies=None):
@@ -2291,7 +2575,7 @@ def send_text(recipient_id, message_text, quick_replies=None):
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
     send_typing_indicator(recipient_id, False)
 
 
@@ -2326,7 +2610,7 @@ def send_card(recipient_id, title, image_url, card_url=None, subtitle=None, butt
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
     send_typing_indicator(recipient_id, False)
 
 
@@ -2352,7 +2636,7 @@ def send_carousel(recipient_id, elements, quick_replies=None):
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
     send_typing_indicator(recipient_id, False)
 
 
@@ -2377,7 +2661,7 @@ def send_image(recipient_id, url, quick_replies=None):
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
     send_typing_indicator(recipient_id, False)
 
 
@@ -2402,16 +2686,16 @@ def send_video(recipient_id, url, quick_replies=None):
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
 
-    send_message(json.dumps(data))
+    send_message(get_session_bot_type(recipient_id), json.dumps(data))
     send_typing_indicator(recipient_id, False)
 
 
-def send_message(payload):
-    logger.info("send_message(payload=%s)" % (payload,))
+def send_message(bot_type, payload):
+    logger.info("send_message(bot_type=%s, payload=%s)" % (bot_type, payload))
 
     response = requests.post(
-        url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=Const.ACCESS_TOKEN),
-        params={ 'access_token' : Const.ACCESS_TOKEN },
+        url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=bot_type_token(bot_type)),
+        params={ 'access_token' : bot_type_token(bot_type) },
         json=json.loads(payload)
     )
 
@@ -2420,11 +2704,10 @@ def send_message(payload):
 
 
 def fb_graph_user(recipient_id):
-    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id,))
-
+    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id))
     params = {
         'fields'      : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
-        'access_token': Const.ACCESS_TOKEN
+        'access_token': bot_type_token(get_session_bot_type(recipient_id))
     }
     response = requests.get("https://graph.facebook.com/v2.6/{recipient_id}".format(recipient_id=recipient_id), params=params)
     return None if 'error' in response.json() else response.json()

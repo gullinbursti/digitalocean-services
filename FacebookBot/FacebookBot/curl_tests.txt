@@ -1,17 +1,54 @@
 
 Subscribe page:
-curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+curl -X POST "https://graph.facebook.com/v2.6/me/subscribed_apps?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
 
 
 Test page subscription:
-curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
+curl -F "object_id=1182705821791569" -F "object=page" -F "field=messages" -F 'custom_fields={"page_id": 1182705821791569}' -F "access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD" "https://graph.facebook.com/v2.6/1624039391243435/subscriptions_sample"
 
 User API:
-curl -X GET "https://graph.facebook.com/v2.6/1219553058088713?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+curl -X GET "https://graph.facebook.com/v2.6/1219553058088713?fields=first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled&access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
 
 
 Payments privacy policy:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type": "payment",
   "payment_privacy_url": "http://gamebots.chat/terms.html"
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAXFDiMELKsBACMBCOj8AMZCgoFGppS9Iek1THmacZCFezJRkQr24uDZCapqvV6Qtd6zA8TA6pLBuLPlzAhuGPuzSa3KlmGA3M1DFOZAO4WYVCiOWN2vU7OjcOyaxOZCZBlvzRnSt68H9igKM5w1t5HDV7BINljYP8VgP6ddQV2wZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
+
+
+
+Permistant Menu
+curl -X POST -H "Content-Type: application/json" -d '{
+  "persistent_menu":[
+    {
+      "locale":"default",
+      "composer_input_disabled":false,
+      "call_to_actions":[
+        {
+          "title":"Menu",
+          "type":"postback",
+          "payload":"MAIN_MENU"
+        }, {
+          "title":"Flip Coin",
+          "type":"postback",
+          "payload":"NEXT_ITEM"
+        }, {
+          "title":"Shop Lmon8",
+          "type":"postback",
+          "payload":"LMON8_REFERRAL"
+        }
+      ]
+    }
+  ]
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
+
+
+
+Welcome
+
+curl -X DELETE -H "Content-Type: application/json" -d '{
+  "fields":[
+    "persistent_menu"
+  ]
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
