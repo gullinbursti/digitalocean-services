@@ -1536,42 +1536,43 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
 def clone_storefront(recipient_id, storefront_id):
     logger.info("clone_storefront(recipient_id=%s, storefront_id=%s)" % (recipient_id, storefront_id))
+    send_tracker(fb_psid=recipient_id, category="clone-shop")
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_ref = Storefront.query.filter(Storefront.id == storefront_id).first()
     if storefront_ref is not None:
         product_ref = Product.query.filter(Product.storefront_id == storefront_ref.id).first()
-        if Storefront.query.filter(Storefront.fb_psid == recipient_id).count() > 0:
-            for storefront in Storefront.query.filter(Storefront.fb_psid == recipient_id):
-                # send_text(recipient_id, "{storefront_name} has been removed.".format(storefront_name=storefront.display_name_utf8))
+        if product_ref is not None:
+            if Storefront.query.filter(Storefront.fb_psid == recipient_id).count() > 0:
+                for storefront in Storefront.query.filter(Storefront.fb_psid == recipient_id):
+                    if storefront is not None:
+                        try:
+                            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                            with conn:
+                                cur = conn.cursor(mysql.cursors.DictCursor)
+                                cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = %s;', (storefront.id,))
+                                cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                                cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
+                                conn.commit()
+
+                        except mysql.Error, e:
+                            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+                        finally:
+                            if conn:
+                                conn.close()
 
                 try:
-                    Product.query.filter(Product.storefront_id == storefront.id).delete()
+                    Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
                     db.session.commit()
                 except:
                     db.session.rollback()
 
                 try:
-                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('UPDATE `storefronts` SET `enabled` = 0 WHERE `id` = %s;', (storefront.id,))
-                        cur.execute('UPDATE `products` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
-                        cur.execute('UPDATE `subscriptions` SET `enabled` = 0 WHERE `storefront_id` = %s;', (storefront.id,))
-                        conn.commit()
-
-                except mysql.Error, e:
-                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-                finally:
-                    if conn:
-                        conn.close()
-
-            try:
-                Storefront.query.filter(Storefront.fb_psid == recipient_id).delete()
-                db.session.commit()
-            except:
-                db.session.rollback()
+                    Product.query.filter(Product.fb_psid == recipient_id).delete()
+                    db.session.commit()
+                except:
+                    db.session.rollback()
 
         if storefront_ref is not None and product_ref is not None:
             storefront_name = "{storefront_name} - {fb_psid}".format(storefront_name=re.match('^(?P<storefront_name>.*)\ \-\ \d{4}$', storefront_ref.display_name).group('storefront_name'), fb_psid=recipient_id[-4:])
@@ -2368,7 +2369,19 @@ def send_admin_carousel(recipient_id):
     #-- look for created storefront
     if storefront is None:
         cards.append(build_sponsor_element())
-        cards += build_autogen_storefront_elements(recipient_id)
+
+        cards.append(
+            build_card_element(
+                title="Refer a Friend",
+                subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
+                image_url=Const.IMAGE_URL_REFERRAL_CARD,
+                buttons=[
+                    # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="My ID", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
+                ]
+            )
+        )
 
     else:
         product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 7).first()
@@ -2385,44 +2398,55 @@ def send_admin_carousel(recipient_id):
             )
 
             cards.append(build_sponsor_element())
-            cards += build_autogen_storefront_elements(recipient_id)
+            cards.append(
+                build_card_element(
+                    title="Refer a Friend",
+                    subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
+                    image_url=Const.IMAGE_URL_REFERRAL_CARD,
+                    buttons=[
+                        # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="My ID", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
+                    ]
+                )
+            )
 
         else:
             cards.append(build_sponsor_element())
             purchases = Purchase.query.filter(Purchase.storefront_id == storefront.id).all()
-            if len(purchases) > 0:
-                if len(purchases) == 1:
-                    subtitle = "1 Purchase"
+            # if len(purchases) > 0:
+            #     if len(purchases) == 1:
+            #         subtitle = "1 Purchase"
+            #
+            #     else:
+            #         subtitle = "{total} Purchases".format(total=len(purchases))
+            #
+            #     cards.append(
+            #         build_card_element(
+            #             title="My Orders",
+            #             subtitle=subtitle,
+            #             image_url=Const.IMAGE_URL_PURCHASES_CARD,
+            #             buttons=[
+            #                 build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
+            #             ]
+            #         )
+            #     )
 
-                else:
-                    subtitle = "{total} Purchases".format(total=len(purchases))
-
-                cards.append(
-                    build_card_element(
-                        title="My Orders",
-                        subtitle=subtitle,
-                        image_url=Const.IMAGE_URL_PURCHASES_CARD,
-                        buttons=[
-                            build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
-                        ]
-                    )
+            cards.append(
+                build_card_element(
+                    title="Refer a Friend",
+                    subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
+                    image_url=Const.IMAGE_URL_REFERRAL_CARD,
+                    buttons=[
+                        # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="My ID", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
+                    ]
                 )
+            )
 
-            cards += build_autogen_storefront_elements(recipient_id)
 
-    cards.append(
-        build_card_element(
-            title="Refer a Friend",
-            subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
-            image_url=Const.IMAGE_URL_REFERRAL_CARD,
-            buttons=[
-                # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
-                build_button(Const.CARD_BTN_POSTBACK, caption="My ID", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
-                build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
-            ]
-        )
-    )
-
+    cards += build_autogen_storefront_elements(recipient_id)
 
     data = build_carousel(
         recipient_id=recipient_id,
@@ -2903,7 +2927,7 @@ def send_mystery_flip_card(recipient_id):
         'bonus_code' : bonus_code
     }
 
-    response = requests.post("https://gamebot.tv/bonus-flip", data=payload)
+    response = requests.post("https://gamebot.tv/gamebots/bonus-flip/", data=payload)
     if response.text != "code-exists":
         data = build_standard_card(
             recipient_id=recipient_id,
@@ -2936,7 +2960,7 @@ def send_gamebots_card(recipient_id):
         'amount'        : product.price
     }
 
-    response = requests.post("https://gamebot.tv/points-purchase", data=payload)
+    response = requests.post("https://gamebot.tv/gamebots/points-purchase/", data=payload)
     if response.text != "code-exists":
         data = build_standard_card(
             recipient_id=recipient_id,
@@ -3126,6 +3150,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         )
 
     elif payload == Const.PB_PAYLOAD_RESELL_STOREFRONT:
+        # send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront, product = clone_storefront(recipient_id, product.storefront_id)
         if storefront is not None and product is not None:
@@ -4520,6 +4545,43 @@ def received_text_response(recipient_id, message_text):
         finally:
             if conn:
                 conn.close()
+
+    #-- trade status replies
+    elif message_text.lower() in Const.RESERVED_TRADES_REPLIES.split("|"):
+        trades = {
+            'open'     : 0,
+            'refunded' : 0,
+            'banned'   : 0,
+            'traded'   : 0
+        }
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `claim_state`  FROM `purchases` WHERE `user_id` = %s LIMIT 1;', (customer.id,))
+
+                for row in cur.fetchall():
+                    if row['claim_state'] == 0:
+                        trades['open'] += 1
+
+                    elif row['claim_state'] == 1:
+                        trades['traded'] += 1
+
+                    elif row['claim_state'] == 3:
+                        trades['refunded'] += 1
+
+                    elif row['claim_state'] == 5:
+                        trades['banned'] += 1
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(recipient_id, "You have {open_total} trade{p1} outstanding, {refund_total} refund{p2}, and {banned_total} rejected.".format(open_total=trades['open'], p1="" if trades['open'] == 1 else "s", refund_total=trades['refunded'], p2="" if trades['refunded'] == 1 else "s", banned_total=trades['banned']))
+        send_text(recipient_id, "Trades may be rejected from abuse, spamming the system, or a dramatic change in market place prices.", main_menu_quick_replies(recipient_id))
 
     #-- moderator reply
     elif message_text.lower() in Const.RESERVED_MODERATOR_REPLIES.split("|"):
