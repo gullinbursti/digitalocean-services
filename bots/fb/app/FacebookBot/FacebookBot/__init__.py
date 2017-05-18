@@ -945,10 +945,10 @@ def flip_product(recipient_id, product):
         customer.referrer = re.sub(r'^\/flip\/([A-Za-z0-9_\.\-]+)$', r'/\1', customer.referrer)
         db.session.commit()
 
-    outcome = random.uniform(0, 1) < (1 / float(5)) or recipient_id in Const.ADMIN_FB_PSIDS
+    outcome = random.uniform(0, 1) < (1 / float(5)) if "disneyjp" not in product.tag_list_utf8 else True
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
-    #send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif")
+    send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif", "259175247891645")
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "248316088977561")
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
@@ -1007,8 +1007,7 @@ def view_product(recipient_id, product, welcome_entry=False):
     db.session.commit()
 
     if product is not None:
-
-        if product.price >= 10.00 and customer.points < 10.00 * Const.POINTS_PER_DOLLAR:
+        if product.price >= 10.00 and customer.points < 5.00 * Const.POINTS_PER_DOLLAR:
             send_text(recipient_id, "You need at least {points} Points to have access to this item.".format(points=locale.format('%d', int(10.00 * Const.POINTS_PER_DOLLAR), grouping=True)), main_menu_quick_replies(recipient_id))
             return "OK", 200
 
@@ -1019,33 +1018,15 @@ def view_product(recipient_id, product, welcome_entry=False):
 
         add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
 
-        if product.video_url is not None and product.video_url != "":
-            send_video(recipient_id, product.video_url, product.attachment_id)
-
-        # else:
-        #     if storefront.logo_url is not None:
-        #         send_image(recipient_id, storefront.logo_url)
-
-
-        # purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-        # if purchase is not None:
-        #     customer.purchase_id = purchase.id
-        #     db.session.commit()
-        #     send_customer_carousel(recipient_id, product.id)
-        #
-        # else:
-            # if add_subscription(recipient_id, storefront.id, product.id, "/{deeplink}".format(deeplink=product.name)):
-            #     send_tracker(fb_psid=recipient_id, category="subscribe", label=storefront.display_name_utf8)
-            #
-            #     send_image(
-            #         recipient_id=storefront.fb_psid,
-            #         url=Const.IMAGE_URL_NEW_SUBSCRIBER,
-            #         quick_replies=new_sub_quick_replies(recipient_id)
-            #     )
-            #     send_text(storefront.fb_psid, "{fb_psid} just subscribed to your shop!".format(fb_psid=recipient_id[-4:], ))
-
+        # if product.video_url is not None and product.video_url != "":
+        #     send_video(recipient_id, product.video_url, product.attachment_id)
 
         send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_ENTRY if welcome_entry is True else Const.CARD_TYPE_PRODUCT_CHECKOUT)
+
+        if "disneyjp" in product.tag_list_utf8:
+            customer.paypal_email = "_{PENDING}_"
+            db.session.commit()
+            send_text(recipient_id, "You WON! 100x Ruby Pack in Disney's Tsum Tsum.\n\nPlease enter your Disney Tsum Tsum username for the item to transfer.", cancel_entry_quick_reply())
 
 
 def purchase_points_pak(recipient_id, amount):
@@ -3106,6 +3087,18 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_MYSTERY_FLIP:
         send_mystery_flip_card(recipient_id)
 
+    elif payload == Const.PB_PAYLOAD_DISNEY_YES:
+        customer.paypal_email = None
+        db.session.commit()
+        #send_image(recipient_id, "https://i.imgur.com/xv2mhAp.gif", "259258191216684", main_menu_quick_replies(recipient_id))
+        send_image(recipient_id, "https://i.imgur.com/6Q8o21L.gif", "259272831215220")
+
+    elif payload == Const.PB_PAYLOAD_DISNEY_NO:
+        customer.paypal_email = "_{PENDING}_"
+        db.session.commit()
+        send_text(recipient_id, "Please enter your Disney Tsum Tsum username for the item to transfer.", cancel_entry_quick_reply())
+
+
     elif payload == Const.PB_PAYLOAD_LMON8_FAQ:
         send_text(
             recipient_id=recipient_id,
@@ -3479,6 +3472,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
             elif "gamebots-points" in product.tag_list_utf8:
                 send_gamebots_card(recipient_id)
+
+            elif "disneyjp" in product.tag_list_utf8:
+                send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
 
             else:
                 if customer.trade_url is None:
@@ -4470,6 +4466,7 @@ def received_text_response(recipient_id, message_text):
                         if customer.fb_psid != ref_customer.fb_psid:
                             cur.execute('INSERT INTO `referral_entries` (`id`, `source_id`, `entry_id`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (ref_customer.id, customer.id))
                             conn.commit()
+                            add_points(recipient_id, "You added {points} Pts for entering a referral", main_menu_quick_replies(recipient_id))
                             add_points(ref_customer.fb_psid, Const.POINT_AMOUNT_REFFERAL)
                             send_text(recipient_id, "{points} Pts have been added to {message_text}".format(points=Const.POINT_AMOUNT_REFFERAL, message_text=message_text), main_menu_quick_replies(recipient_id))
                             send_text(ref_customer.fb_psid, "{points} Pts have been added because someone entered your referral code!".format(points=Const.POINT_AMOUNT_REFFERAL), main_menu_quick_replies(recipient_id))
@@ -4518,6 +4515,11 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_FBPSID_REPLIES.split("|"):
         send_text(recipient_id, "Your referral ID is:")
         send_text(recipient_id, recipient_id)
+
+    #-- faq reply
+    elif message_text.lower() in Const.RESERVED_FAQ_REPLIES.split("|"):
+        send_text(recipient_id, "1. Users may wait up to 24 hours to get their items transferred.\n\n2. You may only submit one support request per day.\n\n3. Your trade maybe rejected and or account banned for using multiple Facebook accounts.\n\n4. Your trade maybe rejected and or account banned if found to be aggressively abusing our system.\n\n5. Your trade maybe rejected and or account banned for repeat abuse of our mods, support, and social staff.")
+        send_text(recipient_id, "6. Your trade maybe rejected and or account banned for repeat abuse of our social channels including posts, GAs, and more.\n\n7. Your account must have a correct steam Trade URL for your trade to transfer.\n\n8. You can earn more points by being a mod.\n\n9. You can only flip 100 times per day.\n\n10. You must keep notifications on for extra points.", main_menu_quick_replies(recipient_id))
 
     #-- support replies
     elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES.split("|"):
@@ -4733,42 +4735,16 @@ def received_text_response(recipient_id, message_text):
 
         #-- entering paypal payout info
         if customer.paypal_email == "_{PENDING}_":
-            if re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', message_text) is None:
-                send_text(recipient_id, "Invalid email address, try again", cancel_entry_quick_reply())
-
-            # if re.match(r'^[a-zA-Z0-9_.+-]+$', message_text) is None:
-            #     send_text(recipient_id, "Invalid PayPal.Me handle, try again", cancel_entry_quick_reply())
-
-            else:
-                customer.paypal_email = message_text
-                db.session.commit()
-
-                try:
-                    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-                    with conn:
-                        cur = conn.cursor(mysql.cursors.DictCursor)
-                        cur.execute('SELECT `id` FROM `payout` WHERE `user_id` = %s LIMIT 1;', (customer.id,))
-                        row = cur.fetchone()
-                        if row is None:
-                            cur.execute('INSERT INTO `payout` (`id`, `user_id`, `paypal_email`, `updated`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (customer.id, message_text))
-                        else:
-                            cur.execute('UPDATE `payout` SET `paypal_email` = %s, `updated` = UTC_TIMESTAMP() WHERE `id` = %s LIMIT 1;', (message_text, row['id']))
-                        conn.commit()
-
-                except mysql.Error, e:
-                    logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-                finally:
-                    if conn:
-                        conn.close()
-
-                send_text(recipient_id, "PayPal email set", main_menu_quick_replies(recipient_id))
-
-                storefront_query = db.session.query(Storefront.id).filter(Storefront.fb_psid == recipient_id).subquery('storefront_query')
-                purchase = Purchase.query.filter(Purchase.storefront_id.in_(storefront_query)).filter(Purchase.claim_state == 1).first()
-                if purchase is not None:
-                    send_product_card(Customer.query.filter(Customer.id == purchase.customer_id).first().fb_psid, purchase.product_id, Const.CARD_TYPE_PRODUCT_INVOICE_PAYPAL)
-
+            customer.paypal_email = message_text
+            db.session.commit()
+            send_text(
+                recipient_id=recipient_id,
+                message_text="Are you sure your username is {paypal_email}?".format(paypal_email=customer.paypal_email),
+                quick_replies=[
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_DISNEY_YES),
+                    build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_DISNEY_NO),
+                ] + cancel_entry_quick_reply()
+            )
             return "OK", 200
 
 

@@ -68,7 +68,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "attachment":{
       "type":"image",
       "payload":{
-        "url":"https://i.imgur.com/EXev63l.gif",
+        "url":"https://i.imgur.com/6Q8o21L.gif",
         "is_reusable":true
       }
     }
