@@ -73,6 +73,7 @@ class Const(Constants):
     MAIN_MENU_REPLIES = "menu|main menu|menu|mainmenu|home"
     TRADE_STATUS_REPLIES = "trades"
     SUPPORT_REPLIES = "support|help"
+    FAQ_REPLIES = "faq"
     UPLOAD_REPLIES = "upload"
     GIVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
     OPT_OUT_REPLIES = "optout|quit|end|stop|exit"

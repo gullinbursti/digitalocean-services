@@ -270,8 +270,8 @@ def send_pay_wall(sender_id, item):
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
     send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if get_session_deposit(sender_id) < 1 else "You have hit the daily win limit for credit users. Please purchase another pack to continue.")
     pay_wall_carousel(sender_id, 3)
-    send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
-    send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
+    # send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
+    # send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
 
     #send_paypal_card(sender_id, item['price'], item['image_url'])
 
@@ -391,7 +391,7 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             element['buttons'].append({
                 'type'   : "postback",
                 'payload': "POINTS-{price}".format(price=deposit_amount_for_price(row['price'])),
-                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 50000), grouping=True))
+                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 250000), grouping=True))
             })
 
     return element
@@ -2092,7 +2092,7 @@ def handle_payload(sender_id, payload_type, payload):
             buttons=[{
                 'type'                 : "web_url",
                 'url'                  : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                'title'                : "{points} Points".format(points=locale.format('%d', (price * 50000), grouping=True))
+                'title'                : "{points} Points".format(points=locale.format('%d', (price * 250000), grouping=True))
             }, {
                 'type' : "element_share"
             }],
@@ -2343,6 +2343,10 @@ def recieved_text_reply(sender_id, message_text):
     elif message_text.lower() in Const.MAIN_MENU_REPLIES.split("|"):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
+
+    elif message_text.lower() in Const.FAQ_REPLIES.split("|"):
+        send_text(sender_id, "1. Users may wait up to 24 hours to get their items transferred.\n\n2. You may only submit one support request per day.\n\n3. Your trade maybe rejected and or account banned for using multiple Facebook accounts.\n\n4. Your trade maybe rejected and or account banned if found to be aggressively abusing our system.\n\n5. Your trade maybe rejected and or account banned for repeat abuse of our mods, support, and social staff.")
+        send_text(sender_id, "6. Your trade maybe rejected and or account banned for repeat abuse of our social channels including posts, GAs, and more.\n\n7. Your account must have a correct steam Trade URL for your trade to transfer.\n\n8. You can earn more points by being a mod.\n\n9. You can only flip 100 times per day.\n\n10. You must keep notifications on for extra points.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.SUPPORT_REPLIES.split("|"):
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
