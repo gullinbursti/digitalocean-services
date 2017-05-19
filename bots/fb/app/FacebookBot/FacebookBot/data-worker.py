@@ -850,10 +850,10 @@ def autogen_importer():
 
 
 def product_updater():
-    for storefront in session.query(Storefront).filter((Storefront.name.ilike("%FactoryNew%")) | (Storefront.name.ilike("%MinimalWear%")) | (Storefront.name.ilike("%FieldTested%")) | (Storefront.name.ilike("%WellWorn%")) | (Storefront.name.ilike("%BattleScared%"))).all():
+    for storefront in session.query(Storefront).filter((Storefront.name.ilike("%FactoryNew%")) | (Storefront.name.ilike("%MinimalWear%")) | (Storefront.name.ilike("%Field-Tested%")) | (Storefront.name.ilike("%WellWorn%")) | (Storefront.name.ilike("%Battle-Scared%"))).all():
         try:
             fb_psid = re.match(r'^.*(?P<fb_psid>\d{4})$', storefront.name).group('fb_psid')
-            storefront.name = "{name}{fb_psid}".format(name=re.sub(r'^(.*)MinimalWear|FieldTested.*$', '\1', storefront.name), fb_psid=fb_psid)
+            storefront.name = "{name}{fb_psid}".format(name=re.sub(r'^(.*)FactoryNew|MinimalWear|Field\-Tested|WellWorn|Battle\-Scared.*$', '\1', storefront.name), fb_psid=fb_psid)
             storefront.prebot_url = "http://prebot.me/{name}".format(name=storefront.name)
             storefront.display_name = "{name} - {fb_psid}".format(name=" ".join(storefront.display_name.encode('ascii', 'ignore').decode('ascii').split(" ")[:-3]), fb_psid=fb_psid)
             print("STOREFRONT=%s" % storefront)
@@ -861,10 +861,10 @@ def product_updater():
         except AttributeError:
             pass
 
-    for product in session.query(Product).filter((Product.name.ilike("%FactoryNew%")) | (Product.name.ilike("%MinimalWear%")) | (Product.name.ilike("%FieldTested%")) | (Product.name.ilike("%WellWorn%")) | (Product.name.ilike("%BattleScared%"))).all():
+    for product in session.query(Product).filter((Product.name.ilike("%FactoryNew%")) | (Product.name.ilike("%MinimalWear%")) | (Product.name.ilike("%Field-Tested%")) | (Product.name.ilike("%WellWorn%")) | (Product.name.ilike("%BattleScared%"))).all():
         try:
             fb_psid = re.match(r'^.*(?P<fb_psid>\d{4})$', product.name).group('fb_psid')
-            product.name = "{name}{fb_psid}".format(name=re.sub(r'^(.*)MinimalWear|FieldTested.*$', '\1', product.name), fb_psid=fb_psid)
+            product.name = "{name}{fb_psid}".format(name=re.sub(r'^(.*)FactoryNew|MinimalWear|Field\-Tested|WellWorn|Battle\-Scared.*$', '\1', product.name), fb_psid=fb_psid)
             product.display_name = "{name} - {fb_psid}".format(name=u" ".join(product.display_name.encode('ascii', 'ignore').decode('ascii').split(" ")[:-3]), fb_psid=fb_psid)
             product.prebot_url = "http://prebot.me/{name}".format(name=product.name)
             print("PRODUCT=%s" % product)

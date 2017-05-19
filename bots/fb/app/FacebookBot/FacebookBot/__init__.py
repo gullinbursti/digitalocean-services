@@ -114,11 +114,11 @@ class Customer(db.Model):
     trade_url = db.Column(db.String(255))
     paypal_name = db.Column(db.String(255))
     paypal_email = db.Column(db.String(255))
+    kik_name = db.Column(db.String(255))
     bitcoin_addr = db.Column(db.String(255))
     social = db.Column(db.String(255))
     stripe_id = db.Column(db.String(255))
     card_id = db.Column(db.String(255))
-    bitcoin_id = db.Column(db.String(255))
     storefront_id = db.Column(db.Integer)
     product_id = db.Column(db.Integer)
     purchase_id = db.Column(db.Integer)
@@ -948,7 +948,9 @@ def flip_product(recipient_id, product):
     outcome = random.uniform(0, 1) < (1 / float(5)) if "disneyjp" not in product.tag_list_utf8 else True
     send_tracker(fb_psid=recipient_id, category="gamebots-flip-%s" % ("win" if outcome is True else "lose",))
 
-    send_image(recipient_id, Const.IMAGE_URL_FLIP_START if "disneyjp" not in product.tag_list_utf8 else "https://i.imgur.com/rsiKG84.gif", "259175247891645")
+    if "disneyjp" in product.tag_list_utf8:
+        send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
+
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "248316088977561")
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
@@ -1007,7 +1009,7 @@ def view_product(recipient_id, product, welcome_entry=False):
     db.session.commit()
 
     if product is not None:
-        if product.price >= 10.00 and customer.points < 5.00 * Const.POINTS_PER_DOLLAR:
+        if product.price >= 10.00 and customer.points < 10.00 * Const.POINTS_PER_DOLLAR:
             send_text(recipient_id, "You need at least {points} Points to have access to this item.".format(points=locale.format('%d', int(10.00 * Const.POINTS_PER_DOLLAR), grouping=True)), main_menu_quick_replies(recipient_id))
             return "OK", 200
 
@@ -1412,6 +1414,9 @@ def clear_entry_sequences(recipient_id):
 
     if customer.paypal_email == "_{PENDING}_":
         customer.paypal_email = None
+
+    if customer.kik_name == "_{PENDING}_":
+        customer.kik_name = None
 
     if customer.bitcoin_addr == "_{PENDING}_":
         customer.bitcoin_addr = None
@@ -4502,7 +4507,7 @@ def received_text_response(recipient_id, message_text):
             if customer.referrer is not None and ("/flip/" in customer.referrer or customer.product_id == 12901):
                 flip_product(recipient_id, product)
 
-            view_product(recipient_id, product, True)
+            view_product(recipient_id, product, False)
 
         return "OK", 200
 
@@ -4620,6 +4625,12 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES.split("|"):
         send_text(recipient_id, "Instructions…\n\n1. GO: taps.io/skins\n\n2. OPEN & Screenshot each free game or app you install.\n\n3. SEND screenshots for proof on Twitter.com/gamebotsc \n\nEvery free game or app you install increases your chances of winning.", main_menu_quick_replies(recipient_id))
 
+    # -- kik reply
+    elif message_text.lower() in Const.RESERVED_KIK_REPLIES.split("|"):
+        customer.kik_name = "_{PENDING}_"
+        db.session.commit()
+        send_text(recipient_id, "Enter your kik username")
+
     #-- tasks reply
     elif message_text.lower() in Const.RESERVED_TASKS_REPLIES.split("|"):
         send_text(recipient_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review Gamebots on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.", main_menu_quick_replies(recipient_id))
@@ -4730,6 +4741,22 @@ def received_text_response(recipient_id, message_text):
                 message_text="*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=fb_user.full_name_utf8, fb_psid=recipient_id, message_text=message_text),
                 webhook=Const.SLACK_SUPPORT_WEBHOOK
             )
+
+            return "OK", 200
+
+        #-- kik referral
+        if customer.kik_name == "_{PENDING}_":
+            customer.kik_name = message_text
+            db.session.commit()
+
+            send_text(recipient_id, "Open game.bots on kik and tap the referral url", main_menu_quick_replies(recipient_id))
+
+            payload = {
+                'fb_psid'  : recipient_id,
+                'kik_name' : customer.kik_name
+            }
+            response = requests.post("http://api.coolkikapps.pw/whitelist_user.php", data=payload)
+            logger.info(":::::::::::::::::::] -QUERY- " % response.json())
 
             return "OK", 200
 

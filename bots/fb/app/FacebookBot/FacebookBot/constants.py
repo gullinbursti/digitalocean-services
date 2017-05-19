@@ -275,6 +275,7 @@ class Const(Constants):
     RESERVED_OPTOUT_REPLIES = "cancel|end|quit|stop"
     RESERVED_SUPPORT_REPLIES = "support|help"
     RESERVED_FAQ_REPLIES = "faq"
+    RESERVED_KIK_REPLIES = "kik"
     RESERVED_POINTS_REPLIES = "points"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_TRADES_REPLIES = "trades"
