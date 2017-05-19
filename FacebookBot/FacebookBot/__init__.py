@@ -50,8 +50,144 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_GAMEBAE:
         return Const.GAMEBAE_ACCESS_TOKEN
 
-    else:
-        return Const.GAMEBOTS_ACCESS_TOKEN
+    elif bot_type == Const.BOT_TYPE_H1Z1:
+        return Const.H1Z1_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_DOTA2:
+        return Const.DOTA2_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOSPICE:
+        return Const.CSGOSPICE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBUNNY:
+        return Const.CSGOBUNNY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBURRITO:
+        return Const.CSGOBURRITO_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOPIZZA:
+        return Const.CSGOPIZZA_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOSUSHI:
+        return Const.CSGOSUSHI_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOSTONER:
+        return Const.CSGOSTONER_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
+        return Const.CSGOBLAZE_ACCESS_TOKEN
+
+
+
+def bot_webhook_type(webhook):
+    logger.info("bot_webhook_type(webhook=%s)" % (webhook,))
+
+    if webhook == "gamebots":
+        return Const.BOT_TYPE_GAMEBOTS
+
+    elif webhook == "gamebae":
+        return Const.BOT_TYPE_GAMEBAE
+
+    elif webhook == "h1z1":
+        return Const.BOT_TYPE_H1Z1
+
+    elif webhook == "dota2":
+        return Const.BOT_TYPE_DOTA2
+
+    elif webhook == "csgospice":
+        return Const.BOT_TYPE_CSGOSPICE
+
+    elif webhook == "csgobunny":
+        return Const.BOT_TYPE_CSGOBUNNY
+
+    elif webhook == "csgoburrito":
+        return Const.BOT_TYPE_CSGOBURRITO
+
+    elif webhook == "csgopizza":
+        return Const.BOT_TYPE_CSGOPIZZA
+
+    elif webhook == "csgosushi":
+        return Const.BOT_TYPE_CSGOSUSHI
+
+    elif webhook == "csgostoner":
+        return Const.BOT_TYPE_CSGOSTONER
+
+    elif webhook == "csgoblaze":
+        return Const.BOT_TYPE_CSGOBLAZE
+
+
+def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
+    logger.info("bot_name(bot_type=%s)" % (bot_type,))
+
+    if bot_type == Const.BOT_TYPE_GAMEBOTS:
+        return "gamebotsc"
+
+    elif bot_type == Const.BOT_TYPE_GAMEBAE:
+        return "GameBAE"
+
+    elif bot_type == Const.BOT_TYPE_H1Z1:
+        return "H1Z1"
+
+    elif bot_type == Const.BOT_TYPE_DOTA2:
+        return "bot.dota2"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSPICE:
+        return "csgospice"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBUNNY:
+        return "csgobunny"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBURRITO:
+        return "csgoburrito"
+
+    elif bot_type == Const.BOT_TYPE_CSGOPIZZA:
+        return "csgopizza"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSUSHI:
+        return "csgosushi"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSTONER:
+        return "csgostoner"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
+        return "csgoblaze"
+
+
+def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
+    logger.info("bot_title(bot_type=%s)" % (bot_type,))
+
+    if bot_type == Const.BOT_TYPE_GAMEBOTS:
+        return "Gamebots"
+
+    elif bot_type == Const.BOT_TYPE_GAMEBAE:
+        return "GameBAE"
+
+    elif bot_type == Const.BOT_TYPE_H1Z1:
+        return "H1Z1"
+
+    elif bot_type == Const.BOT_TYPE_DOTA2:
+        return "Dota2"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSPICE:
+        return "CSGOSpice"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBUNNY:
+        return "CSGOBunny"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBURRITO:
+        return "CSGOBurrito"
+
+    elif bot_type == Const.BOT_TYPE_CSGOPIZZA:
+        return "CSGOPizza"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSUSHI:
+        return "CSGOSushi"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSTONER:
+        return "CSGOStoner"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
+        return "CSGOBlaze"
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
@@ -246,24 +382,6 @@ def pay_wall_carousel(sender_id, amount=1):
     )
 
 
-def send_paypal_card(sender_id, price, image_url=None):
-    logger.info("send_paypal_card(sender_id=%s, price=%s)" % (sender_id, price))
-
-    send_card(
-        recipient_id=sender_id,
-        title="GameBots Deposit",
-        subtitle="${price:.2f}".format(price=price),
-        image_url="https://scontent.xx.fbcdn.net/v/t31.0-8/16587327_1399560603439422_4787736195158722183_o.jpg?oh=86ba759ae6da27ba9b42c85fbc5b7a44&oe=5924F606" if image_url is None else image_url,
-        buttons=[{
-            'type'                 : "web_url",
-            'url'                  : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=price), # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-            'title'                : "${price:.2f} Confirm".format(price=price),
-            'webview_height_ratio' : "tall"
-        }],
-        quick_replies=main_menu_quick_reply()
-    )
-
-
 def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
@@ -272,8 +390,6 @@ def send_pay_wall(sender_id, item):
     pay_wall_carousel(sender_id, 3)
     # send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
     # send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
-
-    #send_paypal_card(sender_id, item['price'], item['image_url'])
 
 
 def next_coin_flip_item(sender_id, pay_wall=False):
@@ -1440,16 +1556,33 @@ def item_setup(sender_id, item_id, preview=False):
 
 
 
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
-@app.route('/gameBAE/', methods=['POST'])
-def gameBAE_webhook():
+
+@app.route('/<bot_webhook>/', methods=['GET'])
+def verify(bot_webhook):
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s [%s]\n" % (bot_name, request.args.get('hub.mode'), request))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
+        if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
+            return "Verification token mismatch", 403
+        return request.args['hub.challenge'], 200
+
+    return "OK", 200
+
+
+
+@app.route('/<bot_webhook>/', methods=['POST'])
+def webhook(bot_webhook):
+    bot_type = bot_webhook_type(bot_webhook)
+
     data = request.get_json()
 
     logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
     logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
     logger.info(data)
-
-    time.sleep(random.uniform(1.5, 3.5))
 
     if data['object'] == "page":
         for entry in data['entry']:
@@ -1477,7 +1610,6 @@ def gameBAE_webhook():
                     logger.info("-=- BYPASS-USER -=-")
                     return "OK", 200
 
-
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
@@ -1498,8 +1630,8 @@ def gameBAE_webhook():
                     send_tracker(fb_psid=sender_id, category="sign-up-fb")
 
                     set_session_state(sender_id)
-                    set_session_bot_type(sender_id, Const.BOT_TYPE_GAMEBAE)
-                    send_text(sender_id, "Welcome to GameBAE. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
+                    set_session_bot_type(sender_id, bot_type)
+                    send_text(sender_id, "Welcome to {bot_title}. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title(bot_type)))
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
                     graph = fb_graph_user(sender_id)
@@ -1573,16 +1705,6 @@ def gameBAE_webhook():
 
                         return "OK", 200
 
-                    # if sender_id in Const.ADMIN_FB_PSID:
-                    #     for losses in range(Const.MAX_LOSSING_STREAK + 1):
-                    #         for wins in range(Const.MAX_TIER_WINS + 1):
-                    #             for cost in [0.11 + random.uniform(0.01, 0.10), 0.43 + random.uniform(0.2, 0.13), 0.85 + random.uniform(0.3, 0.11), 1.23 + random.uniform(0.06, 0.15), 2.22 + random.uniform(0.07, 0.10), 3.60 + random.uniform(0.14, 0.18), 4.20 + random.uniform(0.16, 0.19), 5.00 + random.uniform(0.25, 0.30), 7.32 + random.uniform(0.23, 0.57), 9.69 + random.uniform(0.46, 0.91), 13.71 + random.uniform(0.93, 2.10)]:
-                    #                 for deposit in [0, 1, 2, 3, 5]:
-                    #                     if deposit < deposit_amount_for_price(cost):
-                    #                         continue
-                    #
-                    #                     coin_flip(wins, losses, deposit, cost)
-
                     # ------- POSTBACK BUTTON MESSAGE
                     if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
                         logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
@@ -1620,234 +1742,10 @@ def gameBAE_webhook():
     return "OK", 200
 
 
-@app.route('/gameBAE/', methods=['GET'])
-def gameBAE_verify():
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-
-    if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
-        if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
-            return "Verification token mismatch", 403
-        return request.args['hub.challenge'], 200
-
-    return "OK", 200
-
-
-@app.route('/gamebots/', methods=['GET'])
-def gamebots_verify():
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s\n" % (request.args.get('hub.mode'), request))
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-
-    if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
-        if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
-            return "Verification token mismatch", 403
-        return request.args['hub.challenge'], 200
-
-    return "OK", 200
-
-
-
-
-
-@app.route('/gamebots/', methods=['POST'])
-def gamebots_webook():
-    # return "OK", 200
-
-    data = request.get_json()
-
-    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
-    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
-    logger.info(data)
-
-    time.sleep(random.uniform(1.5, 3.5))
-
-    if data['object'] == "page":
-        for entry in data['entry']:
-            for messaging_event in entry['messaging']:
-                if 'delivery' in messaging_event:  # delivery confirmation
-                    logger.info("-=- DELIVERY CONFIRM -=-")
-                    return "OK", 200
-
-                if 'read' in messaging_event:  # read confirmation
-                    logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
-                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
-                    return "OK", 200
-
-                if 'optin' in messaging_event:  # optin confirmation
-                    logger.info("-=- OPT-IN -=-")
-                    return "OK", 200
-
-
-                sender_id = messaging_event['sender']['id']
-                message = messaging_event['message'] if 'message' in messaging_event else None
-                message_id = message['mid'] if message is not None and 'mid' in message else messaging_event['id'] if 'id' not in entry else entry['id']
-                quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None# (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
-                logger.info("QR --> %s" % (quick_reply or None,))
-
-
-                if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
-                    logger.info("-=- BYPASS-USER -=-")
-                    return "OK", 200
-
-
-
-                #-- catch all
-                # if sender_id not in Const.ADMIN_FB_PSID:
-                #     send_text(sender_id, "Gamebots is currently down for maintenance.")
-                #     return "OK", 200
-
-
-
-                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
-                if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
-                    referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
-
-
-                # -- insert to log
-                write_message_log(sender_id, message_id, { key : messaging_event[key] for key in messaging_event if key != 'timestamp' })
-                sync_session_deposit(sender_id)
-
-                if 'payment' in messaging_event: # payment result
-                    logger.info("-=- PAYMENT -=-")
-                    set_session_state(sender_id, Const.SESSION_STATE_PURCHASED_ITEM)
-                    purchase_item(sender_id, messaging_event['payment'])
-                    return "OK", 200
-
-
-                #-- new entry
-                if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
-                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
-                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
-
-                    set_session_state(sender_id)
-                    set_session_bot_type(sender_id, Const.BOT_TYPE_GAMEBOTS)
-                    send_text(sender_id, "Welcome to Gamebots. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.")
-                    send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
-                    default_carousel(sender_id)
-                    graph = fb_graph_user(sender_id)
-                    if graph is not None:
-                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
-
-                #-- existing
-                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
-                    if referral is not None:
-                        send_tracker(fb_psid=sender_id, category="referral", label=referral)
-                        logger.info("REFERRAL ---> %s", (referral,))
-                        if referral.split("/")[-1].startswith("gb"):
-                            if valid_purchase_code(sender_id, referral):
-                                purchase_code = referral.split("/")[-1]
-                                full_name, first_name, last_name = get_session_name(sender_id)
-                                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-                                try:
-                                    with conn:
-                                        cur = conn.cursor(mdb.cursors.DictCursor)
-                                        cur.execute('UPDATE `fb_purchases` SET `fb_psid` = %s, `first_name` = %s, `last_name` = %s WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (sender_id, first_name, last_name, purchase_code))
-                                        conn.commit()
-                                        cur.execute('SELECT `amount` FROM `fb_purchases` WHERE `charge_id` = %s ORDER BY `added` DESC LIMIT 1;', (purchase_code,))
-                                        row = cur.fetchone()
-                                        send_text(sender_id, "Your purchase for ${amount:.2f} has been applied!.".format(amount=row['amount']))
-
-                                except mdb.Error, e:
-                                    logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-                                finally:
-                                    if conn:
-                                        conn.close()
-
-                                default_carousel(sender_id)
-
-                        else:
-                            if valid_bonus_code(sender_id, referral):
-                                set_session_bonus(sender_id, referral.split("/")[-1])
-
-                                row = next_coin_flip_item(sender_id)
-                                if row is not None:
-                                    item_id = row['id']
-                                    set_session_item(sender_id, item_id)
-                                    item = get_item_details(item_id)
-                                    logger.info("ITEM --> %s", item)
-
-                                    send_text(sender_id, "You have unlocked a Mystery Flip.")
-                                    send_card(
-                                        recipient_id=sender_id,
-                                        title=row['asset_name'].encode('utf8'),
-                                        # subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
-                                        subtitle=None,
-                                        image_url=row['image_url'],
-                                        buttons=[{
-                                            'type'   : "postback",
-                                            'payload': "FLIP_COIN-{item_id}".format(item_id=item_id),
-                                            'title'  : "Flip Coin"
-                                        }, {
-                                            'type'   : "postback",
-                                            'payload': "MAIN_MENU",
-                                            'title'  : "Cancel"
-                                        }]
-                                    )
-
-                                else:
-                                    send_text(sender_id, "You can only use 1 Mystery Flip per day. Please try again in 24 hours.")
-                                    default_carousel(sender_id)
-
-                            else:
-                                send_text(sender_id, "You have already used this Mystery Flip.")
-                                default_carousel(sender_id)
-
-                        return "OK", 200
-
-                    # if sender_id in Const.ADMIN_FB_PSID:
-                    #     for losses in range(Const.MAX_LOSSING_STREAK + 1):
-                    #         for wins in range(Const.MAX_TIER_WINS + 1):
-                    #             for cost in [0.11 + random.uniform(0.01, 0.10), 0.43 + random.uniform(0.2, 0.13), 0.85 + random.uniform(0.3, 0.11), 1.23 + random.uniform(0.06, 0.15), 2.22 + random.uniform(0.07, 0.10), 3.60 + random.uniform(0.14, 0.18), 4.20 + random.uniform(0.16, 0.19), 5.00 + random.uniform(0.25, 0.30), 7.32 + random.uniform(0.23, 0.57), 9.69 + random.uniform(0.46, 0.91), 13.71 + random.uniform(0.93, 2.10)]:
-                    #                 for deposit in [0, 1, 2, 3, 5]:
-                    #                     if deposit < deposit_amount_for_price(cost):
-                    #                         continue
-                    #
-                    #                     coin_flip(wins, losses, deposit, cost)
-
-                    # ------- POSTBACK BUTTON MESSAGE
-                    if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
-                        logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
-                        handle_payload(sender_id, Const.PAYLOAD_TYPE_POSTBACK, messaging_event['postback']['payload'])
-                        return "OK", 200
-
-                    # -- actual message w/ txt
-                    if 'message' in messaging_event:
-                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
-
-                        # ------- QUICK REPLY BUTTON
-                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
-                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
-                            handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
-                            return "OK", 200
-
-                        # ------- TYPED TEXT MESSAGE
-                        if 'text' in message:
-                            recieved_text_reply(sender_id, message['text'])
-                            return "OK", 200
-
-                        # ------- ATTACHMENT SENT
-                        if 'attachments' in message:
-                            for attachment in message['attachments']:
-                                recieved_attachment(sender_id, attachment['type'], attachment['payload'])
-                            return "OK", 200
-
-                    set_session_state(sender_id)
-                    default_carousel(sender_id)
-
-                else:
-                    set_session_state(sender_id)
-                    default_carousel(sender_id)
-
-    return "OK", 200
-
-
-@app.route('/gamebots/paypal/', methods=['POST'])
-def gamebots_paypal():
+@app.route('/<bot_webhook>/paypal/', methods=['POST'])
+def paypal(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/gamebots/paypal'")
+    logger.info("=-=-=-=-=-= POST --\  '/%s/paypal'" % (bot_webhook,))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1881,7 +1779,6 @@ def gamebots_paypal():
             if conn:
                 conn.close()
 
-
         min_price, max_price = price_range_for_deposit(amount)
         send_text(fb_psid, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
 
@@ -1890,17 +1787,17 @@ def gamebots_paypal():
                 'channel' : "#gamebots-purchases",
                 'username': "gamebotsc",
                 'icon_url': "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-                'text': "*{user}* just added ${amount:.2f} in credits.".format(user=fb_psid if full_name is None else full_name, amount=amount),
+                'text'    : "*{user}* just added ${amount:.2f} in credits.".format(user=fb_psid if full_name is None else full_name, amount=amount),
             }
-            response = requests.post("https://hooks.slack.com/services/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", data={ 'payload' : json.dumps(payload) })
+            response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
     return "OK", 200
 
 
-@app.route('/gamebots/bonus-flip/', methods=['POST'])
-def gamebots_bonus_flip():
+@app.route('/<bot_webhook>/bonus-flip/', methods=['POST'])
+def bonus_flip(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/gamebots/bonus-flip/'")
+    logger.info("=-=-=-=-=-= POST --\  '/%s/bonus-flip/'" % (bot_webhook,))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1937,10 +1834,10 @@ def gamebots_bonus_flip():
     return "OK", 200
 
 
-@app.route('/gamebots/points-purchase/', methods=['POST'])
-def gaembots_points_purchase():
+@app.route('/<bot_webhook>/points-purchase/', methods=['POST'])
+def points_purchase(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\  '/gamebots/points-purchase/'")
+    logger.info("=-=-=-=-=-= POST --\  '/%s/points-purchase/'" % (bot_webhook,))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form),))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1978,10 +1875,10 @@ def gaembots_points_purchase():
     return "OK", 200
 
 
-@app.route('/gamebots/slack/', methods=['POST'])
-def gamebots_slack():
+@app.route('/<bot_webhook>/slack/', methods=['POST'])
+def slack(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-= POST --\»  '/gamebots/slack/'")
+    logger.info("=-=-=-=-=-= POST --\»  '/%s/slack/'" % (bot_webhook,))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("request.form=%s" % (", ".join(request.form)))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -1993,12 +1890,11 @@ def gamebots_slack():
 
             send_text(fb_psid, "Support says:\n{message_text}".format(message_text=message_text), main_menu_quick_reply())
 
-
     return "OK", 200
 
 
-
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
 
 
 def recieved_quick_reply(sender_id, quick_reply):
@@ -2031,6 +1927,7 @@ def recieved_trade_url(sender_id, url, action=Const.TRADE_URL_FLIP_ITEM):
 def handle_payload(sender_id, payload_type, payload):
     logger.info("handle_payload(sender_id=%s, payload_type=%s, payload=%s)" % (sender_id, payload_type, payload))
 
+    bot_type = get_session_bot_type(sender_id)
     if payload == "MAIN_MENU":
         # send_tracker("todays-item", sender_id, "")
         clear_session_dub(sender_id)
@@ -2086,7 +1983,7 @@ def handle_payload(sender_id, payload_type, payload):
 
         send_card(
             recipient_id=sender_id,
-            title="Share Gamebots",
+            title="Share {bot_title}".format(bot_title=bot_title(bot_type)),
             image_url=image_url,
             card_url="http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),
             buttons=[{
@@ -2105,9 +2002,9 @@ def handle_payload(sender_id, payload_type, payload):
 
         send_card(
             recipient_id =sender_id,
-            title="Share Gamebots",
+            title="Share {bot_title}".format(bot_title=bot_title(bot_type)),
             image_url=Const.SHARE_IMAGE_URL,
-            card_url="http://m.me/gamebotsc",
+            card_url="http://m.me/{bot_name}".format(bot_name=bot_name(bot_type)),
             buttons=[{ 'type' : "element_share" }],
             quick_replies=main_menu_quick_reply()
         )
@@ -2446,7 +2343,8 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, sender_id, main_menu_quick_reply())
 
     elif message_text.lower() in Const.TASK_REPLIES.split("|"):
-        send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review Gamebots on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.")
+        send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_name} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_name(get_session_bot_type(sender_id
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ))))
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
