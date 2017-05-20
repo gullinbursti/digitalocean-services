@@ -77,6 +77,9 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
         return Const.CSGOBLAZE_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_TAC0:
+        return Const.TAC0_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -115,6 +118,9 @@ def bot_webhook_type(webhook):
     elif webhook == "csgoblaze":
         return Const.BOT_TYPE_CSGOBLAZE
 
+    elif webhook == "tac0":
+        return Const.BOT_TYPE_TAC0
+
 
 def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
     logger.info("bot_name(bot_type=%s)" % (bot_type,))
@@ -152,6 +158,9 @@ def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
         return "csgoblaze"
 
+    elif bot_type == Const.BOT_TYPE_TAC0:
+        return "taco0"
+
 
 def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
     logger.info("bot_title(bot_type=%s)" % (bot_type,))
@@ -188,6 +197,9 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
         return "CSGOBlaze"
+
+    elif bot_type == Const.BOT_TYPE_TAC0:
+        return "TAC0"
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
@@ -1573,6 +1585,134 @@ def verify(bot_webhook):
     return "OK", 200
 
 
+@app.route('/tac0/webhook/', methods=['GET'])
+def tac0_verify():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY ->%s [%s]\n" % (request.args.get('hub.mode'), request))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
+        if not request.args.get('hub.verify_token') == Const.VERIFY_TOKEN:
+            return "Verification token mismatch", 403
+        return request.args['hub.challenge'], 200
+
+    return "OK", 200
+
+
+@app.route('/tac0/webhook/', methods=['POST'])
+def tac0_webhook():
+    bot_type = bot_webhook_type("tac0")
+
+    data = request.get_json()
+
+    logger.info("[=-=-=-=-=-=-=-[POST DATA]-=-=-=-=-=-=-=-=]")
+    logger.info("[=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=]")
+    logger.info(data)
+
+    if data['object'] == "page":
+        for entry in data['entry']:
+            for messaging_event in entry['messaging']:
+                if 'delivery' in messaging_event:  # delivery confirmation
+                    logger.info("-=- DELIVERY CONFIRM -=-")
+                    return "OK", 200
+
+                if 'read' in messaging_event:  # read confirmation
+                    logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
+                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    return "OK", 200
+
+                if 'optin' in messaging_event:  # optin confirmation
+                    logger.info("-=- OPT-IN -=-")
+                    return "OK", 200
+
+                sender_id = messaging_event['sender']['id']
+                message = messaging_event['message'] if 'message' in messaging_event else None
+                message_id = message['mid'] if message is not None and 'mid' in message else messaging_event['id'] if 'id' not in entry else entry['id']
+                quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None  # (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
+                logger.info("QR --> %s" % (quick_reply or None,))
+
+                referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
+                if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
+                    referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
+
+                # -- insert to log
+                write_message_log(sender_id, message_id, {key: messaging_event[key] for key in messaging_event if key != 'timestamp'})
+                sync_session_deposit(sender_id)
+
+                # -- new entry
+                if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
+                    logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
+                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
+
+                    set_session_state(sender_id)
+                    set_session_bot_type(sender_id, bot_type)
+                    send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title(bot_type)))
+                    graph = fb_graph_user(sender_id)
+                    if graph is not None:
+                        set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+
+                # -- existing
+                elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+                    if referral is not None:
+                        send_tracker(fb_psid=sender_id, category="referral", label=referral)
+                        logger.info("REFERRAL ---> %s", (referral,))
+                        return "OK", 200
+
+                    # -- actual message w/ txt
+                    if 'message' in messaging_event:
+                        logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= MESSAGE RECIEVED ->%s" % (messaging_event['sender']))
+
+                        send_card(
+                            recipient_id=sender_id,
+                            title="Trade Items",
+                            image_url="https://i.imgur.com/KrObpgY.png",
+                            buttons=[
+                                {
+                                    'type'   : "postback",
+                                    'payload': "TAC0__DEPOSIT",
+                                    'title'  : "Deposit"
+                                }, {
+                                    'type': "element_share"
+                                }
+                            ],
+                            quick_replies=[
+                                {
+                                    'content_type': "text",
+                                    'title'       : "Deposit",
+                                    'payload'     : "TAC0__DEPOSIT"
+                                }, {
+                                    'content_type': "text",
+                                    'title'       : "Share",
+                                    'payload'     : "TAC0__SHARE"
+                                }, {
+                                    'content_type': "text",
+                                    'title'       : "Lmon8",
+                                    'payload'     : "TAC0__LMON8"
+                                }
+                            ]
+                        )
+
+                        # ------- QUICK REPLY BUTTON / POSTBACK BUTTON MESSAGE
+                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None or 'postback' in messaging_event:
+                            logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
+                            # handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
+                            return "OK", 200
+
+                        # ------- TYPED TEXT MESSAGE
+                        if 'text' in message:
+                            # recieved_text_reply(sender_id, message['text'])
+                            return "OK", 200
+
+                        # ------- ATTACHMENT SENT
+                        if 'attachments' in message:
+                            for attachment in message['attachments']:
+                                pass
+                                # recieved_attachment(sender_id, attachment['type'], attachment['payload'])
+                            return "OK", 200
+
+    return "OK", 200
+
+
 
 @app.route('/<bot_webhook>/', methods=['POST'])
 def webhook(bot_webhook):
@@ -1894,6 +2034,7 @@ def slack(bot_webhook):
 
 
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
 
 
 
