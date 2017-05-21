@@ -23,6 +23,7 @@ import pycurl
 import requests
 
 from flask import Flask, request
+from flask_cors import CORS, cross_origin
 
 from constants import Const
 
@@ -31,6 +32,7 @@ sys.setdefaultencoding('utf8')
 locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
 app = Flask(__name__)
+cors = CORS(app, resources={r"/*": {"origins": "*"}})
 
 logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler('/var/log/FacebookBot.log')
@@ -1668,9 +1670,10 @@ def tac0_webhook():
                             image_url="https://i.imgur.com/KrObpgY.png",
                             buttons=[
                                 {
-                                    'type'   : "postback",
-                                    'payload': "TAC0__DEPOSIT",
-                                    'title'  : "Deposit"
+                                    'type'                : "web_url",
+                                    'url'                 : "http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=sender_id),
+                                    'title'               : "Deposit",
+                                    'webview_height_ratio': "tall"
                                 }, {
                                     'type': "element_share"
                                 }
@@ -1692,10 +1695,16 @@ def tac0_webhook():
                             ]
                         )
 
+                        # ------- POSTBACK BUTTON MESSAGE
+                        if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                            logger.info("POSTBACK --> %s" % (messaging_event['postback']['payload']))
+                            tac0_payload(sender_id, messaging_event['postback']['payload'])
+                            return "OK", 200
+
                         # ------- QUICK REPLY BUTTON / POSTBACK BUTTON MESSAGE
                         if 'quick_reply' in message and message['quick_reply']['payload'] is not None or 'postback' in messaging_event:
                             logger.info("QR --> %s" % (messaging_event['message']['quick_reply']['payload']))
-                            # handle_payload(sender_id, Const.PAYLOAD_TYPE_QUICK_REPLY, messaging_event['message']['quick_reply']['payload'])
+                            tac0_payload(sender_id, messaging_event['message']['quick_reply']['payload'])
                             return "OK", 200
 
                         # ------- TYPED TEXT MESSAGE
@@ -1712,6 +1721,33 @@ def tac0_webhook():
 
     return "OK", 200
 
+
+def tac0_payload(sender_id, payload):
+    logger.info("tac0_payload(sender_id=%s, payload=%s)" % (sender_id, payload))
+
+    bot_type = get_session_bot_type(sender_id)
+    if payload == "TAC0__LMON8":
+        pass
+
+
+
+@app.route('/tac0/steam/', methods=['POST'])
+def tac0_steam():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/tac0/steam/'" )
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.STEAM_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        fb_psid = request.form['fb_psid']
+        steam_id64 = request.form['steam_id64']
+
+        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes")
+
+    return "OK", 200
 
 
 @app.route('/<bot_webhook>/', methods=['POST'])
