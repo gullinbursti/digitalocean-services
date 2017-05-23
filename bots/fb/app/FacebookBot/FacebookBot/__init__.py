@@ -4737,7 +4737,7 @@ def received_text_response(recipient_id, message_text):
 
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
-                channel_name="bot-support",
+                channel_name="support",
                 message_text="*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=fb_user.full_name_utf8, fb_psid=recipient_id, message_text=message_text),
                 webhook=Const.SLACK_SUPPORT_WEBHOOK
             )

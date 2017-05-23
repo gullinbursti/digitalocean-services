@@ -35,7 +35,7 @@ class Const(Constants):
     SLACK_SHOPS_WEBHOOK = "https://hooks.slack.com/services/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"
     SLACK_PURCHASES_WEBHOOK = "https://hooks.slack.com/services/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"
     SLACK_PIZZA_WEBHOOK = "https://hooks.slack.com/services/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"
-    SLACK_SUPPORT_WEBHOOK = "https://hooks.slack.com/services/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"
+    SLACK_SUPPORT_WEBHOOK = "https://hooks.slack.com/services/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"
 
 
     WEB_SERVER_IP = "192.241.212.32"
