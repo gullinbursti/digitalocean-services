@@ -401,8 +401,10 @@ def send_pay_wall(sender_id, item):
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
     send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if get_session_deposit(sender_id) < 1 else "You have hit the daily win limit for credit users. Please purchase another pack to continue.")
-    pay_wall_carousel(sender_id, 3)
-    send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
+    pay_wall_carousel(sender_id)
+
+    if get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+        send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
     # send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
     # send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
 
@@ -442,10 +444,10 @@ def next_coin_flip_item(sender_id, pay_wall=False):
                 cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
                 row = cur.fetchone()
 
-                if row is None:
-                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, min_price, max_price)),))
-                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name,))
-                    row = cur.fetchone()
+                # if row is None:
+                #     logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, min_price, max_price)),))
+                #     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name,))
+                #     row = cur.fetchone()
 
             else:
                 logger.info("BONUS ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 3 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
@@ -508,7 +510,9 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             elif deposit_amount_for_price(row['price']) == 10:
                 image_url = "https://i.imgur.com/9s1JeqD.png"
 
-            row['price'] += 1
+            else:
+                image_url = "https://i.imgur.com/KrObpgY.png"
+
             element = {
                 'title'    : "Flip ${price:.2f} Dollar Items".format(price=deposit_amount_for_price(row['price'])),
                 'subtitle' : "Buy Now to Win",
@@ -2238,7 +2242,10 @@ def handle_payload(sender_id, payload_type, payload):
             cur = conn.cursor()
             cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
             row = cur.fetchone()
-            if row['support'] < int(time.time()) - 864000:
+
+            logger.info("::::::::::::::::::::: %s + 86400 = (%s) [%s]" % (row['support'], row['support'] + 864000, int(time.time())))
+
+            if row['support'] + 86400 <= int(time.time()):
                 set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
 
                 send_text(sender_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=sender_id))
@@ -2440,7 +2447,7 @@ def recieved_text_reply(sender_id, message_text):
             cur = conn.cursor()
             cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
             row = cur.fetchone()
-            if row['support'] < int(time.time()) - 864000:
+            if row['support'] + 86400 <= int(time.time()):
                 cur.execute('UPDATE sessions SET support = ? WHERE fb_psid = ?;', (int(time.time()), sender_id))
                 conn.commit()
 
