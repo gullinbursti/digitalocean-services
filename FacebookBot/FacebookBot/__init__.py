@@ -535,7 +535,7 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             element['buttons'].append({
                 'type'   : "postback",
                 'payload': "POINTS-{price}".format(price=deposit_amount_for_price(row['price'])),
-                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 250000), grouping=True))
+                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 1250000), grouping=True))
             })
 
     return element
@@ -1681,8 +1681,8 @@ def tac0_webhook():
 
                         send_card(
                             recipient_id=sender_id,
-                            title="Trade Items",
-                            image_url="https://i.imgur.com/KrObpgY.png",
+                            title="Deposit Items",
+                            image_url="https://i.imgur.com/OKbWbDm.png",
                             buttons=[
                                 {
                                     'type'                : "web_url",
@@ -1760,7 +1760,7 @@ def tac0_steam():
         fb_psid = request.form['fb_psid']
         steam_id64 = request.form['steam_id64']
 
-        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes")
+        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\nhttps://steamcommunity.com/tradeoffer/new/?partner=317337787&token=SpAiDIR_")
 
     return "OK", 200
 
