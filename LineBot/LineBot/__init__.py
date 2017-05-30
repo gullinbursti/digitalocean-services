@@ -6,9 +6,10 @@ import logging
 import os
 import random
 import re
-import threading
 import time
 import urllib
+
+import MySQLdb as mysql
 
 from flask import Flask, request
 from linebot import LineBotApi, WebhookHandler
@@ -19,6 +20,8 @@ from constants import Const
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+
+locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
 logger = logging.getLogger(__name__)
 hdlr = logging.FileHandler("/var/log/LineBot.log")
@@ -86,173 +89,284 @@ def storefront_templates():
 
     return [
         {
-            'index'      : 1,
+            'index'      : 0,
             'title'      : "M4A4 | Desolate Space",
             'description': "CSGO Item",
             'image_url'  : "https://i.imgur.com/qrwkaGq.jpg",
-            'price'      : 9.99
+            'price'      : 9.99,
+            'query_term' : "M4A4DesolateSpace"
         }, {
-            'index'      : 2,
+            'index'      : 1,
             'title'      : "Sxyhxy's Body Armor",
             'description': "H1Z1 Item",
             'image_url'  : "https://i.imgur.com/TZRtwsg.jpg",
-            'price'      : 4.99
+            'price'      : 4.99,
+            'query_term' : "SxyhxysBodyArmor"
         }, {
-            'index'      : 3,
+            'index'      : 2,
             'title'      : "MAC-10 | Neon Rider",
             'description': "CSGO Item",
             'image_url'  : "https://i.imgur.com/u12Z6G2.jpg",
-            'price'      : 4.99
+            'price'      : 4.99,
+            'query_term' : "MAC10NeonRider"
         }, {
-            'index'      : 4,
+            'index'      : 3,
             'title'      : "P2000 Imperial Dragon",
             'description': "CSGO Item",
             'image_url'  : "https://i.imgur.com/D8fJbrN.jpg",
-            'price'      : 4.99
+            'price'      : 4.99,
+            'query_term' : "P2000ImperialDragon"
         }, {
-            'index'      : 5,
+            'index'      : 4,
             'title'      : "Claws of the Blood Moon",
             'description': "Dota 2 Item",
             'image_url'  : "https://i.imgur.com/KAkicdD.jpg",
-            'price'      : 1.99
+            'price'      : 1.99,
+            'query_term' : "ClawsoftheBloodMoon"
         }, {
-            'index'      : 6,
+            'index'      : 5,
             'title'      : "M4A1-S | Hyper Beast",
             'description': "CSGO Item",
             'image_url'  : "https://i.imgur.com/QFLtVjU.jpg",
-            'price'      : 1.99
+            'price'      : 1.99,
+            'query_term' : "M4A1SHyperBeast"
         }
     ]
 
 
+def storefront_lookup(storefront_id):
+    logger.info("storefront_lookup(storefront_id=%s)" % (storefront_id,))
+
+    storefront = None
+    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+
+            product = None
+            while product is None:
+                cur.execute('SELECT `id`, `display_name`, `logo_url` FROM `storefronts` WHERE `id` = %s LIMIT 1;', (storefront_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    storefront = row
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return storefront
+
+
+
+def product_lookup(product_id):
+    logger.info("product_lookup(product_id=%s)" % (product_id,))
+
+    product = None
+    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+
+            product = None
+            while product is None:
+                cur.execute('SELECT `id`, `display_name`, `image_url`, `price`, `prebot_url` FROM `products` WHERE `id` = %s LIMIT 1;', (product_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    product = row
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return product
+
+
+def product_search(query_term):
+    logger.info("product_search(query_term=%s)" % (query_term,))
+
+    product = None
+    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+
+            product = None
+            while product is None:
+                cur.execute('SELECT `id`, `display_name`, `image_url`, `price`, `prebot_url` FROM `products` WHERE `name` LIKE %s AND `enabled` = 1 ORDER BY `id` LIMIT 1;', ("%{query_term}%".format(query_term=query_term),))
+                row = cur.fetchone()
+                if row is not None:
+                    product = row
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return product
+
+
 def handle_postback(user_id, payload):
-    logger.info("handle_postback(user_id=%s, payload=%s)" % (payload, user_id))
+    logger.info("handle_postback(user_id=%s, payload=%s)" % (user_id, payload))
 
-    if payload == "SHARE_STOREFRONT":
-        share_storefront(
+    if payload == "SHARE_APP":
+        share_app(
             user_id=user_id
         )
 
-    elif re.search(r'^SHARE_STOREFRONT\-(\d)$', payload) is not None:
-        share_storefront(
-            user_id=user_id,
-            index=int(re.match(r'^SHARE_STOREFRONT\-(?P<index>\d)$', payload).group('index'))
-        )
-
-    elif re.search(r'^VIEW_STOREFRONT\-(\d)$', payload) is not None:
-        view_storefront(
-            user_id=user_id,
-            index=int(re.match(r'^VIEW_STOREFRONT\-(?P<index>\d)$', payload).group('index'))
-        )
-
-    elif re.search(r'^CREATE_STOREFRONT\-(\d)$', payload) is not None:
-        create_storefront(
-            user_id=user_id,
-            index=int(re.match(r'^CREATE_STOREFRONT\-(?P<index>\d)$', payload).group('index'))
-        )
-
-    elif payload == "CREATE_STOREFRONT":
-        storefront_carousel(
+    elif payload == "FLIP_RND_STOREFRONT":
+        flip_product(
             user_id=user_id
         )
 
-    elif payload == "FLIP_STOREFRONT":
-        flip_storefront(
+    elif re.search(r'^VIEW_CAROUSEL_PRODUCT\-(\d)$', payload) is not None:
+        view_product(
+            user_id=user_id,
+            product_id=product_search(storefront_templates()[int(re.match(r'^VIEW_CAROUSEL_PRODUCT\-(?P<index>\d)$', payload).group('index'))]['query_term'])['id']
+        )
+
+    elif re.search(r'^VIEW_PRODUCT\-(\d+)$', payload) is not None:
+        view_product(
+            user_id=user_id,
+            product_id=int(re.match(r'^VIEW_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id'))
+        )
+
+    elif re.search(r'^PURCHASE_PRODUCT\-(\d+)$', payload) is not None:
+        purchase_product(
+            user_id=user_id,
+            product_id=int(re.match(r'^PURCHASE_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')),
+        )
+
+    elif re.search(r'^PURCHASE_PRODUCT_YES\-(\d+)$', payload) is not None:
+        customer_trade_url(
+
+        )
+
+    elif re.search(r'^PURCHASE_PRODUCT_NO\-(\d+)$', payload) is not None:
+        main_carousel(
             user_id=user_id
         )
 
-    elif re.search(r'^PURCHASE_STOREFRONT\-(\d)$', payload) is not None:
-        purchase_storefront(
+    elif re.search(r'^RESELL_CAROUSEL_PRODUCT\-(\d+)$', payload) is not None:
+        resell_product(
             user_id=user_id,
-            index=0,
+            product_id=product_search(storefront_templates()[int(re.match(r'^RESELL_CAROUSEL_PRODUCT\-(?P<index>\d)$', payload).group('index'))]['query_term'])['id'],
         )
 
-    elif re.search(r'^REDEEM_STOREFRONT\-(\d)$', payload) is not None:
-        text_message(
+    elif re.search(r'^RESELL_PRODUCT\-(\d+)$', payload) is not None:
+        resell_product(
             user_id=user_id,
-            message="You do not have enough points to redeem this item. Keep flipping to win!"
-        )
-
-    elif payload == "STOREFRONT_SALES":
-        text_message(
-            user_id=user_id,
-            message="You have no sales yet! Keep trying"
-        )
-
-    elif payload == "STOREFRONT_POINTS":
-        text_message(
-            user_id=user_id,
-            message="You have 100 points."
+            product_id=int(re.match(r'^RESELL_PRODUCT\-(?P<product_id>\d+)$', payload).group('product_id')),
         )
 
     elif payload == "MYSTERY_FLIP":
-        pass
+        product_card(
+            user_id=user_id,
+            title="Gamebots Mystery Flip",
+            description="1 Flip High Tier Item",
+            image_url="https://i.imgur.com/SngEQtI.jpg",
+            buttons=[
+                PostbackTemplateAction(label="Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), data="RESELL_MYSTERY_FLIP"),
+                PostbackTemplateAction(label="{points} Points".format(points=locale.format('%d', int(4.99 * 250000), grouping=True)), data="PURCHASE_MYSTERY_FLIP"),
+                PostbackTemplateAction(label="Share", data="SHARE_STOREFRONT")
+            ]
+        )
 
 
-def create_storefront(user_id, index):
-    logger.info("create_storefront(user_id=%s, index=%s)" % (user_id, index))
+def flip_product(user_id):
+    logger.info("flip_product(user_id=%s)" % (user_id,))
 
-    storefront = storefront_templates()[index]
+    outcome = random.uniform(0, 1) < (1 / float(5))
+    conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT `id`, `storefront_id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', ("%{tag}%".format(tag="autogen-import"),))
+            row = cur.fetchone()
+            if row is not None:
+                if outcome is True:
+                    code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
+                    # cur.execute('INSERT INTO `flip_wins` (`id`, `user_id`, `storefront_id`, `product_id`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, row['storefront_id'], row['id']))
 
-    text_message(
+                view_product(
+                    user_id=user_id,
+                    product_id=row['id'])
+
+            else:
+                text_message(
+                    user_id=user_id,
+                    message="No shops are available to flip right now, try again later."
+                )
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+
+def view_product(user_id, product_id):
+    logger.info("view_product(user_id=%s, product_id=%s)" % (user_id, product_id))
+
+    product = product_lookup(product_id)
+    product_card(
         user_id=user_id,
-        message="You have created a {storefront_name} shop! Share the shop now with your friends on Line.".format(storefront_name=storefront['title'])
-    )
-
-    view_storefront(
-        user_id=user_id,
-        index=index
-    )
-
-
-def flip_storefront(user_id):
-    logger.info("view_storefront(user_id=%s)" % (user_id,))
-
-    outcome = random.uniform(0, 100) <= 50
-
-    sticker_message(
-        user_id=user_id,
-        package_id=2 if outcome is True else 1,
-        sticker_id=22 if outcome is True else 6
-    )
-
-    time.sleep(1.125)
-
-    flip_card(
-        user_id=user_id,
-        outcome=outcome
-    )
-
-
-def view_storefront(user_id, index):
-    logger.info("view_storefront(user_id=%s, index=%s)" % (user_id, index))
-
-    storefront = storefront_templates()[index]
-    shop_card(
-        user_id=user_id,
-        title="{storefront_name} - {price:.2f}".format(storefront_name=storefront['title'], price=storefront['price']),
-        description=storefront['description'],
-        image_url=storefront['image_url'],
+        title=product['display_name'],
+        description=locale.format('%d', int(product['price'] * 250000), grouping=True),
+        image_url="https://i.imgur.com/qrwkaGq.jpg",#product['image_url'],
         buttons=[
-            PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
-            PostbackTemplateAction(label="Share with Friends", data="SHARE_STOREFRONT-{index}".format(index=index))
+            PostbackTemplateAction(label="Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), data="RESELL_PRODUCT-{product_id}".format(product_id=product_id)),
+            PostbackTemplateAction(label="{points} Points".format(points=locale.format('%d', int(product['price'] * 250000), grouping=True)), data="PURCHASE_PRODUCT-{product_id}".format(product_id=product_id)),
+            PostbackTemplateAction(label="Share", data="SHARE_APP")
         ]
     )
 
 
-def purchase_storefront(user_id, index):
-    logger.info("purchase_storefront(user_id=%s, index=%s)" % (user_id, index))
+def purchase_product(user_id, product_id):
+    logger.info("purchase_product(user_id=%s, product_id=%s)" % (user_id, product_id))
 
-    storefront = storefront_templates()[index]
-    text_message(
-        user_id=user_id,
-        message="Authorizing Line Pay payment..."
+    product = product_lookup(product_id)
+
+    line_bot_api.push_message(
+        to=user_id,
+        messages=TemplateSendMessage(
+            alt_text="Purchase {product_name}?".format(product_name=product['display_name']),
+            template=ConfirmTemplate(text="Are you sure you want to use {points} for {product_name}?".format(points=locale.format('%d', int(product['price'] * 250000), grouping=True), product_name=product['display_name']),
+            actions=[
+                PostbackTemplateAction(label="Confirm", data='PURCHASE_PRODUCT_YES'),
+                PostbackTemplateAction(label="Cancel", data='PURCHASE_PRODUCT_NO')
+            ])
+        )
     )
 
-    time.sleep(2.125)
+
+def resell_product(user_id, product_id):
+    logger.info("resell_product(user_id=%s, product_id=%s)" % (user_id, product_id))
+
+    product = product_lookup(product_id)
+
     text_message(
         user_id=user_id,
-        message="Payment approved! Please check Tsum Tsum now for your items to transfer."
+        message="Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True))
+    )
+
+    text_message(
+        user_id=user_id,
+        message="{product_name} created.\n{prebot_url}".format(product_name=product['display_name'], prebot_url=product['prebot_url'])
+    )
+
+    text_message(
+        user_id=user_id,
+        message="Share {product_name} with your Friends on Messenger".format(product_name=product['display_name'])
     )
 
     main_carousel(
@@ -260,14 +374,28 @@ def purchase_storefront(user_id, index):
     )
 
 
-def share_storefront(user_id, index=None):
-    logger.info("share_storefront(user_id=%s, index=%s)" % (user_id, index))
-
-    storefront = storefront_templates()[index or random.randint(0, 6)]
+def customer_trade_url(user_id):
+    logger.info("customer_trade_url(user_id=%s)" % (user_id,))
 
     text_message(
-        message="To share your Lemonade on Line {storefront_name} shop send the following QR code to 20 friends!".format(storefront_name=storefront['title'])
+        user_id=user_id,
+        message="Purchase complete.\nPlease enter your Steam Trade URL."
     )
+
+    text_message(
+        user_id=user_id,
+        message="Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nPurchase ID: {purchase_id}".format(purchase_id=random.randint(1000, 9999))
+    )
+
+
+def share_app(user_id):
+    logger.info("share_app(user_id=%s)" % (user_id,))
+
+    text_message(
+        user_id=user_id,
+        message="To share your Lemonade on Line shop send the following QR code to 20 friends!"
+    )
+
     image_message(
         image_url="https://i.imgur.com/9svbARK.jpg",
         user_id=user_id
@@ -290,8 +418,8 @@ def main_carousel(user_id):
             title="Flip Shops to Win",
             thumbnail_image_url="https://i.imgur.com/Ao3eCpX.jpg",
             actions=[
-                PostbackTemplateAction(label="Flip Now ({points} Pts)".format(points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN), data="FLIP_RND_STOREFRONT"),
-                PostbackTemplateAction(label="Flip Now ({points} Pts)".format(points=Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN), data="FLIP_RND_STOREFRONT")
+                PostbackTemplateAction(label="Flip Now ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN, grouping=True)), data="FLIP_RND_STOREFRONT"),
+                PostbackTemplateAction(label="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), data="SHARE_APP")
             ]
         ),
         CarouselColumn(
@@ -300,7 +428,7 @@ def main_carousel(user_id):
             thumbnail_image_url="https://i.imgur.com/xtRQaAx.jpg",
             actions=[
                 PostbackTemplateAction(label="My ID", data="REFERRAL_FAQ"),
-                PostbackTemplateAction(label="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), data="SHARE_APP")
+                PostbackTemplateAction(label="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), data="SHARE_REFERRAL")
             ]
         ),
         CarouselColumn(
@@ -308,8 +436,8 @@ def main_carousel(user_id):
             title="Gamebots Mystery Flip",
             thumbnail_image_url="https://i.imgur.com/SngEQtI.jpg",
             actions=[
-                PostbackTemplateAction(label="Resell ({points} Pts)".format(points=Const.POINT_AMOUNT_RESELL_STOREFRONT), data="RESELL_STOREFRONT-0"),
-                PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-0")
+                PostbackTemplateAction(label="Resell ({points} Pts)".format(points=Const.POINT_AMOUNT_RESELL_STOREFRONT), data="RESELL_PRODUCT-5"),
+                PostbackTemplateAction(label="View Shop", data="VIEW_PRODUCT-5")
             ]
         )
     ]
@@ -323,8 +451,8 @@ def main_carousel(user_id):
                     title=storefront['title'],
                     thumbnail_image_url=storefront['image_url'],
                     actions=[
-                        PostbackTemplateAction(label="Resell ({points} Pts)".format(points=Const.POINT_AMOUNT_RESELL_STOREFRONT), data="RESELL_STOREFRONT-{index}".format(index=storefront['index'])),
-                        PostbackTemplateAction(label="View Shop", data="VIEW_STOREFRONT-{index}".format(index=storefront['index']))
+                        PostbackTemplateAction(label="Resell ({points} Pts)".format(points=Const.POINT_AMOUNT_RESELL_STOREFRONT), data="RESELL_CAROUSEL_PRODUCT-{index}".format(index=storefront['index'])),
+                        PostbackTemplateAction(label="View Shop", data="VIEW_CAROUSEL_PRODUCT-{index}".format(index=storefront['index']))
                     ]
                 )
             )
@@ -382,58 +510,8 @@ def storefront_carousel(user_id):
         logger.info("LineBotApiError:%s" % (e,))
 
 
-def flip_card(user_id, outcome):
-    logger.info("flip_card(user_id=%s, outcome=%s)" % (user_id, outcome))
-
-    index = random.randint(0, 6)
-    storefront = storefront_templates()[index]
-
-    try:
-        line_bot_api.push_message(
-            to=user_id,
-            messages=TemplateSendMessage(
-                alt_text="Flip",
-                template=ButtonsTemplate(
-                    text=storefront['description'],
-                    title="{storefront_name} - {price:.2f}".format(storefront_name=storefront['title'], price=storefront['price']),
-                    thumbnail_image_url=storefront['image_url'],
-                    actions=[
-                        PostbackTemplateAction(label="Buy Now", data="PURCHASE_STOREFRONT-{index}".format(index=index)),
-                        PostbackTemplateAction(label="Play Again", data="FLIP_STOREFRONT")
-                    ]
-                )
-            )
-        )
-
-    except LineBotApiError as e:
-        logger.info("LineBotApiError:%s" % (e,))
-
-
-def mystery_card(user_id):
-    logger.info("mystery_card(user_id=%s)" % (user_id,))
-
-    try:
-        line_bot_api.push_message(
-            to=user_id,
-            messages=TemplateSendMessage(
-                alt_text="Mystery Flip",
-                template=ButtonsTemplate(
-                    text="Flip for mystery item",
-                    title="Mystery Flip",
-                    thumbnail_image_url="https://i.imgur.com/X0KIBYl.jpg",
-                    actions=[
-                        PostbackTemplateAction(label="Mystery Flip", data="MYSTERY_FLIP"),
-                    ]
-                )
-            )
-        )
-
-    except LineBotApiError as e:
-        logger.info("LineBotApiError:%s" % (e,))
-
-
-def shop_card(user_id, title, description, image_url, buttons):
-    logger.info("shop_card(user_id=%s, title=%s, description=%s, image_url=%s, buttons=%s)" % (user_id, title, description, image_url, buttons))
+def product_card(user_id, title, description, image_url, buttons):
+    logger.info("product_card(user_id=%s, title=%s, description=%s, image_url=%s, buttons=%s)" % (user_id, title, description, image_url, buttons))
     try:
         line_bot_api.push_message(
             to=user_id,
