@@ -952,6 +952,7 @@ def flip_product(recipient_id, product):
         send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
 
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "248316088977561")
+    add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
 
@@ -971,8 +972,6 @@ def flip_product(recipient_id, product):
                 conn.close()
 
 
-
-        add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
         #send_video(recipient_id, "https://scard.tv/videos/output_cCFqWP.mp4", "247917669017403")
         time.sleep(0.875)
 
@@ -3150,13 +3149,16 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_RESELL_STOREFRONT:
         # send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
         product = Product.query.filter(Product.id == customer.product_id).first()
-        storefront, product = clone_storefront(recipient_id, product.storefront_id)
-        if storefront is not None and product is not None:
-            add_points(recipient_id, Const.POINT_AMOUNT_RESELL_STOREFRONT)
-            send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
-            send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
-            send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
+        if product.storefront_id is not None:
+            storefront, product = clone_storefront(recipient_id, product.storefront_id)
+            if storefront is not None and product is not None:
+                add_points(recipient_id, Const.POINT_AMOUNT_RESELL_STOREFRONT)
+                send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
+                send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
+                send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
 
+            else:
+                send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
         else:
             send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
 
@@ -4629,7 +4631,7 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_KIK_REPLIES.split("|"):
         customer.kik_name = "_{PENDING}_"
         db.session.commit()
-        send_text(recipient_id, "Enter your kik username")
+        send_text(recipient_id, "Make a new Kik account so our mods can log into your account and confirm your sends.\n\nEnter your kik username")
 
     #-- tasks reply
     elif message_text.lower() in Const.RESERVED_TASKS_REPLIES.split("|"):
