@@ -367,7 +367,7 @@ def default_carousel(sender_id, amount=1):
         elements.append(coin_flip_element(sender_id))
 
     if None in elements:
-        send_text(sender_id, "No items are available right now, try again later")
+        send_text(sender_id, "No items are available right now, try again later", main_menu_quick_reply())
         return
 
     send_carousel(
@@ -440,23 +440,26 @@ def next_coin_flip_item(sender_id, pay_wall=False):
                 game_name = "CS:GO"
 
             if get_session_bonus(sender_id) is None:
-                logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
-                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
+                logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
+                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
                 row = cur.fetchone()
 
-                # if row is None:
-                #     logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, min_price, max_price)),))
-                #     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name,))
-                #     row = cur.fetchone()
+                if row is None:
+                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;' % (game_name, max_price)),))
+                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, max_price))
+                    row = cur.fetchone()
 
             else:
-                logger.info("BONUS ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 3 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
-                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 3 ORDER BY RAND() LIMIT 1;', (game_name,))
+                logger.info("BONUS ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 3 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
+                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 3 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name,))
                 row = cur.fetchone()
 
             if row is not None:
                 item_id = row['id']
                 set_session_item(sender_id, item_id)
+
+            else:
+                clear_session_dub(sender_id)
 
 
     except mdb.Error, e:
@@ -652,21 +655,17 @@ def coin_flip_results(sender_id, item_id=None):
 
         full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
-            'channel'     : "#bot-alerts",
-            'username'    : "gamebotsc",
+            'channel'     : "#wins",
             'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Flip Win by *{user}* ({sender_id}):\n_{item_name}_\n{pin_code}".format(user=sender_id if full_name is None else full_name, sender_id=sender_id, item_name=flip_item['asset_name'], pin_code=flip_item['pin_code']),
-            'attachments' : [{
-                'image_url' : flip_item['image_url']
-            }]
+            'text'        : "Flip Win by *{user}* ({sender_id})\n{trade_url}\n\n_{item_name}_".format(user=sender_id if full_name is None else full_name, sender_id=sender_id, trade_url=get_session_trade_url(sender_id), item_name=flip_item['asset_name']),
         }
-        response = requests.post("https://hooks.slack.com/services/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",data={'payload': json.dumps(payload)})
+        response = requests.post("https://hooks.slack.com/services/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",data={'payload': json.dumps(payload)})
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `item_winners` (`fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, NOW());', (sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name']))
+                cur.execute('INSERT INTO `item_winners` (`bot_type`, `fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, %s, NOW());', (get_session_bot_type(sender_id), sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name']))
 
                 if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_items` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
@@ -1341,7 +1340,7 @@ def price_range_for_deposit(deposit):
         price = (6.00, 15.00)
 
     else:
-        price = (15.00, 1066.00)
+        price = (0.00, 1.00)
 
     return price
 
@@ -1542,9 +1541,6 @@ def item_setup(sender_id, item_id, preview=False):
         return "OK", 200
 
     set_session_item(sender_id, item_id)
-    item = get_item_details(item_id)
-    logger.info("ITEM --> %s", item)
-
     item = get_item_details(item_id)
     logger.info("ITEM --> %s", item)
 
