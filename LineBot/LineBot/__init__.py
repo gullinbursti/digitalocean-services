@@ -397,7 +397,7 @@ def share_app(user_id):
     )
 
     image_message(
-        image_url="https://i.imgur.com/9svbARK.jpg",
+        image_url="https://i.imgur.com/8WDEt7c.png",
         user_id=user_id
     )
 
