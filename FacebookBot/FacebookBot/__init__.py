@@ -82,6 +82,24 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_TAC0:
         return Const.TAC0_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_BSP:
+        return Const.BSP_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PAYDAY2:
+        return Const.PAYDAY2_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_BALLISTICOVERKILL:
+        return Const.BALLISTICOVERKILL_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_KILLINGFLOOR2:
+        return Const.KILLINGFLOOR2_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TF2:
+        return Const.TF2_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_DOI:
+        return Const.DOI_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -122,6 +140,25 @@ def bot_webhook_type(webhook):
 
     elif webhook == "tac0":
         return Const.BOT_TYPE_TAC0
+
+    elif webhook == "battlecrew-space-pirates":
+        return Const.BOT_TYPE_BSP
+
+    elif webhook == "payday-2":
+        return Const.BOT_TYPE_PAYDAY2
+
+    elif webhook == "ballistic-overkill":
+        return Const.BOT_TYPE_BALLISTICOVERKILL
+
+    elif webhook == "killing-floor-2":
+        return Const.BOT_TYPE_KILLINGFLOOR2
+
+    elif webhook == "team-fortress-2":
+        return Const.BOT_TYPE_TF2
+
+    elif webhook == "day-of-infamy":
+        return Const.BOT_TYPE_DOI
+
 
 
 def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
@@ -403,10 +440,8 @@ def send_pay_wall(sender_id, item):
     send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if get_session_deposit(sender_id) < 1 else "You have hit the daily win limit for credit users. Please purchase another pack to continue.")
     pay_wall_carousel(sender_id)
 
-    if get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
-        send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
-    # send_text(sender_id, "Earn 1000 Pts for every 5 installs you download. Taps.io/skins\n\nTxt \"Upload\" to submit screenshot of the free app or game open.")
-    # send_video(sender_id, "http://gamebots.chat/video/Star_Wars_-_Galaxy_of_Heroes_Official_Announce_Trailer.mp4", main_menu_quick_reply())
+    # if get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+    #     send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
 
 
 def next_coin_flip_item(sender_id, pay_wall=False):
@@ -432,10 +467,24 @@ def next_coin_flip_item(sender_id, pay_wall=False):
             cur = conn.cursor(mdb.cursors.DictCursor)
 
             bot_type = get_session_bot_type(sender_id)
-            if bot_type == Const.BOT_TYPE_H1Z1:
+            if bot_type == Const.BOT_TYPE_GAMEBOTS:
+                game_name = "CS:GO"
+            elif bot_type == Const.BOT_TYPE_H1Z1:
                 game_name = "H1Z1"
             elif bot_type == Const.BOT_TYPE_DOTA2:
-                game_name = "Dota2"
+                game_name = "Dota 2"
+            elif bot_type == Const.BOT_TYPE_BSP:
+                game_name = ""
+            elif bot_type == Const.BOT_TYPE_PAYDAY2:
+                game_name = ""
+            elif bot_type == Const.BOT_TYPE_BALLISTICOVERKILL:
+                game_name = ""
+            elif bot_type == Const.BOT_TYPE_KILLINGFLOOR2:
+                game_name = ""
+            elif bot_type == Const.BOT_TYPE_TF2:
+                game_name = ""
+            elif bot_type == Const.BOT_TYPE_DOI:
+                game_name = ""
             else:
                 game_name = "CS:GO"
 
@@ -549,7 +598,7 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
 
     item = get_item_details(item_id)
     # return False if sender_id in Const.ADMIN_FB_PSID else coin_flip(wins_last_day(sender_id), min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)), deposit, item['price'], item['quantity'], all_available_quantity())
-    return False if get_session_bot_type(sender_id) != Const.BOT_TYPE_GAMEBOTS else coin_flip(
+    return coin_flip(
         wins=wins_last_day(sender_id),
         losses=min(max(get_session_loss_streak(sender_id), 1), int(Const.MAX_LOSSING_STREAK)),
         deposit=deposit,
@@ -560,7 +609,7 @@ def coin_flip_prep(sender_id, deposit=0, item_id=None, interval=12):
 
 
 def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01, quantity=1, total_quantity=1):
-    # logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s, quantity=%s)" % (wins, losses, deposit, item_cost, quantity))]
+    logger.info("coin_flip(wins=%s, losses=%s, deposit=%s, item_cost=%s, quantity=%s)" % (wins, losses, deposit, item_cost, quantity))
 
     if losses >= Const.MAX_LOSSING_STREAK:
         return True
@@ -579,7 +628,43 @@ def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01, quantity=1, total_qua
 def coin_flip_results(sender_id, item_id=None):
     logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
-    send_image(sender_id, Const.FLIP_COIN_START_GIF_URL)
+    image_url = Const.FLIP_COIN_START_GIF_URL
+    bot_type = get_session_bot_type(sender_id)
+    if bot_type == Const.BOT_TYPE_GAMEBOTS:
+        image_url = Const.FLIP_COIN_START_GIF_URL
+    elif bot_type == Const.BOT_TYPE_GAMEBAE:
+        image_url = "https://i.imgur.com/f3U5sBr.png"
+    elif bot_type == Const.BOT_TYPE_DOTA2:
+        image_url = "https://i.imgur.com/NHN7nk0.gif"
+    elif bot_type == Const.BOT_TYPE_H1Z1:
+        image_url = "https://i.imgur.com/jyd44FT.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOSPICE:
+        image_url = "https://i.imgur.com/47K1hfu.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOBUNNY:
+        image_url = "https://i.imgur.com/XlqMZSb.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOBURRITO:
+        image_url = "https://i.imgur.com/UQUrXrZ.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOPIZZA:
+        image_url = "https://i.imgur.com/cEVnFMg.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOSUSHI:
+        image_url = "https://i.imgur.com/XXMjN0t.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
+        image_url = "https://i.imgur.com/QsGWVaM.gif"
+    elif bot_type == Const.BOT_TYPE_BSP:
+        image_url = "https://i.imgur.com/3lK61LN.gif"
+    elif bot_type == Const.BOT_TYPE_PAYDAY2:
+        image_url = "https://i.imgur.com/OkjfCg7.gif"
+    elif bot_type == Const.BOT_TYPE_BALLISTICOVERKILL:
+        image_url = "https://i.imgur.com/GIDi8Ux.gif"
+    elif bot_type == Const.BOT_TYPE_KILLINGFLOOR2:
+        image_url = "https://i.imgur.com/JZ6vQWo.gif"
+    elif bot_type == Const.BOT_TYPE_TF2:
+        image_url = "https://i.imgur.com/ymgYHaY.gif"
+    elif bot_type == Const.BOT_TYPE_DOI:
+        image_url = "https://i.imgur.com/x98Xb0I.gif"
+
+
+    send_image(sender_id, image_url)
     time.sleep(3.33)
 
     if item_id is None:
@@ -686,6 +771,7 @@ def coin_flip_results(sender_id, item_id=None):
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
             set_session_state(sender_id, Const.SESSION_STATE_FLIP_TRADE_URL)
+            send_text(sender_id, "Enter your Steam Trade URL now.")
 
         else:
             trade_url = get_session_trade_url(sender_id)
@@ -2071,7 +2157,25 @@ def slack(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.form['token'] == Const.SLACK_TOKEN:
-        if re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
+        if re.search('^(\d+)\ close$', request.form['text'].lower()) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ close$', request.form['text'].lower()).group('fb_psid')
+            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+            try:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute('UPDATE sessions SET support = 0 WHERE fb_psid = ?;', (fb_psid,))
+                conn.commit()
+                set_session_state(fb_psid, Const.SESSION_STATE_SUPPORT)
+                send_text(fb_psid, "Support ticket closed", main_menu_quick_reply())
+
+            except sqlite3.Error as er:
+                logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+            finally:
+                if conn:
+                    conn.close()
+
+        elif re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('fb_psid')
             message_text = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('message_text')
 
@@ -2533,9 +2637,8 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "Your ID is:")
         send_text(sender_id, sender_id, main_menu_quick_reply())
 
-    elif message_text.lower() in Const.TASK_REPLIES.split("|"):
-        send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_name} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_name(get_session_bot_type(sender_id
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ))))
+    # elif message_text.lower() in Const.TASK_REPLIES.split("|"):
+    #     send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_name} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_name(get_session_bot_type(sender_id))))
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
