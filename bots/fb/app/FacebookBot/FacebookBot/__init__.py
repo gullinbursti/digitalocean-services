@@ -1468,8 +1468,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
         send_text(recipient_id, Const.ORTHODOX_GREETING.format(first_name=fb_user.first_name))
 
         if storefront is not None and product is not None:
-            send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
-            send_text(recipient_id, "Instructions:\n\n1. Share your shop with 20 friends on Messenger.\n\n2. Sell them an item & take a screenshot.\n\n3. Text \"Upload\" to m.me/gamebotsc", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url), main_menu_quick_replies(recipient_id))
 
         else:
             send_text(recipient_id, "{storefront_name} is not available to resell at this time.".format(storefront_name=re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key')), main_menu_quick_replies(recipient_id))
@@ -2358,7 +2357,6 @@ def send_admin_carousel(recipient_id):
         cards.append(
             build_card_element(
                 title="Refer a Friend",
-                subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
                 image_url=Const.IMAGE_URL_REFERRAL_CARD,
                 buttons=[
                     # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
@@ -2386,7 +2384,6 @@ def send_admin_carousel(recipient_id):
             cards.append(
                 build_card_element(
                     title="Refer a Friend",
-                    subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
                     image_url=Const.IMAGE_URL_REFERRAL_CARD,
                     buttons=[
                         # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
@@ -2420,7 +2417,6 @@ def send_admin_carousel(recipient_id):
             cards.append(
                 build_card_element(
                     title="Refer a Friend",
-                    subtitle="Earn {points} Pts Per Invite".format(points=locale.format('%d', Const.POINT_AMOUNT_REFFERAL, grouping=True)),
                     image_url=Const.IMAGE_URL_REFERRAL_CARD,
                     buttons=[
                         # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
@@ -3118,7 +3114,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "You have {points} Lmon8 Points & are Ranked #{rank}.".format(points=locale.format('%d', points, grouping=True), rank=locale.format('%d', rank, grouping=True)), main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_REFERRAL_FAQ:
-        send_text(recipient_id, "Give your invite code to friends. Each friend that enters this code into Lmon8 will reward you with {points} Pts.".format(points=Const.POINT_AMOUNT_REFFERAL))
+        send_text(recipient_id, "Give your invite code to friends.")
         send_text(recipient_id, "fb{fb_psid}".format(fb_psid=recipient_id), main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_PRODUCT_PURCHASES:
@@ -4634,8 +4630,8 @@ def received_text_response(recipient_id, message_text):
         send_text(recipient_id, "Make a new Kik account so our mods can log into your account and confirm your sends.\n\nEnter your kik username")
 
     #-- tasks reply
-    elif message_text.lower() in Const.RESERVED_TASKS_REPLIES.split("|"):
-        send_text(recipient_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review Gamebots on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.", main_menu_quick_replies(recipient_id))
+    # elif message_text.lower() in Const.RESERVED_TASKS_REPLIES.split("|"):
+    #     send_text(recipient_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review Gamebots on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.", main_menu_quick_replies(recipient_id))
 
     #-- autogenerate shop
     elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES.split("|"):
@@ -5310,7 +5306,36 @@ def slack():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.form['token'] == Const.SLACK_TOKEN:
-        if re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
+        if re.search('^(\d+)\ points\ (\d+)$', request.form['text'].lower()) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\d+)$', request.form['text'].lower()).group('fb_psid')
+            amount = int(re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\d+)$', request.form['text'].lower()).group('amount'))
+            add_points(fb_psid, amount)
+
+        elif re.search('^(\d+)\ close$', request.form['text'].lower()) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ close$', request.form['text'].lower()).group('fb_psid')
+
+            customer = Customer.query.filter(Customer.fb_psid == fb_psid).first()
+            if customer is not None:
+                customer.paypal_name = None
+                db.session.commit()
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `support` = "0000-00-00 00:00:00" WHERE `fb_psid` = %s LIMIT 1;', (fb_psid,))
+                    if cur.fetchone() is None:
+                        send_text(recipient_id, "Support ticket closed", main_menu_quick_replies(fb_psid))
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
+        elif re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('fb_psid')
             message_text = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('message_text')
 
