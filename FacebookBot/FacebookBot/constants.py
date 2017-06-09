@@ -74,7 +74,7 @@ class Const(Constants):
     GA_TRACKING_ID = "UA-79705534-3"
     GA_TRACKING_URL = "http://www.google-analytics.com/collect"
 
-    MAX_TIER_WINS = 3
+    MAX_TIER_WINS = 1
     MAX_LOSSING_STREAK = 12
     MAX_FLIPS_PER_DAY = 100
 

@@ -1842,7 +1842,7 @@ def tac0_steam():
         fb_psid = request.form['fb_psid']
         steam_id64 = request.form['steam_id64']
 
-        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\nhttps://steamcommunity.com/tradeoffer/new/?partner=317337787&token=SpAiDIR_")
+        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\n{trade_url}")#.format(trade_url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=SpAiDIR_"))
 
     return "OK", 200
 
@@ -1890,6 +1890,12 @@ def webhook(bot_webhook):
                 # -- insert to log
                 write_message_log(sender_id, message_id, {key: messaging_event[key] for key in messaging_event if key != 'timestamp'})
                 sync_session_deposit(sender_id)
+
+                if bot_type != Const.BOT_TYPE_DOTA2 and bot_type < 12:
+                    send_text(sender_id, "Maintenance Mode: we are in the process of clearing items & support. You will receive a message when Gamebots resumes.")
+                    return "OK", 200
+
+
 
                 if 'payment' in messaging_event:  # payment result
                     logger.info("-=- PAYMENT -=-")
