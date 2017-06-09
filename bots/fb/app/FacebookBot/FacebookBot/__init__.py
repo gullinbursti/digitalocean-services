@@ -1008,7 +1008,7 @@ def view_product(recipient_id, product, welcome_entry=False):
     db.session.commit()
 
     if product is not None:
-        if product.price >= 10.00 and customer.points < 10.00 * Const.POINTS_PER_DOLLAR:
+        if product.price >= 1.50 and customer.points < 1.50 * Const.POINTS_PER_DOLLAR:
             send_text(recipient_id, "You need at least {points} Points to have access to this item.".format(points=locale.format('%d', int(10.00 * Const.POINTS_PER_DOLLAR), grouping=True)), main_menu_quick_replies(recipient_id))
             return "OK", 200
 
