@@ -4731,7 +4731,7 @@ def received_text_response(recipient_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(recipient_id, "Your message has been sent to support. Note you can only submit 1 support request every 24 hours.", main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "Your message has been sent to support. We have received your support message and will reply as soon as we can. If want to be a support mod you can help speed this up. Note you can only submit 1 support request every 24 hours.", main_menu_quick_replies(recipient_id))
 
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
