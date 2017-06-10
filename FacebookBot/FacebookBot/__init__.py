@@ -2683,7 +2683,7 @@ def recieved_text_reply(sender_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(sender_id, "Your message has been sent to support. Note you can only submit 1 support request every 24 hours.", main_menu_quick_reply())
+            send_text(sender_id, "Your message has been sent to support. We have received your support message and will reply as soon as we can. If want to be a support mod you can help speed this up. Note you can only submit 1 support request every 24 hours.", main_menu_quick_reply())
 
             full_name, f_name, l_name = get_session_name(sender_id)
             payload = {
