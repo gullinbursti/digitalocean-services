@@ -246,7 +246,7 @@ def handle_postback(user_id, payload):
 
     elif re.search(r'^PURCHASE_PRODUCT_YES\-(\d+)$', payload) is not None:
         customer_trade_url(
-
+            user_id=user_id
         )
 
     elif re.search(r'^PURCHASE_PRODUCT_NO\-(\d+)$', payload) is not None:
@@ -320,8 +320,8 @@ def view_product(user_id, product_id):
     product = product_lookup(product_id)
     product_card(
         user_id=user_id,
-        title=product['display_name'],
-        description=locale.format('%d', int(product['price'] * 250000), grouping=True),
+        title=product['display_name'][:40 ],
+        description="{points} Pts".format(points=locale.format('%d', int(product['price'] * 250000), grouping=True)),
         image_url="https://i.imgur.com/qrwkaGq.jpg",#product['image_url'],
         buttons=[
             PostbackTemplateAction(label="Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), data="RESELL_PRODUCT-{product_id}".format(product_id=product_id)),
@@ -342,8 +342,8 @@ def purchase_product(user_id, product_id):
             alt_text="Purchase {product_name}?".format(product_name=product['display_name']),
             template=ConfirmTemplate(text="Are you sure you want to use {points} for {product_name}?".format(points=locale.format('%d', int(product['price'] * 250000), grouping=True), product_name=product['display_name']),
             actions=[
-                PostbackTemplateAction(label="Confirm", data='PURCHASE_PRODUCT_YES'),
-                PostbackTemplateAction(label="Cancel", data='PURCHASE_PRODUCT_NO')
+                PostbackTemplateAction(label="Confirm", data="PURCHASE_PRODUCT_YES-{product_id}".format(product_id=product_id)),
+                PostbackTemplateAction(label="Cancel", data="PURCHASE_PRODUCT_NO-{product_id}".format(product_id=product_id))
             ])
         )
     )
