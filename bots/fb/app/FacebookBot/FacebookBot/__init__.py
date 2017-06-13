@@ -3483,7 +3483,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 if customer.trade_url is None:
                     customer.trade_url = "_{PENDING}_"
                     db.session.commit()
-                    send_text(customer.fb_psid, "Your item is being approved and will transferred shortly.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+                    send_text(customer.fb_psid, "Your account and pts will be verified before your trade is released. Please wait up to 12 hours, keep notifications on.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
 
                 else:
                     send_text(
@@ -5306,9 +5306,9 @@ def slack():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.form['token'] == Const.SLACK_TOKEN:
-        if re.search('^(\d+)\ points\ (\d+)$', request.form['text'].lower()) is not None:
-            fb_psid = re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\d+)$', request.form['text'].lower()).group('fb_psid')
-            amount = int(re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\d+)$', request.form['text'].lower()).group('amount'))
+        if re.search('^(\d+)\ points\ (\-?\d+)$', request.form['text'].lower()) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\-?\d+)$', request.form['text'].lower()).group('fb_psid')
+            amount = int(re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\-?\d+)$', request.form['text'].lower()).group('amount'))
             add_points(fb_psid, amount)
 
         elif re.search('^(\d+)\ close$', request.form['text'].lower()) is not None:
