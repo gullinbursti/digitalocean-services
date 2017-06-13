@@ -100,6 +100,21 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_DOI:
         return Const.DOI_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_CCZAR:
+        return Const.CCZAR_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOHOMIE:
+        return Const.CSGOHOMIE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOFNATIC:
+        return Const.CSGOFNATIC_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOSK:
+        return Const.CSGOSK_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOFAZE:
+        return Const.CSGOFAZE_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -158,6 +173,23 @@ def bot_webhook_type(webhook):
 
     elif webhook == "day-of-infamy":
         return Const.BOT_TYPE_DOI
+
+    elif webhook == "cczar":
+        return Const.BOT_TYPE_CCZAR
+
+    elif webhook == "csgohomie":
+        return Const.BOT_TYPE_CSGOHOMIE
+
+    elif webhook == "csgofnatic":
+        return Const.BOT_TYPE_CSGOFNATIC
+
+    elif webhook == "csgosk":
+        return Const.BOT_TYPE_CSGOSK
+
+    elif webhook == "csgofaze":
+        return Const.BOT_TYPE_CSGOFAZE
+
+
 
 
 
@@ -239,6 +271,21 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_TAC0:
         return "TAC0"
+
+    elif bot_type == Const.BOT_TYPE_CCZAR:
+        return "C-czar"
+
+    elif bot_type == Const.BOT_TYPE_CSGOHOMIE:
+        return "CSGOHomie"
+
+    elif bot_type == Const.BOT_TYPE_CSGOFNATIC:
+        return "CSGOFnatic"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSK:
+        return "Csgosk"
+
+    elif bot_type == Const.BOT_TYPE_CSGOFAZE:
+        return "CSGOFaZe"
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
@@ -414,34 +461,27 @@ def default_carousel(sender_id, amount=1):
     )
 
 
-def pay_wall_carousel(sender_id, amount=1):
-    logger.info("pay_wall_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
-    set_session_item(sender_id)
-
-    obj = {}
-    for i in range(int(amount * 3)):
-        element = coin_flip_element(sender_id, True, True)
-        obj[element['title']] = element
-        if len(obj) == amount:
-            break
-
-    elements = [value for key, value in obj.items()]
-    send_carousel(
-        recipient_id=sender_id,
-        elements=random.sample(elements, min(amount, len(elements))) if len(elements) > 0 else [coin_flip_element(sender_id, True, True)],
-        quick_replies=home_quick_replies()
-    )
-
-
 def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
-    send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if get_session_deposit(sender_id) < 1 else "You have hit the daily win limit for credit users. Please purchase another pack to continue.")
-    pay_wall_carousel(sender_id)
+    send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY else "You have hit an item which requires a deposit. Please purchase a points pack to continue.")
 
-    # if get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
-    #     send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
+    set_session_item(sender_id)
+
+    send_carousel(
+        recipient_id=sender_id,
+        elements=[coin_flip_element(sender_id, True)],
+        quick_replies=[{
+            'content_type': "text",
+            'title'       : "Get 2 More Wins",
+            'payload'     : "DISCORD"
+        }, {
+            'content_type': "text",
+            'title'       : "Cancel",
+            'payload'     : "MAIN_MENU"
+        }]
+    )
 
 
 def next_coin_flip_item(sender_id, pay_wall=False):
@@ -451,9 +491,9 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(1, 100) > 80:# or sender_id in Const.ADMIN_FB_PSID:
+    if pay_wall is True or random.uniform(0, 1) > 5 / float(6):
         pay_wall = True
-        deposit_cycle = cycle([0.00, 1.00, 2.00, 5.00, 15.00])
+        deposit_cycle = cycle([0.00, 5.00, 10.00])
         next_deposit = deposit_cycle.next()
         while next_deposit <= deposit:
             next_deposit = deposit_cycle.next()
@@ -489,12 +529,17 @@ def next_coin_flip_item(sender_id, pay_wall=False):
                 game_name = "CS:GO"
 
             if get_session_bonus(sender_id) is None:
-                logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
-                cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
-                row = cur.fetchone()
+                if pay_wall is True:
+                    logger.info("1ST ATTEMPT AT PAYWALL ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
+                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
 
+                else:
+                    logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
+                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name,))
+
+                row = cur.fetchone()
                 if row is None:
-                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM =|=|=|=|=|=|=|=|=|=|=|=> %s" % (('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;' % (game_name, max_price)),))
+                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;' % (game_name, max_price)),))
                     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, max_price))
                     row = cur.fetchone()
 
@@ -521,8 +566,8 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     return row
 
 
-def coin_flip_element(sender_id, pay_wall=False, share=False):
-    logger.info("coin_flip_element(sender_id=%s, pay_wall=%s, share=%s)" % (sender_id, pay_wall, share))
+def coin_flip_element(sender_id, pay_wall=False):
+    logger.info("coin_flip_element(sender_id=%s, pay_wall=%s)" % (sender_id, pay_wall))
 
     element = None
     row = next_coin_flip_item(sender_id, pay_wall)
@@ -530,11 +575,10 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
         item_id = row['id']
         set_session_item(sender_id, item_id)
 
-        if pay_wall is False or get_session_bot_type(sender_id) != Const.BOT_TYPE_GAMEBOTS:
+        if pay_wall is False:# and deposit_amount_for_price(row['price'] <= get_session_deposit(sender_id)):
             element = {
                 'title'    : row['asset_name'].encode('utf8'),
-                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id == "1298454546880273" else "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['price'])),
-                #'subtitle' : "" if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['price'])),
+                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id == "1219553058088713" else None if pay_wall is False else "Requires ${price:.2f} deposit".format(price=deposit_amount_for_price(row['price'])),
                 'image_url': row['image_url'],
                 'item_url' : None,
                 'buttons'  : [{
@@ -566,20 +610,20 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
                 image_url = "https://i.imgur.com/KrObpgY.png"
 
             element = {
-                'title'    : "Flip ${price:.2f} Dollar Items".format(price=deposit_amount_for_price(row['price'])),
-                'subtitle' : "Buy Now to Win",
-                'image_url': image_url,
+                'title'    : row['asset_name'].encode('utf8'),
+                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id == "1219553058088713" else "You could win this",
+                'image_url': row['image_url'],
                 'item_url' : None,
                 'buttons': []
             }
 
             graph = fb_graph_user(sender_id)
-            if graph is not None and graph['is_payment_enabled'] is True:
-                element['buttons'].append(buy_credits_button(sender_id, item_id, deposit_amount_for_price(row['price'])))
+            if graph is not None and graph['is_payment_enabled'] is True and get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+                element['buttons'].append(buy_credits_button(sender_id, item_id, max(1, deposit_amount_for_price(row['price']))))
 
             element['buttons'].append({
                 'type'                : "web_url",
-                'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=deposit_amount_for_price(row['price'])),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+                'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(1, deposit_amount_for_price(row['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
                 'title'               : "Pay with Paypal",
                 'webview_height_ratio': "tall"
             })
@@ -587,7 +631,7 @@ def coin_flip_element(sender_id, pay_wall=False, share=False):
             element['buttons'].append({
                 'type'   : "postback",
                 'payload': "POINTS-{price}".format(price=deposit_amount_for_price(row['price'])),
-                'title'  : "{points} Points".format(points=locale.format('%d', (deposit_amount_for_price(row['price']) * 1250000), grouping=True))
+                'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(row['price'])) * 1250000, grouping=True))
             })
 
     return element
@@ -662,6 +706,16 @@ def coin_flip_results(sender_id, item_id=None):
         image_url = "https://i.imgur.com/ymgYHaY.gif"
     elif bot_type == Const.BOT_TYPE_DOI:
         image_url = "https://i.imgur.com/x98Xb0I.gif"
+    elif bot_type == Const.BOT_TYPE_CCZAR:
+        image_url = "https://i.imgur.com/pOIpYt0.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOHOMIE:
+        image_url = "https://i.imgur.com/EpY5kAM.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOFNATIC:
+        image_url = "https://i.imgur.com/9gI8Yq0.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOSK:
+        image_url = "https://i.imgur.com/CeD4hmk.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOFAZE:
+        image_url = "https://i.imgur.com/n04OafU.gif"
 
 
     send_image(sender_id, image_url)
@@ -701,7 +755,7 @@ def coin_flip_results(sender_id, item_id=None):
 
             else:
                 send_text(sender_id, "Looks like that item isn't available anymore, try another one")
-                send_carousel(recipient_id=sender_id, elements=[coin_flip_element(sender_id, True)])
+                send_carousel(recipient_id=sender_id, elements=[coin_flip_element(sender_id)])
                 return "OK", 0
 
     except mdb.Error, e:
@@ -750,7 +804,7 @@ def coin_flip_results(sender_id, item_id=None):
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `item_winners` (`bot_type`, `fb_id`, `pin`, `item_id`, `item_name`, `added`) VALUES (%s, %s, %s, %s, %s, NOW());', (get_session_bot_type(sender_id), sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name']))
+                cur.execute('INSERT INTO `item_winners` (`bot_type`, `fb_id`, `pin`, `item_id`, `item_name`, `claimed`, `added`) VALUES (%s, %s, %s, %s, %s, %s, NOW());', (get_session_bot_type(sender_id), sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name'], 0 if flip_item['price'] < 1.00 else 4))
 
                 if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_items` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
@@ -825,7 +879,7 @@ def record_coin_flip(sender_id, item_id, won):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('INSERT INTO `fb_flips` (`id`, `fb_psid`, `item_id`, `won`, `added`) VALUES (NULL, %s, %s, %s, NOW());', (sender_id, item_id, 1 if won is True else 0))
+            cur.execute('INSERT INTO `fb_flips` (`id`, `fb_psid`, `type_id`, `item_id`, `won`, `added`) VALUES (NULL, %s, %s, %s, %s, NOW());', (sender_id, get_session_bot_type(sender_id), item_id, 1 if won is True else 0))
             conn.commit()
 
     except mdb.Error, e:
@@ -1037,7 +1091,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
                 row = cur.fetchone()
                 deposit = row['tot'] or 0
 
-            logger.info("deposit=%s" % (deposit,))
+            logger.info("(%s)-> deposit=%s" % (sender_id, deposit))
 
 
         except mdb.Error, e:
@@ -1389,24 +1443,25 @@ def wins_last_day(sender_id):
 
 
 def deposit_amount_for_price(price):
-    # logger.info("deposit_amount_for_price(price=%s)" % (price,))
+    logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
     amount = 0
     if price < 1.00:
         amount = 0
 
-    elif price < 2.00:
-        amount = 1
+    # elif price < 2.00:
+    #     amount = 1
+    #
+    # elif price < 4.00:
+    #     amount = 2
 
-    elif price < 4.00:
-        amount = 2
-
-    elif price < 6.00:
+    elif price < 5.00:
         amount = 5
 
     elif price < 15.00:
         amount = 10
 
+    logger.info("deposit_amount_for_price(price=%s) ::::: %s" % (price, amount))
     return amount
 
 
@@ -1415,15 +1470,16 @@ def price_range_for_deposit(deposit):
 
     if deposit < 1:
         price = (0.00, 1.00)
+    #
+    # elif deposit < 2:
+    #     price = (1.00, 2.00)
+    #
+    # elif deposit < 5:
+    elif deposit <= 5:
+        price = (1.00, 5.00)
 
-    elif deposit < 2:
-        price = (1.00, 2.00)
-
-    elif deposit < 5:
-        price = (2.00, 6.00)
-
-    elif deposit < 10:
-        price = (6.00, 15.00)
+    elif deposit <= 10:
+        price = (5.00, 10.00)
 
     else:
         price = (0.00, 1.00)
@@ -1638,32 +1694,18 @@ def item_setup(sender_id, item_id, preview=False):
         coin_flip_results(sender_id, item_id)
         return "OK", 200
 
-    if deposit_amount_for_price(item['price']) < 1:
-        if wins_last_day(sender_id) < Const.MAX_TIER_WINS * win_mulitplier(sender_id):
-            if preview:
-                send_card(
-                    recipient_id=sender_id,
-                    title=item['asset_name'].encode('utf8'),
-                    image_url=item['image_url']
-                )
-            coin_flip_results(sender_id, item_id)
-
-        else:
-            send_pay_wall(sender_id, item)
-
+    if wins_last_day(sender_id) >= Const.MAX_TIER_WINS * win_mulitplier(sender_id) or deposit_amount_for_price(item['price']) > get_session_deposit(sender_id):
+        send_pay_wall(sender_id, item)
 
     else:
-        if wins_last_day(sender_id) < Const.MAX_TIER_WINS * win_mulitplier(sender_id):
-            if preview:
-                send_card(
-                    recipient_id=sender_id,
-                    title=item['asset_name'].encode('utf8'),
-                    image_url=item['image_url']
-                )
-            coin_flip_results(sender_id, item_id)
-
-        else:
-            send_pay_wall(sender_id, item)
+        if preview:
+            send_card(
+                recipient_id=sender_id,
+                title=item['asset_name'].encode('utf8'),
+                image_url=item['image_url'],
+                subtitle="${price:.2f}".format(price=item['price']) if sender_id == "1219553058088713" else None
+            )
+        coin_flip_results(sender_id, item_id)
 
 
 
@@ -1842,7 +1884,7 @@ def tac0_steam():
         fb_psid = request.form['fb_psid']
         steam_id64 = request.form['steam_id64']
 
-        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\n{trade_url}")#.format(trade_url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=SpAiDIR_"))
+        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\n{trade_url}".format(trade_url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=5W7Z44R-s"))
 
     return "OK", 200
 
@@ -1891,11 +1933,9 @@ def webhook(bot_webhook):
                 write_message_log(sender_id, message_id, {key: messaging_event[key] for key in messaging_event if key != 'timestamp'})
                 sync_session_deposit(sender_id)
 
-                if bot_type != Const.BOT_TYPE_DOTA2 and bot_type < 12:
-                    send_text(sender_id, "Maintenance Mode: we are in the process of clearing items & support. You will receive a message when Gamebots resumes.")
+                if sender_id not in Const.ADMIN_FB_PSID and os.getenv('FBBOT_BYPASS', 'False') == 'True':
+                    send_text(sender_id, "{bot_title} is currently down for maintenance.".format(bot_title=bot_title(bot_type)))
                     return "OK", 200
-
-
 
                 if 'payment' in messaging_event:  # payment result
                     logger.info("-=- PAYMENT -=-")
@@ -1960,8 +2000,7 @@ def webhook(bot_webhook):
                                     send_card(
                                         recipient_id=sender_id,
                                         title=row['asset_name'].encode('utf8'),
-                                        # subtitle=row['price'] if sender_id in Const.ADMIN_FB_PSID else None,
-                                        subtitle=None,
+                                        subtitle="${price:.2f}".format(price=item['price']) if sender_id == "1219553058088713" else None,
                                         image_url=row['image_url'],
                                         buttons=[{
                                             'type'   : "postback",
@@ -2295,6 +2334,19 @@ def handle_payload(sender_id, payload_type, payload):
         )
 
 
+    elif payload == "DISCORD":
+        send_tracker(fb_psid=sender_id, category="discord")
+        # send_text(sender_id, "https://discord.gg/eeU6GEB", main_menu_quick_reply())
+
+        send_card(
+            recipient_id=sender_id,
+            title="{bot_title} on Discord".format(bot_title=bot_title(bot_type)),
+            image_url="https://discordapp.com/assets/ee7c382d9257652a88c8f7b7f22a994d.png",
+            card_url="https://discord.gg/eeU6GEB",
+            quick_replies=main_menu_quick_reply()
+        )
+
+
     elif payload == "INVITE":
         send_tracker(fb_psid=sender_id, category="invite-friends")
 
@@ -2502,13 +2554,13 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUBMIT_NO":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
-            send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
+            send_text(sender_id, "Re-enter your steam trade url to claim {item_name}".format(item_name=get_item_details(get_session_item(sender_id))['asset_name']), main_menu_quick_reply())
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
-            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_session_purchase(sender_id)), main_menu_quick_reply())
+            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_item_details(get_session_item(sender_id))['asset_name']), main_menu_quick_reply())
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
-            send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_session_item(sender_id)), main_menu_quick_reply())
+            send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_item_details(get_session_item(sender_id))['asset_name']), main_menu_quick_reply())
 
         else:
             clear_session_dub(sender_id)
