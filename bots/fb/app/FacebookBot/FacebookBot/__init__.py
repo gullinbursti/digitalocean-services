@@ -4735,7 +4735,7 @@ def received_text_response(recipient_id, message_text):
 
             fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
             slack_outbound(
-                channel_name="support",
+                channel_name="support-001",
                 message_text="*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=fb_user.full_name_utf8, fb_psid=recipient_id, message_text=message_text),
                 webhook=Const.SLACK_SUPPORT_WEBHOOK
             )
@@ -5325,7 +5325,7 @@ def slack():
                     cur = conn.cursor(mysql.cursors.DictCursor)
                     cur.execute('UPDATE `users` SET `support` = "0000-00-00 00:00:00" WHERE `fb_psid` = %s LIMIT 1;', (fb_psid,))
                     if cur.fetchone() is None:
-                        send_text(recipient_id, "Support ticket closed", main_menu_quick_replies(fb_psid))
+                        send_text(fb_psid, "Support ticket closed", main_menu_quick_replies(fb_psid))
 
             except mysql.Error, e:
                 logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
