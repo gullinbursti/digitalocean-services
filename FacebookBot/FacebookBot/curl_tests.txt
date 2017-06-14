@@ -57,9 +57,9 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Welcome to C-czar on Messenger."
+    "text":"Welcome to CSGOSmoke on Messenger."
   }
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAa7qd2HUyEBAN1Kp36G9gwzLQ3ti8ZBXyevwSNvTMW2Y7gCSkHskwXk1r1hPBe2jTO8UZCTZApO05I6m8qiQg2bWSYfKoaDogFc9LUZCbO8BMvz0PbOaq6mC9IrM49vDlj9pbKZCUli0xSVunxMO72S0mfwIUv11JjoZCU61oZCAZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAbdOWMstfUBAA5AqaHg43SZBcKLeWhRqlz1ZCxSDHEukohTZCOf1NOdVcGe4k93DKQ62VK6jpepsuQlGDzPER1dCsuQbsDgWPZC4rWExaWryRS3lvnl3itcB1pFZAmxruBNfyhp1Oy8i7sTSpHWFcy84I7nPNzj5tyxlRgjaZCwZDZD"
 
 {{user_first_name}}
 {{user_last_name}}

@@ -115,6 +115,21 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOFAZE:
         return Const.CSGOFAZE_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_SKINHUB:
+        return Const.SKINHUB_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOJUICE:
+        return Const.CSGOJUICE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOFADED:
+        return Const.CSGOFADED_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBOOM:
+        return Const.CSGOBOOM_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
+        return Const.CSGOSMOKE_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -188,6 +203,21 @@ def bot_webhook_type(webhook):
 
     elif webhook == "csgofaze":
         return Const.BOT_TYPE_CSGOFAZE
+
+    elif webhook == "skinhub":
+        return Const.BOT_TYPE_SKINHUB
+
+    elif webhook == "csgojuice":
+        return Const.BOT_TYPE_CSGOJUICE
+
+    elif webhook == "csgofaded":
+        return Const.BOT_TYPE_CSGOFADED
+
+    elif webhook == "csgoboom":
+        return Const.BOT_TYPE_CSGOBOOM
+
+    elif webhook == "csgosmoke":
+        return Const.BOT_TYPE_CSGOSMOKE
 
 
 
@@ -287,6 +317,21 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOFAZE:
         return "CSGOFaZe"
 
+    elif bot_type == Const.BOT_TYPE_SKINHUB:
+        return "SkinHub"
+
+    elif bot_type == Const.BOT_TYPE_CSGOJUICE:
+        return "CSGOJuice"
+
+    elif bot_type == Const.BOT_TYPE_CSGOFADED:
+        return "CSGOFaded"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBOOM:
+        return "CSGOBoom"
+
+    elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
+        return "CSGOSmoke"
+
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
     logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
@@ -336,7 +381,7 @@ def write_message_log(sender_id, message_id, message_txt):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('INSERT INTO `fbbot_logs` (`id`, `message_id`, `chat_id`, `body`) VALUES (NULL, %s, %s, %s)', (message_id, sender_id, json.dumps(message_txt)))
+            cur.execute('INSERT INTO `fbbot_logs` (`id`, `message_id`, `bot_type`, `chat_id`, `body`) VALUES (NULL, %s, %s, %s, %s)', (message_id, get_session_bot_type(sender_id), sender_id, json.dumps(message_txt)))
 
     except mdb.Error, e:
         logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -465,7 +510,9 @@ def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
-    send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue." if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY else "You have hit an item which requires a deposit. Please purchase a points pack to continue.")
+
+    if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
+        send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue.")
 
     set_session_item(sender_id)
 
@@ -480,6 +527,10 @@ def send_pay_wall(sender_id, item):
             'content_type': "text",
             'title'       : "Cancel",
             'payload'     : "MAIN_MENU"
+        }, {
+            'content_type': "text",
+            'title'       : "Next Item",
+            'payload'     : "NEXT_ITEM"
         }]
     )
 
@@ -491,7 +542,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(0, 1) > 5 / float(6):
+    if pay_wall is True or random.uniform(0, 1) > 1 / float(3):
         pay_wall = True
         deposit_cycle = cycle([0.00, 5.00, 10.00])
         next_deposit = deposit_cycle.next()
@@ -530,8 +581,8 @@ def next_coin_flip_item(sender_id, pay_wall=False):
 
             if get_session_bonus(sender_id) is None:
                 if pay_wall is True:
-                    logger.info("1ST ATTEMPT AT PAYWALL ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
-                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
+                    logger.info("1ST ATTEMPT AT PAYWALL-ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s ORDER BY RAND() LIMIT 1;' % (game_name, min_price)),))
+                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s ORDER BY RAND() LIMIT 1;', (game_name, min_price))
 
                 else:
                     logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
@@ -539,7 +590,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
 
                 row = cur.fetchone()
                 if row is None:
-                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;' % (game_name, max_price)),))
+                    logger.info("ROW WAS BLANK!! -- 2nd ATTEMPT AT (%s)ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % ("PAYWALL-" if pay_wall is True else "", sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;' % (game_name, max_price)),))
                     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY RAND() LIMIT 1;' if pay_wall is False and deposit == get_session_deposit(sender_id) else 'SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` <= %s AND `type_id` = 1 ORDER BY `price` DESC LIMIT 1;', (game_name, max_price))
                     row = cur.fetchone()
 
@@ -611,7 +662,7 @@ def coin_flip_element(sender_id, pay_wall=False):
 
             element = {
                 'title'    : row['asset_name'].encode('utf8'),
-                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id == "1219553058088713" else "You could win this",
+                'subtitle' : "${price:.2f}".format(price=row['price']) if sender_id == "1219553058088713" else "You could win this!",
                 'image_url': row['image_url'],
                 'item_url' : None,
                 'buttons': []
@@ -624,7 +675,7 @@ def coin_flip_element(sender_id, pay_wall=False):
             element['buttons'].append({
                 'type'                : "web_url",
                 'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(1, deposit_amount_for_price(row['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                'title'               : "Pay with Paypal",
+                'title'               : "Paypal - ${price}".format(price=deposit_amount_for_price(row['price'])),
                 'webview_height_ratio': "tall"
             })
 
@@ -794,17 +845,18 @@ def coin_flip_results(sender_id, item_id=None):
 
         full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
-            'channel'     : "#wins",
-            'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Flip Win by *{user}* ({sender_id})\n{trade_url}\n\n_{item_name}_".format(user=sender_id if full_name is None else full_name, sender_id=sender_id, trade_url=get_session_trade_url(sender_id), item_name=flip_item['asset_name']),
+            'channel'   : "#wins-001",
+            'username ' : bot_title(get_session_bot_type(sender_id)),
+            'icon_url'  : "https://i.imgur.com/bhSzZiO.png",
+            'text'      : "Flip Win by *{user}* ({sender_id})\n{trade_url}\n\n_{item_name}_".format(user=sender_id if full_name is None else full_name, sender_id=sender_id, trade_url=get_session_trade_url(sender_id), item_name=flip_item['asset_name']),
         }
-        response = requests.post("https://hooks.slack.com/services/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",data={'payload': json.dumps(payload)})
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
             with conn:
                 cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('INSERT INTO `item_winners` (`bot_type`, `fb_id`, `pin`, `item_id`, `item_name`, `claimed`, `added`) VALUES (%s, %s, %s, %s, %s, %s, NOW());', (get_session_bot_type(sender_id), sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name'], 0 if flip_item['price'] < 1.00 else 4))
+                cur.execute('INSERT INTO `item_winners` (`bot_type`, `fb_id`, `pin`, `item_id`, `item_name`, `claimed`, `added`) VALUES (%s, %s, %s, %s, %s, %s, NOW());', (get_session_bot_type(sender_id), sender_id, flip_item['pin_code'], flip_item['item_id'], flip_item['asset_name'], 0 if flip_item['price'] < 1.00 and get_session_deposit(sender_id) < 1.00 else 4))
 
                 if sender_id not in Const.ADMIN_FB_PSID:
                     cur.execute('UPDATE `flip_items` SET `quantity` = `quantity` - 1 WHERE `id` = %s AND quantity > 0 LIMIT 1;', (flip_item['item_id'],))
@@ -1482,7 +1534,7 @@ def price_range_for_deposit(deposit):
         price = (5.00, 10.00)
 
     else:
-        price = (0.00, 1.00)
+        price = (10.00, 50.00)
 
     return price
 
@@ -1921,6 +1973,8 @@ def webhook(bot_webhook):
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None  # (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
+                set_session_bot_type(sender_id, bot_type)
+
                 if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
                     logger.info("-=- BYPASS-USER -=-")
                     return "OK", 200
@@ -2220,6 +2274,34 @@ def slack(bot_webhook):
                 if conn:
                     conn.close()
 
+        elif re.search('^(\d+)\ deposit\ (\d+)$', request.form['text']) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ deposit\ (?P<amount>\d+)$', request.form['text']).group('fb_psid')
+            amount = re.match(r'(?P<fb_psid>\d+)\ deposit\ (?P<amount>\d+)$', request.form['text']).group('amount')
+
+            set_session_deposit(fb_psid, float(amount))
+
+            full_name, f_name, l_name = get_session_name(fb_psid)
+
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('INSERT INTO `fb_purchases` (`id`, `fb_psid`, `first_name`, `last_name`, `amount`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (fb_psid, f_name, l_name, amount))
+                    conn.commit()
+
+                    cur.execute('SELECT @@IDENTITY AS `id` FROM `fb_purchases`;')
+                    row = cur.fetchone()
+                    purchase_id = row['id']
+
+
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+
         elif re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('fb_psid')
             message_text = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('message_text')
@@ -2326,7 +2408,7 @@ def handle_payload(sender_id, payload_type, payload):
             buttons=[{
                 'type'                 : "web_url",
                 'url'                  : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                'title'                : "{points} Points".format(points=locale.format('%d', (price * 250000), grouping=True))
+                'title'                : "{points} Points".format(points=locale.format('%d', (price * 1250000), grouping=True))
             }, {
                 'type' : "element_share"
             }],
@@ -2739,12 +2821,12 @@ def recieved_text_reply(sender_id, message_text):
 
             full_name, f_name, l_name = get_session_name(sender_id)
             payload = {
-                'channel'    : "#support",
-                'username '  : "gamebotsc",
+                'channel'    : "#support-001",
+                'username '  : bot_title(get_session_bot_type(sender_id)),
                 'icon_url'   : "https://i.imgur.com/bhSzZiO.png",
                 'text'       : "*Support Request*\n_{full_name} ({fb_psid}) says:_\n{message_text}".format(full_name=sender_id if full_name is None else full_name, fb_psid=sender_id, message_text=message_text)
             }
-            response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+            response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
             clear_session_dub(sender_id)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL:
@@ -2785,15 +2867,15 @@ def recieved_attachment(sender_id, attachment_type, attachment):
     if attachment_type == Const.PAYLOAD_ATTACHMENT_IMAGE.split("-")[-1] and re.search('^.*t39\.1997\-6.*$', attachment['url']) is None:
         full_name, f_name, l_name = get_session_name(sender_id)
         payload = {
-            'channel'     : "#upload",
-            'username '   : "gamebotsc",
-            'icon_url'    : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-            'text'        : "Image upload from *{user}* _{fb_psid}_:\n{image_url}".format(user=sender_id if full_name is None else full_name, fb_psid=sender_id, image_url=attachment['url']),
+            'channel'     : "#uploads-001",
+            'username '   : bot_title(get_session_bot_type(sender_id)),
+            'icon_url'    : "https://i.imgur.com/bhSzZiO.png",
+            'text'        : "Image upload from *{user}* _{fb_psid}_".format(user=sender_id if full_name is None else full_name, fb_psid=sender_id),
             'attachments' : [{
                 'image_url' : attachment['url']
             }]
         }
-        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
         #send_text(sender_id, "You have won 100 skin pts! Every 1000 skin pts you get a MAC 10 Neon Rider!\n\nTerms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
         send_text(sender_id, "Terms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
