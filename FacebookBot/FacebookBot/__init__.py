@@ -436,32 +436,32 @@ def submit_quick_replies(captions=["Yes", "No"]):
 
 def coin_flip_quick_replies():
     logger.info("coin_flip_quick_replies()")
-    return [
-        {
-            'content_type' : "text",
-            'title'        : "Next Item",
-            'payload'      : "NEXT_ITEM"
-        }, {
-            'content_type' : "text",
-            'title'        : "No Thanks",
-            'payload'      : "NO_THANKS"
-        }
-    ]
+    return [{
+        'content_type': "text",
+        'title'       : "Next Item",
+        'payload'     : "NEXT_ITEM"
+    }, {
+        'content_type': "text",
+        'title'       : "Get 2 More Wins",
+        'payload'     : "DISCORD"
+    }, {
+        'content_type': "text",
+        'title'       : "FAQ",
+        'payload'     : "FAQ"
+    }]
 
 
 def opt_out_quick_replies():
     logger.info("opt_out_quick_replies()")
-    return [
-        {
-            'content_type' : "text",
-            'title'        : "Opt-In",
-            'payload'      : "OPT_IN"
-        }, {
-            'content_type' : "text",
-            'title'        : "Cancel",
-            'payload'      : "CANCEL"
-        }
-    ]
+    return [{
+        'content_type' : "text",
+        'title'        : "Opt-In",
+        'payload'      : "OPT_IN"
+    }, {
+        'content_type' : "text",
+        'title'        : "Cancel",
+        'payload'      : "CANCEL"
+    }]
 
 
 def buy_credits_button(sender_id, item_id, price):
@@ -514,25 +514,121 @@ def send_pay_wall(sender_id, item):
     if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
         send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue.")
 
-    set_session_item(sender_id)
+    if item is not None:
+        element = {
+            'title'    : item['asset_name'].encode('utf8'),
+            'subtitle' : "${price:.2f}".format(price=item['price']) if sender_id == "1219553058088713" else "You could win this!",
+            'image_url': item['image_url'],
+            'item_url' : None,
+            'buttons'  : []
+        }
+
+        graph = fb_graph_user(sender_id)
+        if graph is not None and graph['is_payment_enabled'] is True and get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+            element['buttons'].append(buy_credits_button(sender_id, item['id'], max(1, deposit_amount_for_price(item['price']))))
+
+        element['buttons'].append({
+            'type'                : "web_url",
+            'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(1, deposit_amount_for_price(item['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'title'               : "Paypal - ${price}".format(price=deposit_amount_for_price(item['price'])),
+            'webview_height_ratio': "tall"
+        })
+
+        element['buttons'].append({
+            'type'   : "postback",
+            'payload': "POINTS-{price}".format(price=deposit_amount_for_price(item['price'])),
+            'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
+        })
+
+    else:
+        element = coin_flip_element(sender_id, True)
+
 
     send_carousel(
         recipient_id=sender_id,
-        elements=[coin_flip_element(sender_id, True)],
-        quick_replies=[{
-            'content_type': "text",
-            'title'       : "Get 2 More Wins",
-            'payload'     : "DISCORD"
-        }, {
-            'content_type': "text",
-            'title'       : "Cancel",
-            'payload'     : "MAIN_MENU"
-        }, {
-            'content_type': "text",
-            'title'       : "Next Item",
-            'payload'     : "NEXT_ITEM"
-        }]
+        elements=[element],
+        quick_replies=coin_flip_quick_replies()
     )
+
+
+def pay_wall_deposit(sender_id, min_price, max_price):
+    logger.info("pay_wall_deposit(sender_id=%s, min_price=%s, max_price=%s)" % (sender_id, min_price, max_price))
+
+    bot_type = get_session_bot_type(sender_id)
+    if bot_type == Const.BOT_TYPE_GAMEBOTS:
+        game_name = "CS:GO"
+    elif bot_type == Const.BOT_TYPE_H1Z1:
+        game_name = "H1Z1"
+    elif bot_type == Const.BOT_TYPE_DOTA2:
+        game_name = "Dota 2"
+    elif bot_type == Const.BOT_TYPE_BSP:
+        game_name = ""
+    elif bot_type == Const.BOT_TYPE_PAYDAY2:
+        game_name = ""
+    elif bot_type == Const.BOT_TYPE_BALLISTICOVERKILL:
+        game_name = ""
+    elif bot_type == Const.BOT_TYPE_KILLINGFLOOR2:
+        game_name = ""
+    elif bot_type == Const.BOT_TYPE_TF2:
+        game_name = ""
+    elif bot_type == Const.BOT_TYPE_DOI:
+        game_name = ""
+    else:
+        game_name = "CS:GO"
+
+    row = None
+
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            logger.info("1ST ATTEMPT AT PAYWALL-ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s ORDER BY RAND() LIMIT 1;' % (game_name, min_price)),))
+            cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
+            row = cur.fetchone()
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    item = row
+    if item is not None:
+        element = {
+            'title'    : item['asset_name'].encode('utf8'),
+            'subtitle' : "${price:.2f}".format(price=item['price']) if sender_id == "1219553058088713" else "You could win this!",
+            'image_url': item['image_url'],
+            'item_url' : None,
+            'buttons'  : []
+        }
+
+        graph = fb_graph_user(sender_id)
+        if graph is not None and graph['is_payment_enabled'] is True and get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+            element['buttons'].append(buy_credits_button(sender_id, item['id'], max(1, deposit_amount_for_price(item['price']))))
+
+        element['buttons'].append({
+            'type'                : "web_url",
+            'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(1, deposit_amount_for_price(item['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'title'               : "Paypal - ${price}".format(price=deposit_amount_for_price(item['price'])),
+            'webview_height_ratio': "tall"
+        })
+
+        element['buttons'].append({
+            'type'   : "postback",
+            'payload': "POINTS-{price}".format(price=deposit_amount_for_price(item['price'])),
+            'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
+        })
+
+    else:
+        element = coin_flip_element(sender_id, True)
+
+    send_carousel(
+        recipient_id=sender_id,
+        elements=[element],
+        quick_replies=coin_flip_quick_replies()
+    )
+
 
 
 def next_coin_flip_item(sender_id, pay_wall=False):
@@ -767,13 +863,22 @@ def coin_flip_results(sender_id, item_id=None):
         image_url = "https://i.imgur.com/CeD4hmk.gif"
     elif bot_type == Const.BOT_TYPE_CSGOFAZE:
         image_url = "https://i.imgur.com/n04OafU.gif"
-
-
+    elif bot_type == Const.BOT_TYPE_CSGOJUICE:
+        image_url = "https://i.imgur.com/9L8tfTc.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOFADED:
+        image_url = "https://i.imgur.com/RPdcHth.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOHOMIE:
+        image_url = "https://i.imgur.com/cnD7Wjo.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOBOOM:
+        image_url = "ttp://i.imgur.com/npTubyP.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
+        image_url = "https://i.imgur.com/hPhkG5C.gif"
+    
     send_image(sender_id, image_url)
     time.sleep(3.33)
 
     if item_id is None:
-        send_text(sender_id, "Can't find your item! Try flipping for it again")
+        send_text(sender_id, "Can't find your item! Try flipping for it again", main_menu_quick_reply())
         default_carousel(sender_id)
         return "OK", 200
 
@@ -1174,7 +1279,7 @@ def get_session_deposit(sender_id, interval=24, remote=False):
             if conn:
                 conn.close()
 
-    return deposit# if sender_id not in Const.ADMIN_FB_PSID else random.choice([0.00, 1.00, 2.00, 5.00, 15.00])
+    return round(deposit, 2)# if sender_id not in Const.ADMIN_FB_PSID else random.choice([0.00, 1.00, 2.00, 5.00, 15.00])
 
 
 def set_session_deposit(sender_id, amount=1):
@@ -1479,7 +1584,7 @@ def wins_last_day(sender_id):
     try:
         with conn:
             cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `added` > DATE_SUB(NOW(), INTERVAL 24 HOUR);', (sender_id,))
+            cur.execute('SELECT COUNT(*) AS `tot` FROM `item_winners` WHERE `fb_id` = %s AND `limiter` = 1 AND `added` >= DATE_SUB(NOW(), INTERVAL 24 HOUR);', (sender_id,))
             row = cur.fetchone()
             total_wins = 0 if row is None else row['tot']
 
@@ -1730,16 +1835,20 @@ def item_setup(sender_id, item_id, preview=False):
     logger.info("item_setup(sender_id=%s, item_id=%s, preview=%s)" % (sender_id, item_id, preview))
 
     if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
-        send_text(sender_id, "You have hit the daily flip limit.")
-        send_text(sender_id, "To unlock 100 more Flips and 2 more wins do the following:\n\nGet a free app or game, open it, screenshot and upload here. Txt \"Upload\" to complete.\n\nTaps.io/skins\n\nWait < 1 hour.", main_menu_quick_reply())
+        send_text(sender_id, "You have won 2 free items today. To Flip High Tier Items you must make a deposit. Get 2 More Wins Below.", main_menu_quick_reply())
         return "OK", 200
 
     set_session_item(sender_id, item_id)
     item = get_item_details(item_id)
     logger.info("ITEM --> %s", item)
 
+    if item['price'] > 1.00 and get_session_deposit(sender_id) < 1.00:
+        send_text(sender_id, "To Flip High Tier Items you must make a deposit. Get 2 More Wins Below.")
+        send_pay_wall(sender_id, item)
+        return "OK", 200
+
     if item is None:
-        send_text(sender_id, "Can't find that item! Try flipping again")
+        send_text(sender_id, "Can't find that item! Try flipping again", main_menu_quick_reply())
         return "OK", 200
 
     if get_session_bonus(sender_id) is not None:
@@ -1973,8 +2082,6 @@ def webhook(bot_webhook):
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None  # (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
-                set_session_bot_type(sender_id, bot_type)
-
                 if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
                     logger.info("-=- BYPASS-USER -=-")
                     return "OK", 200
@@ -2004,7 +2111,7 @@ def webhook(bot_webhook):
 
                     set_session_state(sender_id)
                     set_session_bot_type(sender_id, bot_type)
-                    send_text(sender_id, "Welcome to {bot_title}. WIN pre-sale games & items with players on Messenger.\n To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title(bot_type)))
+                    send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title(bot_type)))
                     send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
                     default_carousel(sender_id)
                     graph = fb_graph_user(sender_id)
@@ -2013,6 +2120,7 @@ def webhook(bot_webhook):
 
                 # -- existing
                 elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
+                    set_session_bot_type(sender_id, bot_type)
                     if referral is not None:
                         send_tracker(fb_psid=sender_id, category="referral", label=referral)
                         logger.info("REFERRAL ---> %s", (referral,))
@@ -2274,11 +2382,27 @@ def slack(bot_webhook):
                 if conn:
                     conn.close()
 
+        elif re.search('^(\d+)\ reset$', request.form['text'].lower()) is not None:
+            fb_psid = re.match(r'(?P<fb_psid>\d+)\ reset$', request.form['text'].lower()).group('fb_psid')
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('UPDATE `item_winners` SET `limiter` = 0 WHERE `fb_id` = %s AND `added` >= DATE_SUB(NOW(), INTERVAL 24 HOUR);', (fb_psid,))
+                    conn.commit()
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+            finally:
+                if conn:
+                    conn.close()
+
+
+
         elif re.search('^(\d+)\ deposit\ (\d+)$', request.form['text']) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ deposit\ (?P<amount>\d+)$', request.form['text']).group('fb_psid')
-            amount = re.match(r'(?P<fb_psid>\d+)\ deposit\ (?P<amount>\d+)$', request.form['text']).group('amount')
+            amount = int(re.match(r'(?P<fb_psid>\d+)\ deposit\ (?P<amount>\d+)$', request.form['text']).group('amount'))
 
-            set_session_deposit(fb_psid, float(amount))
+            set_session_deposit(fb_psid, amount)
 
             full_name, f_name, l_name = get_session_name(fb_psid)
 
@@ -2352,6 +2476,11 @@ def handle_payload(sender_id, payload_type, payload):
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
+    elif payload == "MAIN_MENU_ALT":
+        send_tracker(fb_psid=sender_id, category="weekend-blast")
+        clear_session_dub(sender_id)
+        default_carousel(sender_id)
+
 
     elif payload == "WELCOME_MESSAGE":
         logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
@@ -2359,12 +2488,18 @@ def handle_payload(sender_id, payload_type, payload):
         default_carousel(sender_id)
 
 
+    elif re.search('DEPOSIT-(\d+)', payload) is not None:
+        amount = int(re.match(r'DEPOSIT-(?P<amount>\d+)', payload).group('amount'))
+        min_price, max_price = price_range_for_deposit(amount)
+        pay_wall_deposit(sender_id, min_price, max_price)
+
+
     elif payload == "NEXT_ITEM":
         send_tracker(fb_psid=sender_id, category="next-item")
         row = next_coin_flip_item(sender_id)
 
         if row is None:
-            send_text(sender_id, "Can't find that item! Try flipping again")
+            send_text(sender_id, "Can't find that item! Try flipping again", main_menu_quick_reply())
             default_carousel(sender_id)
             return "OK", 200
 
@@ -2379,7 +2514,7 @@ def handle_payload(sender_id, payload_type, payload):
             item_setup(sender_id, item_id, False)
 
         else:
-            send_text(sender_id, "Can't find that item! Try flipping again")
+            send_text(sender_id, "Can't find that item! Try flipping again", main_menu_quick_reply())
             return "OK", 200
 
 
@@ -2406,9 +2541,9 @@ def handle_payload(sender_id, payload_type, payload):
             image_url=image_url,
             card_url="http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),
             buttons=[{
-                'type'                 : "web_url",
-                'url'                  : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-                'title'                : "{points} Points".format(points=locale.format('%d', (price * 1250000), grouping=True))
+                'type'  : "web_url",
+                'url'   : "http://m.me/lmon8?ref=GamebotsDeposit{price}".format(price=price),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+                'title' : "{points} Points".format(points=locale.format('%d', (price * 1250000), grouping=True))
             }, {
                 'type' : "element_share"
             }],
@@ -2447,35 +2582,26 @@ def handle_payload(sender_id, payload_type, payload):
 
         send_card(
             recipient_id=sender_id,
-            title="Earn Points for More Flips",
-            subtitle="Launch Lmon8 Now",
+            title="Flip Shops for Points",
+            subtitle="Get Lmon8 now on Messenger ",
             image_url="https://i.imgur.com/eOaYJ0G.png",
             buttons=[{
                 'type'  : "web_url",
                 'url'   : "https://m.me/lmon8",
-                'title' : "Launch Lmon8"
+                'title' : "Get Lmon8"
             }, {
                 'type'  : "element_share"
             }],
             quick_replies=main_menu_quick_reply()
         )
 
+    elif payload == "FAQ":
+        send_tracker(fb_psid=sender_id, category="faq")
+        send_text(sender_id, "1. Wait up to 24 hours for each trade request.\n\n2. Accept trade request within one hour.\n\n3. You may purchase access to higher priced items.\n\n4. Each purchase gives you 2 more wins and 50 more chances.\n\n5. You may be banned for repeat abuse of our system, mods, support, and social staff.", main_menu_quick_reply())
+
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
-        # send_text(sender_id, "For support please direct message us on Twitter.com/gamebotsc")
-        #
-        # full_name, f_name, l_name = get_session_name(sender_id)
-        #
-        # payload = {
-        #     'channel'  : "#pre",
-        #     'username' : "gamebotsc",
-        #     'icon_url' : "https://cdn1.iconfinder.com/data/icons/logotypes/32/square-facebook-128.png",
-        #     'text'     : "*{user}* needs help…".format(user=sender_id if full_name is None else full_name),
-        # }
-        # response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-        # default_carousel(sender_id)
-
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
         try:
             conn.row_factory = sqlite3.Row
@@ -2488,7 +2614,7 @@ def handle_payload(sender_id, payload_type, payload):
             if row['support'] + 86400 <= int(time.time()):
                 set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
 
-                send_text(sender_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=sender_id))
+                send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(bot_type), fb_psid=sender_id))
                 send_text(
                     recipient_id=sender_id,
                     message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
@@ -2677,8 +2803,7 @@ def recieved_text_reply(sender_id, message_text):
         default_carousel(sender_id)
 
     elif message_text.lower() in Const.FAQ_REPLIES.split("|"):
-        send_text(sender_id, "1. Users may wait up to 24 hours to get their items transferred.\n\n2. You may only submit one support request per day.\n\n3. Your trade maybe rejected and or account banned for using multiple Facebook accounts.\n\n4. Your trade maybe rejected and or account banned if found to be aggressively abusing our system.\n\n5. Your trade maybe rejected and or account banned for repeat abuse of our mods, support, and social staff.")
-        send_text(sender_id, "6. Your trade maybe rejected and or account banned for repeat abuse of our social channels including posts, GAs, and more.\n\n7. Your account must have a correct steam Trade URL for your trade to transfer.\n\n8. You can earn more points by being a mod.\n\n9. You can only flip 100 times per day.\n\n10. You must keep notifications on for extra points.", main_menu_quick_reply())
+        send_text(sender_id, "1. Wait up to 24 hours for each trade request.\n\n2. Accept trade request within one hour.\n\n3. You may purchase access to higher priced items.\n\n4. Each purchase gives you 2 more wins and 50 more chances.\n\n5. You may be banned for repeat abuse of our system, mods, support, and social staff.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.SUPPORT_REPLIES.split("|"):
         conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
@@ -2693,7 +2818,7 @@ def recieved_text_reply(sender_id, message_text):
 
                 set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
 
-                send_text(sender_id, "Welcome to Lmon8 Support. Your user id has been identified: {fb_psid}".format(fb_psid=sender_id))
+                send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(get_session_bot_type(sender_id)), fb_psid=sender_id))
                 send_text(
                     recipient_id=sender_id,
                     message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",

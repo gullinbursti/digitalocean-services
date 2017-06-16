@@ -30,13 +30,13 @@ curl -X POST -H "Content-Type: application/json" -d '{
           "type":"postback",
           "payload":"MAIN_MENU"
         }, {
-          "title":"Flip Coin",
+          "title":"Flip",
           "type":"postback",
           "payload":"NEXT_ITEM"
         }, {
-          "title":"Shop Lmon8",
+          "title":"Deposit",
           "type":"postback",
-          "payload":"LMON8_REFERRAL"
+          "payload":"DEPOSIT-5"
         }
       ]
     }
@@ -68,3 +68,12 @@ curl -X POST -H "Content-Type: application/json" -d '{
 curl -X DELETE -H "Content-Type: application/json" -d '{
   "setting_type":"greeting"
 }' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
+
+
+
+Button:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "get_started":{
+    "payload":"WELCOME_MESSAGE"
+  }
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAbdOWMstfUBANZBWp7uzVZBXfeqt5pem13BhPKlVQQi6rSnNZBDIpKHuBcFmZCZBW1NkssFZCszZAY51OAlKWZBlDwVqBZBpl8pqnkqT9ljNQItDdhwRbb4dO0qruzcLPiWeXbuRI6kNxtOft55CBL9kp7ZAUZCdxhER2WWGgoJ1vkkQZDZD"
