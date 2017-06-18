@@ -638,7 +638,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(0, 1) > 1 / float(3):
+    if pay_wall is True or random.uniform(0, 1) <= 0.125:
         pay_wall = True
         deposit_cycle = cycle([0.00, 5.00, 10.00])
         next_deposit = deposit_cycle.next()
@@ -870,10 +870,10 @@ def coin_flip_results(sender_id, item_id=None):
     elif bot_type == Const.BOT_TYPE_CSGOHOMIE:
         image_url = "https://i.imgur.com/cnD7Wjo.gif"
     elif bot_type == Const.BOT_TYPE_CSGOBOOM:
-        image_url = "ttp://i.imgur.com/npTubyP.gif"
+        image_url = "https://i.imgur.com/npTubyP.gif"
     elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
         image_url = "https://i.imgur.com/hPhkG5C.gif"
-    
+
     send_image(sender_id, image_url)
     time.sleep(3.33)
 
@@ -1618,6 +1618,9 @@ def deposit_amount_for_price(price):
     elif price < 15.00:
         amount = 10
 
+    else:
+        amount = int(price)
+
     logger.info("deposit_amount_for_price(price=%s) ::::: %s" % (price, amount))
     return amount
 
@@ -1835,7 +1838,7 @@ def item_setup(sender_id, item_id, preview=False):
     logger.info("item_setup(sender_id=%s, item_id=%s, preview=%s)" % (sender_id, item_id, preview))
 
     if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
-        send_text(sender_id, "You have won 2 free items today. To Flip High Tier Items you must make a deposit. Get 2 More Wins Below.", main_menu_quick_reply())
+        send_text(sender_id, "To Flip high tier items you must make a deposit. Get 2 More Wins Below or wait 24 hours.", main_menu_quick_reply())
         return "OK", 200
 
     set_session_item(sender_id, item_id)
@@ -1843,7 +1846,7 @@ def item_setup(sender_id, item_id, preview=False):
     logger.info("ITEM --> %s", item)
 
     if item['price'] > 1.00 and get_session_deposit(sender_id) < 1.00:
-        send_text(sender_id, "To Flip High Tier Items you must make a deposit. Get 2 More Wins Below.")
+        send_text(sender_id, "To Flip high tier items you must make a deposit. Get 2 More Wins Below or wait 24 hours.")
         send_pay_wall(sender_id, item)
         return "OK", 200
 
@@ -2559,9 +2562,10 @@ def handle_payload(sender_id, payload_type, payload):
             recipient_id=sender_id,
             title="{bot_title} on Discord".format(bot_title=bot_title(bot_type)),
             image_url="https://discordapp.com/assets/ee7c382d9257652a88c8f7b7f22a994d.png",
-            card_url="https://discord.gg/eeU6GEB",
-            quick_replies=main_menu_quick_reply()
+            card_url="http://taps.io/BvR8w"
         )
+
+        send_text(sender_id, "Join {bot_title}'s Discord channel. Txt \"upload\" to transfer".format(bot_title=bot_title(get_session_bot_type(sender_id))), main_menu_quick_reply())
 
 
     elif payload == "INVITE":
@@ -2675,7 +2679,7 @@ def handle_payload(sender_id, payload_type, payload):
             'text'     : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if full_name is None else full_name, trade_url=trade_url)
         }
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-        send_text(sender_id, "Please wait for your free item to be verified. Note non credit users must wait 24 hours for item to transfer.")
+        send_text(sender_id, "Please wait up to 24 hours to transfer. Keep notifications on and accept trade within 1 hour.")
 
         set_session_state(sender_id)
         default_carousel(sender_id)
@@ -2711,14 +2715,14 @@ def handle_payload(sender_id, payload_type, payload):
                 'text'      : "Trade URL set for *{user}*:\n{trade_url}".format(user=sender_id if full_name is None else full_name, trade_url=trade_url)
             }
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
-            send_text(sender_id, "Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
+            send_text(sender_id, "Please wait up to 24 hours to transfer. Keep notifications on and accept trade within 1 hour.")
 
             set_session_state(sender_id)
             default_carousel(sender_id)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
             send_tracker(fb_psid=sender_id, category="lmon-name-entered")
-            send_text(sender_id, "Please wait for your Trade to clear, non credit users must wait 24 hours for trade to complete.")
+            send_text(sender_id, "Please wait up to 24 hours to transfer. Keep notifications on and accept trade within 1 hour.")
 
             clear_session_dub(sender_id)
             default_carousel(sender_id)
@@ -2942,7 +2946,7 @@ def recieved_text_reply(sender_id, message_text):
                 if conn:
                     conn.close()
 
-            send_text(sender_id, "Your message has been sent to support. We have received your support message and will reply as soon as we can. If want to be a support mod you can help speed this up. Note you can only submit 1 support request every 24 hours.", main_menu_quick_reply())
+            send_text(sender_id, "Your message has been sent to support. You can upload screenshots by txting \"upload\" now.", main_menu_quick_reply())
 
             full_name, f_name, l_name = get_session_name(sender_id)
             payload = {
@@ -2995,7 +2999,7 @@ def recieved_attachment(sender_id, attachment_type, attachment):
             'channel'     : "#uploads-001",
             'username '   : bot_title(get_session_bot_type(sender_id)),
             'icon_url'    : "https://i.imgur.com/bhSzZiO.png",
-            'text'        : "Image upload from *{user}* _{fb_psid}_".format(user=sender_id if full_name is None else full_name, fb_psid=sender_id),
+            'text'        : "Image upload from *{user}* _{fb_psid}_\n{trade_url}".format(user=sender_id if full_name is None else full_name, fb_psid=sender_id, trade_url=get_session_trade_url(sender_id)),
             'attachments' : [{
                 'image_url' : attachment['url']
             }]
@@ -3003,7 +3007,7 @@ def recieved_attachment(sender_id, attachment_type, attachment):
         response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
 
         #send_text(sender_id, "You have won 100 skin pts! Every 1000 skin pts you get a MAC 10 Neon Rider!\n\nTerms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
-        send_text(sender_id, "Terms: your pts will be rewarded once the screenshot you upload is verified.", main_menu_quick_reply())
+        send_text(sender_id, "Please wait up to 12 hours for approval.", main_menu_quick_reply())
 
     elif attachment_type != Const.PAYLOAD_ATTACHMENT_URL.split("-")[-1] or attachment_type != Const.PAYLOAD_ATTACHMENT_FALLBACK.split("-")[-1]:
         send_text(sender_id, "I'm sorry, I cannot understand that type of message.", home_quick_replies())
