@@ -18,8 +18,8 @@ class Const(Constants):
     STRIPE_DEV_API_KEY = "sk_test_3QTHaM9IjN2g3AI91Gqqaoxo"
     STRIPE_LIVE_API_KEY = "sk_live_XhtvWeK1aZ1ggqLrJ4Z0SOZZ"
 
-    # SLACK_TOKEN = "DdWzzWFEAqAnK9loyaIFvaFK"
     SLACK_TOKEN = "L8u66hlTDtzl9Hp6aK9gKkKZ"
+    STEAM_TOKEN = "0e8c3c25db9d52139ef41be8acffd194"
     PAYPAL_TOKEN = "882499ef6be6c2575a7a8b2be032e42f"
     IMPORT_STOREFRONT_TOKEN = "07f5057bb7d5be65101cb251bc26c748"
     REFUND_TOKEN = "7f47d7d76f9ddbf30b671040779ab787"
@@ -279,6 +279,7 @@ class Const(Constants):
     RESERVED_POINTS_REPLIES = "points"
     RESERVED_BONUS_AUTO_GEN_REPLIES = "bonus"
     RESERVED_TRADES_REPLIES = "trades"
+    RESERVED_STEAM_REPLIES = "steam"
     RESERVED_MODERATOR_REPLIES = "mod"
     RESERVED_TASKS_REPLIES = "tasks"
     RESERVED_GIAVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"

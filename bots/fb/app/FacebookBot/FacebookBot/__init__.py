@@ -2807,6 +2807,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
         send_message(json.dumps(data))
 
 
+
 def send_purchases_list_card(recipient_id, card_type=Const.CARD_TYPE_PRODUCT_PURCHASES):
     logger.info("send_purchases_list_card(recipient_id=%s, card_type=%s)" % (recipient_id, card_type))
 
@@ -4551,6 +4552,19 @@ def received_text_response(recipient_id, message_text):
             if conn:
                 conn.close()
 
+    #-- steam replies
+    elif message_text.lower() in Const.RESERVED_STEAM_REPLIES.split("|"):
+        send_message(json.dumps(build_standard_card(
+            recipient_id=recipient_id,
+            title="Link Steam",
+            image_url="https://image.freepik.com/free-icon/steam-logo-games-website_318-40350.jpg",
+            buttons=[
+                build_button(Const.CARD_BTN_URL_TALL, caption="Steam Login", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=recipient_id))
+            ],
+            quick_replies=main_menu_quick_replies(recipient_id)
+        )))
+
+
     #-- trade status replies
     elif message_text.lower() in Const.RESERVED_TRADES_REPLIES.split("|"):
         trades = {
@@ -5311,6 +5325,9 @@ def slack():
             amount = int(re.match(r'(?P<fb_psid>\d+)\ points\ (?P<amount>\-?\d+)$', request.form['text'].lower()).group('amount'))
             add_points(fb_psid, amount)
 
+            if amount > 0:
+                send_text(fb_psid,"You have just been rewarded {points} pts!".format(points=locale.format('%d', amount, grouping=True)), main_menu_quick_replies(fb_psid))
+
         elif re.search('^(\d+)\ close$', request.form['text'].lower()) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ close$', request.form['text'].lower()).group('fb_psid')
 
@@ -5454,6 +5471,28 @@ def paypal():
 
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
+
+@app.route('/steam/', methods=['POST'])
+def tac0_steam():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/steam/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.STEAM_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        fb_psid = request.form['fb_psid']
+        steam_id64 = request.form['steam_id64']
+
+        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\n{trade_url}".format(trade_url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=5W7Z44R-s"))
+
+    return "OK", 200
+
+
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
+
 @app.route('/user-add-points', methods=['POST'])
 def user_add_points():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -5468,7 +5507,6 @@ def user_add_points():
         send_text(
             recipient_id=request.form['fb_psid'],
             message_text="You have just been rewarded {points} pts!".format(points=locale.format('%d', int(request.form['points']), grouping=True)),
-            #message_text="Welcome to Lmon8 (live beta). You have been rewarded 500 Points. Flip On!",
             quick_replies=main_menu_quick_replies(request.form['fb_psid'])
         )
 
