@@ -20,6 +20,7 @@ class Const(Constants):
 
     SLACK_TOKEN = "L8u66hlTDtzl9Hp6aK9gKkKZ"
     STEAM_TOKEN = "0e8c3c25db9d52139ef41be8acffd194"
+    TRADER_TOKEN = "ef273536b112776fb137916807783bcc"
     PAYPAL_TOKEN = "882499ef6be6c2575a7a8b2be032e42f"
     IMPORT_STOREFRONT_TOKEN = "07f5057bb7d5be65101cb251bc26c748"
     REFUND_TOKEN = "7f47d7d76f9ddbf30b671040779ab787"
@@ -46,6 +47,7 @@ class Const(Constants):
     GA_TRACKING_ID = "UA-79705534-2"
     GA_TRACKING_URL = "http://www.google-analytics.com/collect"
 
+    MIN_POINTS_THRESHOLD = 1250000
     SQLITE_ID_START = 524288
     SUBSCRIBERS_MAX_FREE_TIER = 100
     PREMIUM_SHOP_PRICE = 4.99
@@ -282,7 +284,7 @@ class Const(Constants):
     RESERVED_STEAM_REPLIES = "steam"
     RESERVED_MODERATOR_REPLIES = "mod"
     RESERVED_TASKS_REPLIES = "tasks"
-    RESERVED_GIAVEAWAY_REPLIES = "giveaway|snap|twitter|ig|twitch|yt"
+    RESERVED_GIAVEAWAY_REPLIES = "ga|giveaway|snap|twitter|ig|twitch|yt"
     RESERVED_FBPSID_REPLIES = "id|referral"
     RESERVED_PROTECTED_REPLIES = "4x78"
     RESERVED_PIZZA_CODES = "p1zza|152dd|c84e6|56aeb|b95b2|90d6a|5dac8|a561e|a2e9d|df301|e5618|b272e|70b01|befb2|96466|c112f|e2587|7b16a|36d25|393de|c445f|38809|4fa71|a9f19|c3ddd|8fdb7|6874f|69624|3f8e7|09dbb|2d8c3|f483a|ade96|770a3|77823|6db3a|45336|4b11d|835f5|86a38|f087c|b2360|fc2a0|3df83|81374|ae3ed|15c01|3d0d5|84da0|c7add|9a323|7d3ae|06162|85a2c|f4e15|b10e9|ad47f|cb27b|94a1c|7204d|6d17a"

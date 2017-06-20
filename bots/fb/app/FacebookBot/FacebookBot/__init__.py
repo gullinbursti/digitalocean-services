@@ -114,6 +114,7 @@ class Customer(db.Model):
     trade_url = db.Column(db.String(255))
     paypal_name = db.Column(db.String(255))
     paypal_email = db.Column(db.String(255))
+    steam_id64 = db.Column(db.String(255))
     kik_name = db.Column(db.String(255))
     bitcoin_addr = db.Column(db.String(255))
     social = db.Column(db.String(255))
@@ -132,7 +133,7 @@ class Customer(db.Model):
         self.added = int(time.time())
 
     def __repr__(self):
-        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, trade_url=%s, paypal_name=%s, paypal_email=%s, social=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.trade_url, self.paypal_name, self.paypal_email, self.social, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
+        return "<Customer id=%s, fb_psid=%s, fb_name=%s, email=%s, bitcoin_addr=%s, referrer=%s, trade_url=%s, paypal_name=%s, paypal_email=%s, steam_id64=%s, social=%s, storefront_id=%s, product_id=%s, purchase_id=%s, points=%s, added=%s>" % (self.id, self.fb_psid, self.fb_name, self.email, self.bitcoin_addr, self.referrer, self.trade_url, self.paypal_name, self.paypal_email, self.steam_id64, self.social, self.storefront_id, self.product_id, self.purchase_id, self.points, self.added)
 
 
 class FBUser(db.Model):
@@ -2327,14 +2328,6 @@ def send_home_content(recipient_id):
             increment_shop_views(recipient_id, product.id)
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
-            # purchase = Purchase.query.filter(Purchase.customer_id == customer.id).filter(Purchase.product_id == product.id).first()
-            # if purchase is not None:
-            #     customer.purchase_id = purchase.id
-            #     db.session.commit()
-            #     send_customer_carousel(recipient_id, product.id)
-            #
-            # else:
-            #     send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
         else:
             send_admin_carousel(recipient_id)
     else:
@@ -2396,24 +2389,6 @@ def send_admin_carousel(recipient_id):
         else:
             cards.append(build_sponsor_element())
             purchases = Purchase.query.filter(Purchase.storefront_id == storefront.id).all()
-            # if len(purchases) > 0:
-            #     if len(purchases) == 1:
-            #         subtitle = "1 Purchase"
-            #
-            #     else:
-            #         subtitle = "{total} Purchases".format(total=len(purchases))
-            #
-            #     cards.append(
-            #         build_card_element(
-            #             title="My Orders",
-            #             subtitle=subtitle,
-            #             image_url=Const.IMAGE_URL_PURCHASES_CARD,
-            #             buttons=[
-            #                 build_button(Const.CARD_BTN_POSTBACK, caption="Message", payload=Const.PB_PAYLOAD_MESSAGE_CUSTOMERS)
-            #             ]
-            #         )
-            #     )
-
             cards.append(
                 build_card_element(
                     title="Refer a Friend",
@@ -3149,7 +3124,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         if product.storefront_id is not None:
             storefront, product = clone_storefront(recipient_id, product.storefront_id)
             if storefront is not None and product is not None:
-                add_points(recipient_id, Const.POINT_AMOUNT_RESELL_STOREFRONT)
                 send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
                 send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
                 send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
@@ -3162,7 +3136,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif re.search(r'^AUTO_GEN_STOREFRONT\-(.+)$', payload) is not None:
         storefront, product = autogen_storefront(recipient_id, re.match(r'^AUTO_GEN_STOREFRONT\-(?P<key>.+)$', payload).group('key'))
         if storefront is not None and product is not None:
-            add_points(recipient_id, Const.POINT_AMOUNT_RESELL_STOREFRONT)
             send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
             send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
             send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
@@ -4623,10 +4596,41 @@ def received_text_response(recipient_id, message_text):
             if conn:
                 conn.close()
 
+
     #-- giveaway reply
     elif message_text.lower() in Const.RESERVED_GIAVEAWAY_REPLIES.split("|"):
-        send_text(recipient_id, "You have completed a virtual item giveaway entry. User {queue} of {total}. You will be messaged here when the winner is selected.".format(queue=locale.format('%d', queue_position(recipient_id), grouping=True), total=locale.format('%d', int(queue_position(recipient_id) * 2.125), grouping=True)))
-        #send_text(recipient_id, "Instructions:\n\n1. LIKE fb.com/lmon8\n\n2. FOLLOW twitter.com/lmon8de\n\n3. ADD snapchat.com/add/game.bots", main_menu_quick_replies(recipient_id))
+        product_name = None
+        image_url = None
+        total = 0
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `giveaways` WHERE `fb_psid` = %s AND `added` >= UTC_DATE() LIMIT 1;', (recipient_id,))
+
+                if cur.fetchone() is None:
+                    cur.execute('INSERT INTO `giveaways` (`id`, `user_id`, `fb_psid`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid))
+                    conn.commit()
+
+                cur.execute('SELECT COUNT(*) AS `total` FROM `giveaways` WHERE `added` >= UTC_DATE() LIMIT 1;')
+                total = max(0, cur.fetchone()['total'] - 1)
+
+                with open("/var/www/FacebookBot/FacebookBot/data/txt/giveaways.txt") as fp:
+                    for i, line in enumerate(fp):
+                        if i == datetime.now().day:
+                            product_name = line.split(",")[0]
+                            image_url = line.split(",")[-1]
+                            break
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(recipient_id, "You have completed a virtual item giveaway entry with {total} other player{suff} for today. You will be messaged here when the winner is selected.\n\nToday's item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name))
+        send_image(recipient_id, image_url, quick_replies=main_menu_quick_replies(recipient_id))
 
     #-- reserved points reply
     elif message_text.lower() in Const.RESERVED_POINTS_REPLIES.split("|"):
@@ -4963,7 +4967,7 @@ def received_text_response(recipient_id, message_text):
                 elif product.creation_state == 2:
                     if re.sub(r'[\$\.,\ ]', "", message_text).isdigit():
                         product.creation_state = 4
-                        product.price = round(float(re.sub(r'\$', "", message_text)), 2)
+                        product.price = round(float(re.sub(r'[\$\.,\ ]', "", message_text)), 2)
 
                         product.release_date = calendar.timegm((datetime.utcnow() + relativedelta(months=0)).replace(hour=0, minute=0, second=0, microsecond=0).utctimetuple())
                         db.session.commit()
@@ -5163,7 +5167,7 @@ def handle_wrong_reply(recipient_id):
 
 
 @app.route('/', methods=['POST'])
-def fbbot():
+def webhook():
 
     #if 'delivery' in request.data or 'read' in request.data or 'optin' in request.data:
     #return "OK", 200
@@ -5242,15 +5246,38 @@ def fbbot():
                 logger.info("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
                 logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n")
 
-                if random.uniform(1, 100) < 10:
-                    queue_position(customer.fb_psid)
-
-
                 #-- catch all
-                # if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
-                #     send_text(customer.fb_psid, "Lmon8 is currently down for maintenance.")
-                #     return "OK", 200
+                if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
+                    send_text(customer.fb_psid, "Lmon8 is currently down for maintenance.")
+                    return "OK", 200
 
+                if customer.steam_id64 is None:
+                    send_text(customer.fb_psid, "Welcome to Lmon8. Please sign into Steam for verification.")
+                    send_message(json.dumps(build_standard_card(
+                        recipient_id=customer.fb_psid,
+                        title="Connect Steam to Get Started",
+                        image_url="https://image.freepik.com/free-icon/steam-logo-games-website_318-40350.jpg",
+                        buttons=[
+                            build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
+                        ],
+                        quick_replies=None
+                    )))
+
+                else:
+                    # if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
+                    send_text(customer.fb_psid, "Steam had been connected to your Lmon8 account.")
+                    send_message(json.dumps(build_standard_card(
+                        recipient_id=customer.fb_psid,
+                        title="Trade any item to enter now",
+                        image_url="https://image.freepik.com/free-icon/steam-logo-games-website_318-40350.jpg",
+                        buttons=[
+                            build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
+                        ],
+                        quick_replies=None
+                    )))
+                    send_text(customer.fb_psid, "To enter Lmon8 please trade any item from your inventory. (Can be Trash)")
+
+                return "OK", 200
 
                 #-- payment response
                 if 'payment' in messaging_event:
@@ -5360,58 +5387,8 @@ def slack():
 
     return "OK", 200
 
-# def slack():
-#     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-#     logger.info("=-=-=-=-=-= POST --\»  '/slack/'")
-#     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-#     logger.info("request.form=%s" % (", ".join(request.form)))
-#     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-#
-#     if request.form['token'] == Const.SLACK_TOKEN:
-#         channel_id = request.form['channel_id']
-#         message_text = request.form['text'].replace(request.form['trigger_word'], "")
-#
-#         if re.search(r'^\ \d+\ .*$', message_text) is not None:
-#             match = re.match(r'^\ (?P<purchase_id>\d+)\ (?P<message_txt>.*)$', message_text)
-#             purchase_id = match.group('purchase_id')
-#             message_txt = match.group('message_txt')
-#
-#             logger.info("purchase_id=%s\tmessage_txt=%s" % (purchase_id, message_txt))
-#
-#             purchase = Purchase.query.filter(Purchase.id == purchase_id).first()
-#             if purchase is not None:
-#                 if message_txt.lower() == "close":
-#                     route_purchase_dm(channel_id, purchase, Const.DM_ACTION_CLOSE)
-#
-#                 else:
-#                     route_purchase_dm(channel_id, purchase, Const.DM_ACTION_SEND, message_txt)
-#
-#             else:
-#                 logger.info("PURCHASE NOT FOUND!!")
-#                 slack_outbound(
-#                     channel_name="lemonade-shops",
-#                     message_text="Couldn't locate that purchase!",
-#                     webhook=Const.SLACK_SHOPS_WEBHOOK
-#                 )
-#
-#         else:
-#             logger.info("PURCHASE NOT FOUND!!")
-#             slack_outbound(
-#                 channel_name="lemonade-shops",
-#                 message_text="Couldn't locate that purchase!",
-#                 webhook=Const.SLACK_SHOPS_WEBHOOK
-#             )
-#
-#     else:
-#         logger.info("INAVLID TOKEN!!")
-#         slack_outbound(
-#             channel_name="lemonade-shops",
-#             message_text="Invalid token!",
-#             webhook=Const.SLACK_SHOPS_WEBHOOK
-#         )
-#
-#     return "OK", 200
 
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
 @app.route('/paypal', methods=['POST'])
@@ -5473,7 +5450,7 @@ def paypal():
 
 
 @app.route('/steam/', methods=['POST'])
-def tac0_steam():
+def steam():
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
     logger.info("=-=-=-=-=-= POST --\  '/steam/'")
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
@@ -5486,9 +5463,74 @@ def tac0_steam():
         fb_psid = request.form['fb_psid']
         steam_id64 = request.form['steam_id64']
 
-        send_text(fb_psid, "Steam auth complete!\n\nSubmit your items to this trade URL, you have 15 minutes\n\n{trade_url}".format(trade_url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=5W7Z44R-s"))
+        logger.info("fb_psid=%s, steam_id64=%s" % (fb_psid, steam_id64))
+
+        customer = Customer.query.filter(Customer.fb_psid == fb_psid).first()
+        if customer is not None:
+            customer.steam_id64 = steam_id64
+            db.session.commit();
+
+        send_text(fb_psid, "Steam had been connected to your Lmon8 account.")
+        send_message(json.dumps(build_standard_card(
+            recipient_id=fb_psid,
+            title="Trade any item to enter now",
+            image_url="https://image.freepik.com/free-icon/steam-logo-games-website_318-40350.jpg",
+            buttons=[
+                build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
+            ],
+            quick_replies=None
+        )))
+        send_text(fb_psid, "To enter Lmon8 please trade any item from your inventory. (Can be Trash)")
 
     return "OK", 200
+
+
+@app.route('/trader/', methods=['POST'])
+def trader():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/trader/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.TRADER_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        item_name = request.form['item_name']
+        steam_id64 = request.form['steam_id64']
+
+        fb_psid = None
+        price = 0.00
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `fb_psid` FROM `steam_users` WHERE `steam_id64` = %s LIMIT 1;', (steam_id64,))
+                row = cur.fetone()
+                if row is not None:
+                    fb_psid = row['fb_psid']
+
+                cur.execute('SELECT `price` FROM `item_offers` WHERE `item_name` = %s LIMIT 1;', (item_name,))
+                row = cur.fetone()
+                if row is not None:
+                    price = row['price']
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        points = int(points * Const.POINTS_PER_DOLLAR)
+        send_text(fb_psid, "Received your item {item_name}, {points} PTS have been added to your Lmon8 account.".format(item_name=item_name, points=locale.format('%d', points, grouping=True)))
+        add_points(fb_psid, points)
+
+        customer = Customer.query.filter(Customer.fb_psid == fb_psid).first()
+
+    return "OK", 200
+
 
 
 # -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
@@ -5511,6 +5553,9 @@ def user_add_points():
         )
 
     return "OK", 200
+
+
+# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
 @app.route('/import-storefront', methods=['POST'])
@@ -5798,65 +5843,3 @@ if __name__ == '__main__':
 
     logger.info("Firin up FbBot using verify token [%s]." % (Const.VERIFY_TOKEN))
     app.run(debug=True)
-
-
-
-
-#-=-# TODO: #-=-#
-'''
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def catch_all(path):
-    return 'You want path: %s' % path
-
-
-def get_serializer(secret_key=None):
-    return URLSafeSerializer(secret_key=app.secret_key if secret_key is None else secret_key)
-
-
-def get_activation_link(user):
-    s = get_serializer()
-    payload = s.dumps(user.id)
-    return url_for('activate_user', payload=payload, _external=True)
-
-
-@app.route('/storefront/activate/<payload>', methods=['POST'])
-def activate_user(payload):
-    s = get_serializer()
-
-    try:
-        user_id = s.loads(payload)
-
-    except BadSignature:
-        abort(404)
-
-    user = User.query.get_or_404(user_id)
-    user.activate()
-    flash('User activated')
-    return redirect(url_for('index'))
-
-
-def redeem_voucher(payload):
-    s = get_serializer()
-    try:
-        user_id, voucher_id = s.loads(payload)
-    except BadSignature:
-        abort(404)
-
-    user = User.query.get_or_404(user_id)
-    voucher = Voucher.query.get_or_404(voucher_id)
-    voucher.redeem_for(user)
-    flash('Voucher redeemed')
-    return redirect(url_for('index'))
-
-
-def get_redeem_link(user, voucher):
-    s = get_serializer()
-    payload = s.dumps([user.id, voucher.id])
-    return url_for('redeem_voucher', payload=payload,
-                   _external=True)
-
-
-# -- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
-
-'''
