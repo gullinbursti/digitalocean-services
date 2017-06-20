@@ -130,6 +130,21 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
         return Const.CSGOSMOKE_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_CSGOFAST:
+        return Const.CSGOFAST_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOFLASHY:
+        return Const.CSGOFLASHY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGONASTY:
+        return Const.CSGONASTY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOLOLZ:
+        return Const.CSGOLOLZ_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBEEF:
+        return Const.CSGOBEEF_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -219,8 +234,20 @@ def bot_webhook_type(webhook):
     elif webhook == "csgosmoke":
         return Const.BOT_TYPE_CSGOSMOKE
 
+    elif webhook == "csgofast":
+        return Const.BOT_TYPE_CSGOFAST
 
+    elif webhook == "csgoflashy":
+        return Const.BOT_TYPE_CSGOFLASHY
 
+    elif webhook == "csgonasty":
+        return Const.BOT_TYPE_CSGONASTY
+
+    elif webhook == "csgololz":
+        return Const.BOT_TYPE_CSGOLOLZ
+
+    elif webhook == "csgobeef":
+        return Const.BOT_TYPE_CSGOBEEF
 
 
 def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
@@ -332,6 +359,21 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOSMOKE:
         return "CSGOSmoke"
 
+    elif bot_type == Const.BOT_TYPE_CSGOFAST:
+        return "CSGOFast"
+
+    elif bot_type == Const.BOT_TYPE_CSGOFLASHY:
+        return "CSGOFlashy"
+
+    elif bot_type == Const.BOT_TYPE_CSGONASTY:
+        return "CSGONasty"
+
+    elif bot_type == Const.BOT_TYPE_CSGOLOLZ:
+        return "CSGOlolz"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBEEF:
+        return "CSGOBeef"
+
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
     logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
@@ -359,17 +401,15 @@ def send_tracker(fb_psid, category, action=None, label=None, value=None):
     c.close()
 
 
-    # c = pycurl.Curl()
-    # c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category={category}&action={category}&label={label}&value=&cid={cid}".format(category=category, action=category, label=action, cid=hashlib.md5(action.encode()).hexdigest()))
-    # c.setopt(c.WRITEDATA, StringIO())
-    # c.perform()
-    # c.close()
-    #
-    # c = pycurl.Curl()
-    # c.setopt(c.URL, "http://beta.modd.live/api/bot_tracker.php?src=facebook&category=user-message&action=user-message&label={label}&value=&cid={cid}".format(label=action, cid=hashlib.md5(action.encode()).hexdigest()))
-    # c.setopt(c.WRITEDATA, StringIO())
-    # c.perform()
-    # c.close()
+    payload['tid'] = "UA-79705534-2"
+
+    c = pycurl.Curl()
+    c.setopt(c.URL, Const.GA_TRACKING_URL)
+    c.setopt(c.POSTFIELDS, urlencode(payload))
+    c.setopt(c.WRITEDATA, StringIO())
+    c.perform()
+    c.close()
+
 
     return True
 
@@ -638,7 +678,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
-    if pay_wall is True or random.uniform(0, 1) <= 0.125:
+    if pay_wall is True or random.uniform(0, 1) <= 1 / float(3):
         pay_wall = True
         deposit_cycle = cycle([0.00, 5.00, 10.00])
         next_deposit = deposit_cycle.next()
