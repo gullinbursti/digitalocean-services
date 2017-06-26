@@ -145,6 +145,21 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOBEEF:
         return Const.CSGOBEEF_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_CSGOWILD:
+        return Const.CSGOWILD_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOMASSIVE:
+        return Const.CSGOMASSIVE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOCHAMP:
+        return Const.CSGOCHAMP_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOCARTEL:
+        return Const.CSGOCARTEL_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOMAFIA:
+        return Const.CSGOMAFIA_ACCESS_TOKEN
+
 
 
 def bot_webhook_type(webhook):
@@ -248,6 +263,22 @@ def bot_webhook_type(webhook):
 
     elif webhook == "csgobeef":
         return Const.BOT_TYPE_CSGOBEEF
+
+    elif webhook == "csgowild":
+        return Const.BOT_TYPE_CSGOWILD
+
+    elif webhook == "csgomassive":
+        return Const.BOT_TYPE_CSGOMASSIVE
+
+    elif webhook == "csgochamp":
+        return Const.BOT_TYPE_CSGOCHAMP
+
+    elif webhook == "csgocartel":
+        return Const.BOT_TYPE_CSGOCARTEL
+
+    elif webhook == "csgomafia":
+        return Const.BOT_TYPE_CSGOMAFIA
+
 
 
 def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
@@ -373,6 +404,21 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_CSGOBEEF:
         return "CSGOBeef"
+
+    elif bot_type == Const.BOT_TYPE_CSGOWILD:
+        return "CSGOWild"
+
+    elif bot_type == Const.BOT_TYPE_CSGOMASSIVE:
+        return "CSGOMassive"
+
+    elif bot_type == Const.BOT_TYPE_CSGOCHAMP:
+        return "CSGOChamp"
+
+    elif bot_type == Const.BOT_TYPE_CSGOCARTEL:
+        return "CSGOCartel"
+
+    elif bot_type == Const.BOT_TYPE_CSGOMAFIA:
+        return "CSGOMafia"
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
@@ -546,6 +592,30 @@ def default_carousel(sender_id, amount=1):
     )
 
 
+def send_discord_card(sender_id):
+    logger.info("send_discord_card(sender_id=%s)" % (sender_id,))
+
+    send_card(
+        recipient_id=sender_id,
+        title="{bot_title} on Discord".format(bot_title=bot_title(get_session_bot_type(sender_id))),
+        image_url="https://discordapp.com/assets/ee7c382d9257652a88c8f7b7f22a994d.png",
+        card_url="http://taps.io/BvR8w",
+        quick_replies=main_menu_quick_reply()
+    )
+
+
+def send_install_card(sender_id):
+    logger.info("send_install_card(sender_id=%s)" % (sender_id,))
+
+    send_card(
+        recipient_id=sender_id,
+        title="Earn More Points",
+        image_url="https://i.imgur.com/DbcITTT.png",
+        card_url="http://taps.io/Bvj-A",
+        quick_replies=main_menu_quick_reply()
+    )
+
+
 def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
 
@@ -569,15 +639,15 @@ def send_pay_wall(sender_id, item):
 
         element['buttons'].append({
             'type'                : "web_url",
-            'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(1, deposit_amount_for_price(item['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
-            'title'               : "Paypal - ${price}".format(price=deposit_amount_for_price(item['price'])),
+            'url'                 : "http://gamebots.chat/paypal/{fb_psid}/{price}".format(fb_psid=sender_id, price=max(5, deposit_amount_for_price(item['price']))),  # if sender_id in Const.ADMIN_FB_PSID else "http://paypal.me/gamebotsc/{price}".format(price=price),
+            'title'               : "Paypal - ${price}".format(price=max(5, deposit_amount_for_price(item['price']))),
             'webview_height_ratio': "tall"
         })
 
         element['buttons'].append({
             'type'   : "postback",
-            'payload': "POINTS-{price}".format(price=deposit_amount_for_price(item['price'])),
-            'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
+            'payload': "POINTS-{price}".format(price=max(5, deposit_amount_for_price(item['price']))),
+            'title'  : "{points} Points".format(points=locale.format('%d', max(5, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
         })
 
     else:
@@ -678,6 +748,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     item_id = None
     deposit = get_session_deposit(sender_id)
 
+    min_price = 0.00
     if pay_wall is True or random.uniform(0, 1) <= 1 / float(3):
         pay_wall = True
         deposit_cycle = cycle([0.00, 5.00, 10.00])
@@ -721,8 +792,8 @@ def next_coin_flip_item(sender_id, pay_wall=False):
                     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s ORDER BY RAND() LIMIT 1;', (game_name, min_price))
 
                 else:
-                    logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name,)),))
-                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name,))
+                    logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price)),))
+                    cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price))
 
                 row = cur.fetchone()
                 if row is None:
@@ -964,7 +1035,8 @@ def coin_flip_results(sender_id, item_id=None):
     set_session_bonus(sender_id)
 
     if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True:# or sender_id in Const.ADMIN_FB_PSID:
-        send_tracker(fb_psid=sender_id, category="win", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="flip-win", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="purchase", label=flip_item['asset_name'], value=flip_item['price'])
 
         payload = {
             'v'  : 1,
@@ -1041,7 +1113,7 @@ def coin_flip_results(sender_id, item_id=None):
             )
 
     else:
-        send_tracker(fb_psid=sender_id, category="loss", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="flip-loss", label=flip_item['asset_name'], value=flip_item['price'])
         record_coin_flip(sender_id, item_id, False)
         inc_session_loss_streak(sender_id)
 
@@ -1579,17 +1651,17 @@ def all_available_quantity():
 def win_mulitplier(sender_id):
     logger.info("win_mulitplier(sender_id=%s)" % (sender_id,))
 
-    if get_session_deposit(sender_id) < 1:
+    if get_session_deposit(sender_id) <= 1:
         return 1
 
-    elif get_session_deposit(sender_id) < 2:
+    elif get_session_deposit(sender_id) <= 2:
         return 2
 
-    elif get_session_deposit(sender_id) < 5:
+    elif get_session_deposit(sender_id) <= 5:
         return 3
 
-    elif get_session_deposit(sender_id) < 10:
-        return 4
+    elif get_session_deposit(sender_id) <= 10:
+        return 3
 
 
 def flips_last_day(sender_id):
@@ -1964,6 +2036,7 @@ def tac0_webhook():
                 if 'read' in messaging_event:  # read confirmation
                     logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
                     send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    send_tracker(fb_psid=messaging_event['sender']['id'], category="active")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
@@ -1987,7 +2060,7 @@ def tac0_webhook():
                 # -- new entry
                 if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
                     logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
-                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
+                    send_tracker(fb_psid=sender_id, category="sign-up")
 
                     set_session_state(sender_id)
                     set_session_bot_type(sender_id, bot_type)
@@ -2125,7 +2198,7 @@ def webhook(bot_webhook):
                 quick_reply = messaging_event['message']['quick_reply']['payload'] if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'quick_reply' in messaging_event['message']['quick_reply'] else None  # (if 'message' in messaging_event and 'quick_reply' in messaging_event['message'] and 'payload' in messaging_event['message']['quick_reply']) else None:
                 logger.info("QR --> %s" % (quick_reply or None,))
 
-                if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859":
+                if sender_id == "1395098457218675" or sender_id == "1034583493310197" or sender_id == "1467685003302859" or sender_id == "1439329449472645":
                     logger.info("-=- BYPASS-USER -=-")
                     return "OK", 200
 
@@ -2150,7 +2223,7 @@ def webhook(bot_webhook):
                 # -- new entry
                 if get_session_state(sender_id) == Const.SESSION_STATE_NEW_USER:
                     logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
-                    send_tracker(fb_psid=sender_id, category="sign-up-fb")
+                    send_tracker(fb_psid=sender_id, category="sign-up")
 
                     set_session_state(sender_id)
                     set_session_bot_type(sender_id, bot_type)
@@ -2169,6 +2242,8 @@ def webhook(bot_webhook):
                         logger.info("REFERRAL ---> %s", (referral,))
                         if referral.split("/")[-1].startswith("gb"):
                             if valid_purchase_code(sender_id, referral):
+                                send_tracker(fb_psid=sender_id, category="purchase")
+
                                 purchase_code = referral.split("/")[-1]
                                 full_name, first_name, last_name = get_session_name(sender_id)
                                 conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -2485,8 +2560,6 @@ def slack(bot_webhook):
 
 def recieved_quick_reply(sender_id, quick_reply):
     logger.info("recieved_quick_reply(sender_id=%s, quick_reply=%s)" % (sender_id, quick_reply))
-
-    # send_tracker("{show}-button".format(show=quick_reply.split("_")[-1].lower()), sender_id, "")
     logger.info("QR --> %s" % (quick_reply,))
 
     handle_payload(sender_id, Const.PAYLOAD_TYPE_OTHER, quick_reply)
@@ -2515,19 +2588,17 @@ def handle_payload(sender_id, payload_type, payload):
 
     bot_type = get_session_bot_type(sender_id)
     if payload == "MAIN_MENU":
-        # send_tracker("todays-item", sender_id, "")
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
     elif payload == "MAIN_MENU_ALT":
-        send_tracker(fb_psid=sender_id, category="weekend-blast")
         clear_session_dub(sender_id)
         default_carousel(sender_id)
 
 
     elif payload == "WELCOME_MESSAGE":
         logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
-        # send_tracker("signup-fb", sender_id, "")
+        send_tracker("sign-up", sender_id, "")
         default_carousel(sender_id)
 
 
@@ -2539,15 +2610,24 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "NEXT_ITEM":
         send_tracker(fb_psid=sender_id, category="next-item")
-        row = next_coin_flip_item(sender_id)
 
-        if row is None:
-            send_text(sender_id, "Can't find that item! Try flipping again", main_menu_quick_reply())
-            default_carousel(sender_id)
-            return "OK", 200
+        if random.uniform(0, 1) > 0.80:
+            if random.uniform(0, 1) > 0.80:
+                send_install_card(sender_id)
 
-        item_id = row['id']
-        item_setup(sender_id, item_id, True)
+            else:
+                send_discord_card(sender_id)
+
+        else:
+            row = next_coin_flip_item(sender_id)
+
+            if row is None:
+                send_text(sender_id, "Can't find that item! Try flipping again", main_menu_quick_reply())
+                default_carousel(sender_id)
+                return "OK", 200
+
+            item_id = row['id']
+            item_setup(sender_id, item_id, True)
 
 
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
@@ -2596,15 +2676,8 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "DISCORD":
         send_tracker(fb_psid=sender_id, category="discord")
-        # send_text(sender_id, "https://discord.gg/eeU6GEB", main_menu_quick_reply())
 
-        send_card(
-            recipient_id=sender_id,
-            title="{bot_title} on Discord".format(bot_title=bot_title(bot_type)),
-            image_url="https://discordapp.com/assets/ee7c382d9257652a88c8f7b7f22a994d.png",
-            card_url="http://taps.io/BvR8w"
-        )
-
+        send_discord_card(sender_id)
         send_text(sender_id, "Join {bot_title}'s Discord channel. Txt \"upload\" to transfer".format(bot_title=bot_title(get_session_bot_type(sender_id))), main_menu_quick_reply())
 
 
@@ -2761,7 +2834,6 @@ def handle_payload(sender_id, payload_type, payload):
             default_carousel(sender_id)
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_LMON8_URL:
-            send_tracker(fb_psid=sender_id, category="lmon-name-entered")
             send_text(sender_id, "Please wait up to 24 hours to transfer. Keep notifications on and accept trade within 1 hour.")
 
             clear_session_dub(sender_id)
@@ -2823,7 +2895,6 @@ def handle_payload(sender_id, payload_type, payload):
         default_carousel(sender_id)
 
     elif payload == "NO_THANKS":
-        # send_tracker("no-thanks", sender_id, "")
         default_carousel(sender_id)
 
 

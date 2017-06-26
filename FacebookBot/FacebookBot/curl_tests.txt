@@ -43,6 +43,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
   ]
 }' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
 
+while read l ; do curl -X POST -H "Content-Type: application/json" -d '{"persistent_menu":[{"locale":"default","composer_input_disabled":false,"call_to_actions":[{"title":"Menu","type":"postback","payload":"MAIN_MENU"}, {"title":"Flip","type":"postback","payload":"NEXT_ITEM"}, {"title":"Deposit","type":"postback","payload":"DEPOSIT-5"}]}]}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
 
 
 curl -X DELETE -H "Content-Type: application/json" -d '{
@@ -57,9 +58,9 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Welcome to CSGOSmoke on Messenger."
+    "text":"Welcome to CSGOMafia on Messenger."
   }
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAbdOWMstfUBAA5AqaHg43SZBcKLeWhRqlz1ZCxSDHEukohTZCOf1NOdVcGe4k93DKQ62VK6jpepsuQlGDzPER1dCsuQbsDgWPZC4rWExaWryRS3lvnl3itcB1pFZAmxruBNfyhp1Oy8i7sTSpHWFcy84I7nPNzj5tyxlRgjaZCwZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADRndz6bqMBAA1XqZC2Qu3v06KyoMJ5HrttNBFV5RDuELgsvkV5uUTLjOdku7AX4OflR4ITmdBIJGrGAMpvcEv7Wn5lNWwICfGmfDTKD0e43ZAMizgmWMyiKZCnTRk6mf3UcBXVARAcUzteKBjTZCwqJhZBj5jfKz1AMFLRVtgZDZD"
 
 {{user_first_name}}
 {{user_last_name}}
@@ -77,3 +78,5 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "payload":"WELCOME_MESSAGE"
   }
 }' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAbdOWMstfUBANZBWp7uzVZBXfeqt5pem13BhPKlVQQi6rSnNZBDIpKHuBcFmZCZBW1NkssFZCszZAY51OAlKWZBlDwVqBZBpl8pqnkqT9ljNQItDdhwRbb4dO0qruzcLPiWeXbuRI6kNxtOft55CBL9kp7ZAUZCdxhER2WWGgoJ1vkkQZDZD"
+
+while read l ; do curl -X POST -H "Content-Type: application/json" -d '{"get_started":{"payload":"WELCOME_MESSAGE"}}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
