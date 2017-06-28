@@ -798,7 +798,8 @@ def add_points(recipient_id, amount=0):
                 cur.execute('UPDATE `users` SET `points` = `points` + %s WHERE `id` = %s LIMIT 1;', (amount, customer.id))
                 conn.commit()
                 cur.execute('SELECT `points` FROM `users` WHERE `id` = %s LIMIT 1;', (customer.id,))
-                customer.points = int(cur.fetchone()['points'])
+                row = cur.fetchone()
+                customer.points = 0 if row is None else int(row['points'])
                 db.session.commit()
 
         except mysql.Error, e:
@@ -808,7 +809,7 @@ def add_points(recipient_id, amount=0):
             if conn:
                 conn.close()
 
-        send_tracker(fb_psid=recipient_id, category="add-points", action="{fb_psid} / {full_name}".format(fb_psid=recipient_id, full_name="N/A" if fb_user is None else fb_user.full_name_utf8), label=customer.points)
+        # send_tracker(fb_psid=recipient_id, category="add-points", action="{fb_psid} / {full_name}".format(fb_psid=recipient_id, full_name="N/A" if fb_user is None else fb_user.full_name_utf8), label=customer.points)
 
 
 def customer_points_rank(recipient_id):
@@ -938,6 +939,7 @@ def add_cc_payment(recipient_id):
 
 def flip_product(recipient_id, product):
     logger.info("flip_product(recipient_id=%s, product=%s)" % (recipient_id, product))
+    send_tracker(fb_psid=recipient_id, category="flip", label=product.display_name_utf8)
 
     storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
@@ -947,7 +949,7 @@ def flip_product(recipient_id, product):
         db.session.commit()
 
     outcome = random.uniform(0, 1) < (1 / float(5)) if "disneyjp" not in product.tag_list_utf8 else True
-    send_tracker(fb_psid=recipient_id, category="flip-%s" % ("win" if outcome is True else "lose",), label=product.display_name_utf8)
+    send_tracker(fb_psid=recipient_id, category="%s" % ("win" if outcome is True else "loss",), label=product.display_name_utf8)
 
     if "disneyjp" in product.tag_list_utf8:
         send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
@@ -955,7 +957,7 @@ def flip_product(recipient_id, product):
     send_image(recipient_id, Const.IMAGE_URL_FLIP_START, "248316088977561")
     add_points(recipient_id, Const.POINT_AMOUNT_FLIP_STOREFRONT_WIN)
     if outcome is True:  # or (recipient_id in Const.ADMIN_FB_PSIDS and random.uniform(0, 100) < 80):
-        send_tracker(fb_psid=recipient_id, category="purchase", label=product.display_name_utf8)
+        send_tracker(fb_psid=recipient_id, category="transaction", label=product.display_name_utf8)
         code = hashlib.md5(str(time.time()).encode()).hexdigest()[-4:].upper()
 
         try:
@@ -1016,7 +1018,7 @@ def view_product(recipient_id, product, welcome_entry=False):
 
         customer.product_id = product.id
         db.session.commit()
-        send_tracker(fb_psid=recipient_id, category="view-shop", label=product.display_name_utf8)
+        # send_tracker(fb_psid=recipient_id, category="view-shop", label=product.display_name_utf8)
         increment_shop_views(recipient_id, product.id)
 
         add_points(recipient_id, Const.POINT_AMOUNT_VIEW_PRODUCT)
@@ -1128,7 +1130,7 @@ def purchase_product(recipient_id, source):
 
                     db.session.add(purchase)
                     db.session.commit()
-                    send_tracker(fb_psid=recipient_id, category="purchase-complete-bitcoin")
+                    # send_tracker(fb_psid=recipient_id, category="purchase-complete-bitcoin")
 
                     send_text(recipient_id, "Notifying the shop owner for your invoice.", [build_quick_reply(Const.KWIK_BTN_TEXT, caption="OK", payload=Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE)])
 
@@ -1148,7 +1150,7 @@ def purchase_product(recipient_id, source):
                     #logger.info(":::::::::] CHARGE RESPONSE [:::::::::::\n%s" % (stripe_charge))
 
                     if stripe_charge['status'] == "succeeded":
-                        send_tracker(fb_psid=recipient_id, category="purchase-complete-stripe")
+                        # send_tracker(fb_psid=recipient_id, category="purchase-complete-stripe")
 
                         purchase = Purchase(customer.id, storefront.id, product.id, 1, stripe_charge.id)
                         db.session.add(purchase)
@@ -1207,7 +1209,7 @@ def purchase_product(recipient_id, source):
                     db.session.add(purchase)
                     db.session.commit()
 
-                    send_tracker(fb_psid=recipient_id, category="purchase-complete-fb")
+                    send_tracker(fb_psid=recipient_id, category="fb-purchase")
 
                     storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
                     if storefront_owner is not None:
@@ -1243,7 +1245,7 @@ def purchase_product(recipient_id, source):
                     db.session.add(purchase)
                     db.session.commit()
 
-                    send_tracker(fb_psid=recipient_id, category="purchase-complete-paypal")
+                    send_tracker(fb_psid=recipient_id, category="paypal-purchase")
 
                     storefront_owner = Customer.query.filter(Customer.fb_psid == storefront.fb_psid).first()
                     if storefront_owner is not None:
@@ -1263,6 +1265,7 @@ def purchase_product(recipient_id, source):
                         return True
 
                 elif source == Const.PAYMENT_SOURCE_POINTS:
+                    logger.info("PURCHASE -----------> customer.points=%s, price=%s" % (customer.points, product.price * Const.POINTS_PER_DOLLAR))
                     if customer.points >= product.price * Const.POINTS_PER_DOLLAR:
                         purchase = Purchase(customer.id, storefront.id, product.id, 4)
                         purchase.claim_state = 0
@@ -1289,7 +1292,7 @@ def purchase_product(recipient_id, source):
                         db.session.add(purchase)
                         db.session.commit()
 
-                        send_tracker(fb_psid=recipient_id, category="purchase-complete-points")
+                        send_tracker(fb_psid=recipient_id, category="points-purchase")
                         add_points(recipient_id, -int(product.price * Const.POINTS_PER_DOLLAR))
 
                         fb_user = FBUser.query.filter(FBUser.fb_psid == customer.fb_psid).first()
@@ -1533,9 +1536,9 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                             cur.execute('INSERT INTO `referral_entries` (`id`, `source_id`, `entry_id`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (ref_customer.id, customer.id))
                             conn.commit()
                             send_text(recipient_id, "You added {points} Pts for entering a referral".format(points=Const.POINT_AMOUNT_REFFERAL), main_menu_quick_replies(recipient_id))
-                            send_text(ref_customer.fb_psid, "{points} Pts have been added because someone entered your referral code!".format(points=Const.POINT_AMOUNT_REFFERAL), main_menu_quick_replies(recipient_id))
+                            send_text(ref_customer.fb_psid, "{points} Pts have been added because someone entered your referral code!".format(points=Const.POINT_AMOUNT_REFFERAL_OWNER), main_menu_quick_replies(recipient_id))
                             add_points(recipient_id, Const.POINT_AMOUNT_REFFERAL)
-                            add_points(ref_customer.fb_psid, Const.POINT_AMOUNT_REFFERAL)
+                            add_points(ref_customer.fb_psid, Const.POINT_AMOUNT_REFFERAL_OWNER)
 
                         else:
                             send_text(recipient_id, "You cannot enter your own referral code", main_menu_quick_replies(recipient_id))
@@ -1555,39 +1558,46 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
             send_text(recipient_id, "Couldn't locate that referral code, try another", main_menu_quick_replies(recipient_id))
 
     elif entry_type == Const.ENTRY_GIVEAWAY_REFERRAL:
-        send_tracker(fb_psid=recipient_id, category="giveaway-{source}".format(source=re.match(r'^\/giveaway\/(?P<source>(twitter)|(snapchat))$', deeplink or "/").group('source')))
-        product_name = None
-        image_url = None
-        total = 0
-        try:
-            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-            with conn:
-                cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `giveaways` WHERE `fb_psid` = %s AND `added` >= UTC_DATE() LIMIT 1;', (recipient_id,))
+        # send_tracker(fb_psid=recipient_id, category="giveaway-{source}".format(source=re.match(r'^\/giveaway\/(?P<source>(twitter)|(snapchat))$', deeplink or "/").group('source')))
 
-                if cur.fetchone() is None:
-                    cur.execute('INSERT INTO `giveaways` (`id`, `user_id`, `fb_psid`, `source`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid, re.match(r'^\/giveaway\/(?P<source>(twitter)|(snapchat))$', deeplink or "/").group('source')))
-                    conn.commit()
+        if customer.points < Const.GIVEAWAY_POINT_THRESHOLD:
+            send_text(recipient_id, "You must have at least {points} pts to enter the daily givaway.".format(points=locale.format('%d', Const.GIVEAWAY_POINT_THRESHOLD, grouping=True)), main_menu_quick_replies(recipient_id))
 
-                cur.execute('SELECT COUNT(*) AS `total` FROM `giveaways` WHERE `added` >= UTC_DATE();')
-                total = max(0, cur.fetchone()['total'] - 1)
+        else:
+            product_name = None
+            image_url = None
+            total = 0
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('SELECT `id` FROM `giveaways` WHERE `fb_psid` = %s AND `added` >= UTC_DATE() LIMIT 1;', (recipient_id,))
 
-                with open("/var/www/FacebookBot/FacebookBot/data/txt/giveaways.txt") as fp:
-                    for i, line in enumerate(fp):
-                        if i == datetime.now().day:
-                            product_name = line.split(",")[0]
-                            image_url = line.split(",")[-1]
-                            break
+                    if cur.fetchone() is None:
+                        cur.execute('INSERT INTO `giveaways` (`id`, `user_id`, `fb_psid`, `source`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (customer.id, customer.fb_psid, re.match(r'^\/giveaway\/(?P<source>(twitter)|(snapchat))$', deeplink or "/").group('source')))
+                        conn.commit()
 
-        except mysql.Error, e:
-            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+                    cur.execute('SELECT COUNT(*) AS `total` FROM `giveaways` WHERE `added` >= UTC_DATE();')
+                    total = max(0, cur.fetchone()['total'] - 1)
 
-        finally:
-            if conn:
-                conn.close()
+                    with open("/var/www/FacebookBot/FacebookBot/data/txt/giveaways.txt") as fp:
+                        for i, line in enumerate(fp):
+                            if i == datetime.now().day:
+                                product_name = line.split(",")[0]
+                                image_url = line.split(",")[-1]
+                                break
 
-        send_text(customer.fb_psid, "You have completed a virtual item giveaway entry with {total} other player{suff} for today. You will be messaged here when the winner is selected.\n\nToday's item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name))
-        send_image(customer.fb_psid, image_url, quick_replies=main_menu_quick_replies(recipient_id))
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(customer.fb_psid, "You have completed a virtual item giveaway entry with {total} other player{suff} for today. You will be messaged here when the winner is selected.\n\nToday's item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name))
+            send_image(customer.fb_psid, image_url, quick_replies=main_menu_quick_replies(recipient_id))
+            send_tracker(fb_psid=customer.fb_psid, category="transaction", label=product_name)
+            send_tracker(fb_psid=customer.fb_psid, category="giveaway", label=product_name)
 
     else:
         send_admin_carousel(recipient_id)
@@ -1596,7 +1606,6 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
 
 def clone_storefront(recipient_id, storefront_id):
     logger.info("clone_storefront(recipient_id=%s, storefront_id=%s)" % (recipient_id, storefront_id))
-    send_tracker(fb_psid=recipient_id, category="clone-shop")
 
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
     storefront_ref = Storefront.query.filter(Storefront.id == storefront_id).first()
@@ -1699,6 +1708,8 @@ def clone_storefront(recipient_id, storefront_id):
             finally:
                 if conn:
                     conn.close()
+
+            # send_tracker(fb_psid=recipient_id, category="resell", label=product.display_name_utf8)
 
             return (storefront, product)
 
@@ -1927,7 +1938,7 @@ def main_menu_quick_replies(fb_psid):
     quick_replies.append(build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP))
 
 
-    return None#quick_replies
+    return quick_replies
 
 
 def new_sub_quick_replies(fb_psid):
@@ -2424,8 +2435,7 @@ def send_admin_carousel(recipient_id):
                 subtitle="Share your Lmom8 ID now with Friends",
                 image_url=Const.IMAGE_URL_REFERRAL_CARD,
                 buttons=[
-                    # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (10K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                    build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (25K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} PTS)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
                 ]
             )
@@ -2452,8 +2462,7 @@ def send_admin_carousel(recipient_id):
                     subtitle="Share your Lmom8 ID now with Friends",
                     image_url=Const.IMAGE_URL_REFERRAL_CARD,
                     buttons=[
-                        # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (10K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (25K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
                     ]
                 )
@@ -2468,8 +2477,7 @@ def send_admin_carousel(recipient_id):
                     subtitle="Share your Lmom8 ID now with Friends",
                     image_url=Const.IMAGE_URL_REFERRAL_CARD,
                     buttons=[
-                        # build_button(Const.CARD_BTN_POSTBACK, caption="Check Points", payload=Const.PB_PAYLOAD_CUSTOMER_POINTS),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (10K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
+                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral ID (25K PTS)", payload=Const.PB_PAYLOAD_REFERRAL_FAQ),
                         build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_REFFERAL), payload=Const.PB_PAYLOAD_SHARE_APP),
                     ]
                 )
@@ -2492,45 +2500,46 @@ def send_customer_carousel(recipient_id, product_id):
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
     product = Product.query.filter(Product.id == product_id).first()
-    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+    if product is not None:
+        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
-    elements = []
-    if storefront is not None:
-        increment_shop_views(recipient_id, product.id)
+        elements = []
+        if storefront is not None:
+            increment_shop_views(recipient_id, product.id)
 
-        purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
-        if purchase is None:
-            elements.append(
-                build_card_element(
-                    title = product.display_name_utf8,
-                    subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
-                    image_url = product.image_url,
-                    buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Purchase", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
-                    ]
+            purchase = Purchase.query.filter(Purchase.id == customer.purchase_id).first()
+            if purchase is None:
+                elements.append(
+                    build_card_element(
+                        title = product.display_name_utf8,
+                        subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
+                        image_url = product.image_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Purchase", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
+                        ]
+                    )
                 )
-            )
 
-        else:
-            elements.append(
-                build_card_element(
-                    title = "You purchased {product_name} on {purchase_date}".format(product_name=product.display_name_utf8, purchase_date=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%b %d @ %I:%M%P %Z').lstrip("0")),
-                    subtitle = product.description,
-                    image_url = product.image_url,
-                    buttons = [
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
-                    ]
+            else:
+                elements.append(
+                    build_card_element(
+                        title = "You purchased {product_name} on {purchase_date}".format(product_name=product.display_name_utf8, purchase_date=datetime.utcfromtimestamp(purchase.added).replace(tzinfo=pytz.utc).astimezone(pytz.timezone(Const.PACIFIC_TIMEZONE)).strftime('%b %d @ %I:%M%P %Z').lstrip("0")),
+                        subtitle = product.description,
+                        image_url = product.image_url,
+                        buttons = [
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Buy Another", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
+                            build_button(Const.CARD_BTN_POSTBACK, caption="Rate", payload=Const.PB_PAYLOAD_RATE_PRODUCT)
+                        ]
+                    )
                 )
-            )
 
-    data = build_carousel(
-        recipient_id = recipient_id,
-        cards = elements,
-        quick_replies = main_menu_quick_replies(recipient_id)
-    )
+        data = build_carousel(
+            recipient_id = recipient_id,
+            cards = elements,
+            quick_replies = main_menu_quick_replies(recipient_id)
+        )
 
-    send_message(json.dumps(data))
+        send_message(json.dumps(data))
 
 
 def send_autogen_carousel(recipient_id):
@@ -2692,78 +2701,13 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
                 image_url=product.image_url,
                 item_url=product.messenger_url,
                 buttons=[
-                    #build_button(Const.CARD_BTN_POSTBACK, caption="Buy Points", payload=Const.PB_PAYLOAD_PURCHASE_POINTS_PAK),
                     build_button(Const.CARD_BTN_POSTBACK, "Resell ({points} Pts)".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)), payload=Const.PB_PAYLOAD_RESELL_STOREFRONT),
                     build_button(Const.CARD_BTN_POSTBACK, caption="{points} Points".format(points=points_per_dollar(product.price)), payload=Const.PB_PAYLOAD_CHECKOUT_POINTS),
                     build_button(Const.CARD_BTN_POSTBACK, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP)
                 ],
-                quick_replies=main_menu_quick_replies(recipient_id)
+                quick_replies=[build_quick_reply(Const.KWIK_BTN_TEXT, caption="Next Shop", payload=Const.PB_PAYLOAD_RND_FLIP_STOREFRONT)] + main_menu_quick_replies(recipient_id)
             )
 
-
-            # body_elements = []
-            # fb_user = FBUser.query.filter(FBUser.fb_psid == recipient_id).first()
-            # if fb_user is not None and fb_user.payments_enabled is True:
-            #     body_elements.append(
-            #         build_card_element(
-            #             title=product.display_name_utf8,
-            #             subtitle="${price:.2f}".format(price=product.price),
-            #             image_url=product.image_url,
-            #             item_url=product.messenger_url,
-            #             buttons=[
-            #                 build_button(Const.CARD_BTN_PAYMENT, caption="Buy Now", price=product.price)
-            #             ]
-            #         )
-            #     )
-            #
-            # body_elements.append(
-            #     build_card_element(
-            #         title=product.display_name_utf8,
-            #         subtitle="${price:.2f}".format(price=product.price),
-            #         image_url=product.image_url,
-            #         item_url=product.messenger_url,
-            #         buttons=[
-            #             build_button(Const.CARD_BTN_POSTBACK, caption="PayPal", payload=Const.PB_PAYLOAD_CHECKOUT_PAYPAL)
-            #         ]
-            #     )
-            # )
-            #
-            # body_elements.append(
-            #     build_card_element(
-            #         title=product.display_name_utf8,
-            #         subtitle="${price:.2f}".format(price=product.price),
-            #         image_url=product.image_url,
-            #         item_url=product.messenger_url,
-            #         buttons=[
-            #             build_button(Const.CARD_BTN_POSTBACK, caption="Bitcoin", payload=Const.PB_PAYLOAD_CHECKOUT_BITCOIN)
-            #         ]
-            #     ),
-            # )
-            # # body_elements.append(
-            # #     build_card_element(
-            # #         title = product.display_name_utf8,
-            # #         subtitle = "${price:.2f}".format(price=product.price),
-            # #         image_url = product.image_url,
-            # #         item_url = product.messenger_url,
-            # #         buttons = [
-            # #             build_button(Const.CARD_BTN_POSTBACK, caption="Pay via Stripe", payload=Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD)
-            # #         ]
-            # #     )
-            # # )
-            #
-            #
-            # data = build_list_card(
-            #     recipient_id = recipient_id,
-            #     body_elements = body_elements,
-            #
-            #     header_element = build_card_element(
-            #         title = storefront.display_name_utf8,
-            #         subtitle = storefront.description,
-            #         image_url = storefront.logo_url,
-            #         item_url = None
-            #     ),
-            #     quick_replies = main_menu_quick_replies(recipient_id)
-            # )
 
         elif card_type == Const.CARD_TYPE_PRODUCT_CHECKOUT_CC:
             stripe_card = stripe.Customer.retrieve(customer.stripe_id).sources.retrieve(customer.card_id)
@@ -3134,10 +3078,9 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     logger.info("received_payload(recipient_id=%s, payload=%s, type=%s)" % (recipient_id, payload, type))
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
 
-
     # postback btn
     if payload == Const.PB_PAYLOAD_RND_FLIP_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="flip-coin")
+        send_tracker(fb_psid=recipient_id, category="flip")
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
@@ -3242,10 +3185,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product.storefront_id is not None:
             storefront, product = clone_storefront(recipient_id, product.storefront_id)
+            # send_tracker(fb_psid=recipient_id, category="resell", label=product.display_name_utf8)
             if storefront is not None and product is not None:
                 send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
-                send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
-                send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
+                send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP)] + main_menu_quick_replies(recipient_id))
 
             else:
                 send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
@@ -3264,10 +3207,10 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                     product = Product.query.filter(Product.id == row['id']).first()
                     if product.storefront_id is not None:
                         storefront, product = clone_storefront(recipient_id, product.storefront_id)
+                        # send_tracker(fb_psid=recipient_id, category="resell", label=product.display_name_utf8)
                         if storefront is not None and product is not None:
                             send_text(recipient_id, "Welcome to the Lmon8 Reseller Program. Every time an item is sold you will get {points} Pts. Keep Flipping!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
-                            send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url))
-                            send_text(recipient_id, "Share {storefront_name} with your Friends on Messenger".format(storefront_name=storefront.display_name_utf8), main_menu_quick_replies(recipient_id))
+                            send_text(recipient_id, "{storefront_name} created.\n{prebot_url}".format(storefront_name=storefront.display_name_utf8, prebot_url=product.messenger_url), [build_quick_reply(Const.KWIK_BTN_TEXT, caption="Share ({points} Pts)".format(points=Const.POINT_AMOUNT_SHARE_APP), payload=Const.PB_PAYLOAD_SHARE_APP)] + main_menu_quick_replies(recipient_id))
 
                         else:
                             send_text(recipient_id, "This is not available to resell at this time.", main_menu_quick_replies(recipient_id))
@@ -3451,7 +3394,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 cur = conn.cursor(mysql.cursors.DictCursor)
                 cur.execute('SELECT `id` FROM `unlocked_users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
                 if cur.fetchone() is None:
-                    send_text(recipient_id, "You cannot but from Lmon8 unless you have been unlocked")
+                    send_text(recipient_id, "You cannot buy from Lmon8 unless you have been unlocked")
                     return "OK", 200
 
         except mysql.Error, e:
@@ -3461,15 +3404,12 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             if conn:
                 conn.close()
 
-
-
-
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
             send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_BITCOIN:
-        send_tracker(fb_psid=recipient_id, category="purchase")
+        # send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -3501,7 +3441,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             send_text(recipient_id, "Post your Bitcoin wallet's QR code or typein  the address", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_CREDIT_CARD:
-        send_tracker(fb_psid=recipient_id, category="purchase")
+        # send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -3540,7 +3480,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PAYPAL:
-        send_tracker(fb_psid=recipient_id, category="purchase")
+        # send_tracker(fb_psid=recipient_id, category="purchase")
 
         try:
             Payment.query.filter(Payment.fb_psid == recipient_id).delete()
@@ -3557,7 +3497,23 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             add_points(recipient_id, Const.POINT_AMOUNT_PURCHASE_PRODUCT)
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_POINTS:
-        send_tracker(fb_psid=recipient_id, category="purchase")
+        # send_tracker(fb_psid=recipient_id, category="purchase")
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `unlocked_users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
+                if cur.fetchone() is None:
+                    send_text(recipient_id, "You cannot buy from Lmon8 unless you have been unlocked")
+                    return "OK", 200
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
@@ -3583,44 +3539,89 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
         else:
             send_text(recipient_id, "Sorry, you do not have enough points yet")
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+            send_message(json.dumps(build_standard_card(
+                recipient_id=customer.fb_psid,
+                title="Sign into Steam to unlock",
+                image_url="https://i.imgur.com/b5aSPCL.png",
+                buttons=[
+                    build_button(Const.CARD_BTN_URL_TALL, caption="Steam Sign In", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
+                ],
+                quick_replies=None
+            )))
+            send_text(customer.fb_psid, "Sign into Steam to unlock Lmon8 access and utilize your points.")
+            return "OK", 200
+
+            # send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_YES:
         product = Product.query.filter(Product.id == customer.product_id).first()
-        storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-        if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
-            logger.info(":::::::TAGS --> %s" % (product.tag_list_utf8,))
 
-            if "bonus-flip" in product.tag_list_utf8:
-                send_mystery_flip_card(recipient_id)
+        if product is not None:
+            storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
 
-            elif "gamebots-points" in product.tag_list_utf8:
-                send_gamebots_card(recipient_id)
-
-            elif "disneyjp" in product.tag_list_utf8:
-                send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
+            if customer.steam_id64 is None:
+                send_message(json.dumps(build_standard_card(
+                    recipient_id=customer.fb_psid,
+                    title="Sign into Steam to unlock",
+                    image_url="https://i.imgur.com/b5aSPCL.png",
+                    buttons=[
+                        build_button(Const.CARD_BTN_URL_TALL, caption="Steam Sign In", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
+                    ],
+                    quick_replies=None
+                )))
+                send_text(customer.fb_psid, "Sign into Steam to unlock Lmon8 access and utilize your points.")
+                return "OK", 200
 
             else:
-                if customer.trade_url is None:
-                    customer.trade_url = "_{PENDING}_"
-                    db.session.commit()
-                    send_text(customer.fb_psid, "Your account and pts will be verified before your trade is released. Please wait up to 12 hours, keep notifications on.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
+                if customer.locked == 1:
+                    send_message(json.dumps(build_standard_card(
+                        recipient_id=customer.fb_psid,
+                        title="Trade any item to unlock",
+                        image_url="https://i.imgur.com/iHwDWin.png",
+                        buttons=[
+                            build_button(Const.CARD_BTN_URL_TALL, caption="Trade Item", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
+                        ],
+                        quick_replies=None
+                    )))
+                    send_text(customer.fb_psid, "Please trade any item to unlock access to Lmon8 and utilize your points.")
+
+                    return "OK", 200
+
+
+            if purchase_product(recipient_id, Const.PAYMENT_SOURCE_POINTS):
+                logger.info(":::::::TAGS --> %s" % (product.tag_list_utf8,))
+
+                if "bonus-flip" in product.tag_list_utf8:
+                    send_mystery_flip_card(recipient_id)
+
+                elif "gamebots-points" in product.tag_list_utf8:
+                    send_gamebots_card(recipient_id)
+
+                elif "disneyjp" in product.tag_list_utf8:
+                    send_image(recipient_id, "https://i.imgur.com/rsiKG84.gif", "259175247891645")
 
                 else:
-                    send_text(
-                        recipient_id=customer.fb_psid,
-                        message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
-                        quick_replies=[
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
-                            build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL)
-                        ])
+                    if customer.trade_url is None:
+                        customer.trade_url = "_{PENDING}_"
+                        db.session.commit()
+                        send_text(customer.fb_psid, "Your account and pts will be verified before your trade is released. Please wait up to 12 hours, keep notifications on.\n\nPlease enter your Steam Trade URL.", cancel_entry_quick_reply())
 
-            send_text(storefront.fb_psid, "Someone has purchased your resell item, here's {points} Pts!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
-            add_points(storefront.fb_psid, Const.POINT_AMOUNT_RESELL_STOREFRONT)
+                    else:
+                        send_text(
+                            recipient_id=customer.fb_psid,
+                            message_text="Confirm your Steam Trade URL:\n\n{trade_url}\n\nWould you like to edit it?".format(trade_url=customer.trade_url),
+                            quick_replies=[
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Confirm", payload=Const.PB_PAYLOAD_TRADE_URL_KEEP),
+                                build_quick_reply(Const.KWIK_BTN_TEXT, "Edit URL", payload=Const.PB_PAYLOAD_TRADE_URL)
+                            ])
 
-        else:
-            send_text(recipient_id, "Sorry, you do not have enough points yet")
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
+                if storefront is not None:
+                    send_text(storefront.fb_psid, "Someone has purchased your resell item, here's {points} Pts!".format(points=locale.format('%d', Const.POINT_AMOUNT_RESELL_STOREFRONT, grouping=True)))
+                    add_points(storefront.fb_psid, Const.POINT_AMOUNT_RESELL_STOREFRONT)
+
+            else:
+                send_text(recipient_id, "Sorry, you do not have enough points yet")
+                send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PURCHASE_POINTS_NO:
         send_product_card(recipient_id, customer.product_id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
@@ -3746,7 +3747,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_home_content(recipient_id)
 
     elif payload == Const.PB_PAYLOAD_RND_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="flip-coin")
+        send_tracker(fb_psid=recipient_id, category="flip")
         try:
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
@@ -3769,7 +3770,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
                 conn.close()
 
     elif payload == Const.PB_PAYLOAD_FEATURE_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="feature-shop")
+        pass
+        # send_tracker(fb_psid=recipient_id, category="feature-shop")
         # send_text(recipient_id, "Tap here to purchase:\nhttps://paypal.me/gamebotsc/1.99", main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_CANCEL_ENTRY_SEQUENCE:
@@ -3788,7 +3790,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_image(re.match(r'^SAY_THANKS\-(?P<fb_psid>.+)$', payload).group('fb_psid'), Const.IMAGE_URL_SAY_THANKS)
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_STOREFRONT:
-        send_tracker(fb_psid=recipient_id, category="create-shop")
+        # send_tracker(fb_psid=recipient_id, category="create-shop")
 
         storefront = Storefront.query.filter(Storefront.fb_psid == recipient_id).filter(Storefront.creation_state == 3).first()
         if storefront is not None:
@@ -3889,7 +3891,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product.added = int(time.time())
             db.session.commit()
 
-            send_tracker(fb_psid=recipient_id, category="add-product")
+            # send_tracker(fb_psid=recipient_id, category="add-product")
             add_points(recipient_id, Const.POINT_AMOUNT_SUBMIT_PRODUCT)
             logger.info("INSERT -------->")
 
@@ -3944,7 +3946,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product.added = int(time.time())
             db.session.commit()
 
-            send_tracker(fb_psid=recipient_id, category="add-product")
+            # send_tracker(fb_psid=recipient_id, category="add-product")
             add_points(recipient_id, Const.POINT_AMOUNT_SUBMIT_PRODUCT)
             logger.info("INSERT -------->")
 
@@ -3997,7 +3999,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             product.added = int(time.time())
             db.session.commit()
 
-            send_tracker(fb_psid=recipient_id, category="add-product")
+            # send_tracker(fb_psid=recipient_id, category="add-product")
             add_points(recipient_id, Const.POINT_AMOUNT_SUBMIT_PRODUCT)
             logger.info("INSERT -------->")
 
@@ -4043,7 +4045,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_SUBMIT_PRODUCT:
-        send_tracker(fb_psid=recipient_id, category="add-product")
+        # send_tracker(fb_psid=recipient_id, category="add-product")
 
         product = Product.query.filter(Product.fb_psid == recipient_id).first()
         if product is not None:
@@ -4152,7 +4154,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
 
     elif payload == Const.PB_PAYLOAD_TRADE_URL_KEEP:
-        send_tracker(fb_psid=recipient_id, category="trade-url-set", label=customer.trade_url)
+        # send_tracker(fb_psid=recipient_id, category="trade-url-set", label=customer.trade_url)
         send_text(recipient_id, "Your purchase has been made. The item and points are being approved and will transfer shortly.\n\nPurchase ID: {purchase_id}".format(purchase_id=customer.purchase_id), main_menu_quick_replies(recipient_id))
         send_customer_carousel(recipient_id, customer.product_id)
 
@@ -4164,13 +4166,6 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
     elif payload == Const.PB_PAYLOAD_ALT_SOCIAL_KEEP:
         send_text(recipient_id, "Line ID has been set to “{alt_social}”\n\nInstructions:\n1. Accept friend request from link for profile Lmon8.\n\n2. Wait 6 hours.".format(alt_social=customer.social), main_menu_quick_replies(recipient_id))
         send_customer_carousel(recipient_id, customer.product_id)
-
-    elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
-        # send_tracker(fb_psid=recipient_id, category="button-reserve")
-
-        product = Product.query.filter(Product.id == customer.product_id).first()
-        if product is not None:
-            send_product_card(recipient_id, product.id, Const.CARD_TYPE_PRODUCT_CHECKOUT)
 
     elif payload == Const.PB_PAYLOAD_PAYMENT_YES:
         # send_tracker(fb_psid=recipient_id, category="button-payment-yes")
@@ -4677,22 +4672,22 @@ def received_text_response(recipient_id, message_text):
     elif message_text.lower() in Const.RESERVED_STEAM_REPLIES.split("|"):
         send_message(json.dumps(build_standard_card(
             recipient_id=recipient_id,
-            title="Connect Steam to Get Started",
+            title="Sign into Steam to unlock",
             image_url="https://i.imgur.com/b5aSPCL.png",
             buttons=[
-                build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
-            ],
-            quick_replies=main_menu_quick_replies(recipient_id)
+                build_button(Const.CARD_BTN_URL_TALL, caption="Steam Sign In", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
+            ]
         )))
+        send_text(recipient_id, "Sign into Steam to unlock Lmon8 access and utilize your points.", main_menu_quick_replies(recipient_id))
 
     #-- deposit replies
     elif message_text.lower() in Const.RESERVED_DEPOST_REPLIES.split("|"):
         send_message(json.dumps(build_standard_card(
             recipient_id=recipient_id,
-            title="Trade any item to enter now",
+            title="Trade any item to unlock",
             image_url="https://i.imgur.com/iHwDWin.png",
             buttons=[
-                build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
+                build_button(Const.CARD_BTN_URL_TALL, caption="Trade Item", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
             ],
             quick_replies=main_menu_quick_replies(recipient_id)
         )))
@@ -4811,6 +4806,8 @@ def received_text_response(recipient_id, message_text):
             if conn:
                 conn.close()
 
+        send_tracker(fb_psid=recipient_id, category="transaction", label=product_name)
+        send_tracker(fb_psid=customer.fb_psid, category="giveaway", label=product_name)
         send_text(recipient_id, "You have completed a virtual item giveaway entry with {total} other player{suff} for today. You will be messaged here when the winner is selected.\n\nToday's item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name))
         send_image(recipient_id, image_url, quick_replies=main_menu_quick_replies(recipient_id))
 
@@ -5387,14 +5384,14 @@ def webhook():
 
                 if 'read' in messaging_event:
                     # logger.info("-=- READ-CONFIRM -=- %s" % (recipient_id))
-                    send_tracker(fb_psid=sender_id, category="read-receipt")
+                    # send_tracker(fb_psid=sender_id, category="read-receipt")
                     return "OK", 200
 
                 if 'optin' in messaging_event:
                     # logger.info("-=- OPT-IN -=-")
                     return "OK", 200
 
-                send_tracker(fb_psid=sender_id, category="active")
+                # send_tracker(fb_psid=sender_id, category="active")
 
 
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
@@ -5416,6 +5413,9 @@ def webhook():
                     elif re.search(r'^\/giveaway\/((twitter)|(snapchat))$', referral or "/") is not None:
                         entry_type = Const.ENTRY_GIVEAWAY_REFERRAL
 
+                    elif re.search(r'^\/gb\/(.+)$', referral or "/") is not None:
+                        entry_type = Const.ENTRY_GAMEBOTS_REFERRAL
+
                     welcome_message(customer.fb_psid, entry_type, referral)
                     return "OK", 200
 
@@ -5436,35 +5436,6 @@ def webhook():
                 # if customer.fb_psid not in Const.ADMIN_FB_PSIDS:
                 #     send_text(customer.fb_psid, "Lmon8 is currently down for maintenance.")
                 #     return "OK", 200
-
-                if customer.steam_id64 is None:
-                    send_text(customer.fb_psid, "Welcome to Lmon8. Please sign into Steam for verification.")
-                    send_message(json.dumps(build_standard_card(
-                        recipient_id=customer.fb_psid,
-                        title="Connect Steam to Get Started",
-                        image_url="https://i.imgur.com/b5aSPCL.png",
-                        buttons=[
-                            build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=customer.fb_psid))
-                        ],
-                        quick_replies=None
-                    )))
-                    return "OK", 200
-
-                else:
-                    if customer.locked == 1:
-                        send_text(customer.fb_psid, "Steam had been connected to your Lmon8 account.")
-                        send_message(json.dumps(build_standard_card(
-                            recipient_id=customer.fb_psid,
-                            title="Trade any item to enter now",
-                            image_url="https://i.imgur.com/iHwDWin.png",
-                            buttons=[
-                                build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
-                            ],
-                            quick_replies=None
-                        )))
-                        send_text(customer.fb_psid, "To enter Lmon8 please trade any item from your inventory. (Can be Trash)")
-
-                        return "OK", 200
 
                 #-- payment response
                 if 'payment' in messaging_event:
@@ -5569,6 +5540,9 @@ def slack():
 
             customer = Customer.query.filter(Customer.fb_psid == fb_psid).first()
             if customer is not None:
+                customer.locked = 0
+                db.session.commit()
+
                 try:
                     conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
                     with conn:
@@ -5590,6 +5564,19 @@ def slack():
             message_text = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('message_text')
 
             send_text(fb_psid, "Support says:\n{message_text}".format(message_text=message_text), main_menu_quick_replies(fb_psid))
+
+            try:
+                conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+                with conn:
+                    cur = conn.cursor(mysql.cursors.DictCursor)
+                    cur.execute('UPDATE `users` SET `support` = "0000-00-00 00:00:00" WHERE `fb_psid` = %s LIMIT 1;', (fb_psid,))
+
+            except mysql.Error, e:
+                logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
 
     return "OK", 200
 
@@ -5670,6 +5657,7 @@ def steam():
         steam_id64 = request.form['steam_id64']
 
         logger.info("fb_psid=%s, steam_id64=%s" % (fb_psid, steam_id64))
+        send_tracker(fb_psid=fb_psid, category="sign-up", label="steam")
 
         customer = Customer.query.filter(Customer.fb_psid == fb_psid).first()
         if customer is not None:
@@ -5679,14 +5667,14 @@ def steam():
         send_text(fb_psid, "Steam had been connected to your Lmon8 account.")
         send_message(json.dumps(build_standard_card(
             recipient_id=fb_psid,
-            title="Trade any item to enter now",
+            title="Trade any item to unlock",
             image_url="https://i.imgur.com/iHwDWin.png",
             buttons=[
-                build_button(Const.CARD_BTN_URL_TALL, caption="Want Free Skins?", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
+                build_button(Const.CARD_BTN_URL_TALL, caption="Trade Item", url="https://steamcommunity.com/tradeoffer/new/?partner=317337787&token=CvP3MHH2")
             ],
             quick_replies=None
         )))
-        send_text(fb_psid, "To enter Lmon8 please trade any item from your inventory. (Can be Trash)")
+        send_text(fb_psid, "Please trade any item to unlock access to Lmon8 and utilize your points.")
 
     return "OK", 200
 
@@ -5741,6 +5729,10 @@ def trader():
         if customer is not None:
             customer.locked = 0
             db.session.commit()
+
+        send_tracker(fb_psid=recipient_id, category="transaction", label="deposit")
+        # send_tracker(fb_psid=customer.fb_psid, category="trade", label=item_name)
+        send_tracker(fb_psid=customer.fb_psid, category="deposit", label=item_name)
 
     return "OK", 200
 
