@@ -447,7 +447,7 @@ def send_tracker(fb_psid, category, action=None, label=None, value=None):
     c.close()
 
 
-    payload['tid'] = "UA-79705534-2"
+    payload['tid'] = "UA-79705534-4"
 
     c = pycurl.Curl()
     c.setopt(c.URL, Const.GA_TRACKING_URL)
@@ -483,6 +483,10 @@ def main_menu_quick_reply():
         'content_type': "text",
         'title'       : "Main Menu",
         'payload'     : "MAIN_MENU"
+    }, {
+        'content_type': "text",
+        'title'       : "Next Item",
+        'payload'     : "NEXT_ITEM"
     }]
 
 
@@ -644,11 +648,20 @@ def send_pay_wall(sender_id, item):
             'webview_height_ratio': "tall"
         })
 
-        element['buttons'].append({
-            'type'   : "postback",
-            'payload': "POINTS-{price}".format(price=max(5, deposit_amount_for_price(item['price']))),
-            'title'  : "{points} Points".format(points=locale.format('%d', max(5, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
-        })
+        if get_session_bot_type(sender_id) == Const.BOT_TYPE_GAMEBOTS:
+            element['buttons'].append({
+                'type'   : "postback",
+                'payload': "POINTS-{price}".format(price=max(5, deposit_amount_for_price(item['price']))),
+                'title'  : "{points} Points".format(points=locale.format('%d', max(5, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
+            })
+
+        else:
+            element['buttons'].append({
+                'type'                : "web_url",
+                'url'                 : "http://gamebots.chat/crossbot",
+                'title'               : "More Wins - Tap Here",
+                'webview_height_ratio': "full"
+            })
 
     else:
         element = coin_flip_element(sender_id, True)
@@ -724,11 +737,20 @@ def pay_wall_deposit(sender_id, min_price, max_price):
             'webview_height_ratio': "tall"
         })
 
-        element['buttons'].append({
-            'type'   : "postback",
-            'payload': "POINTS-{price}".format(price=deposit_amount_for_price(item['price'])),
-            'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
-        })
+        if get_session_bot_type(sender_id):
+            element['buttons'].append({
+                'type'   : "postback",
+                'payload': "POINTS-{price}".format(price=deposit_amount_for_price(item['price'])),
+                'title'  : "{points} Points".format(points=locale.format('%d', max(1, deposit_amount_for_price(item['price'])) * 1250000, grouping=True))
+            })
+
+        else:
+            element['buttons'].append({
+                'type'                : "web_url",
+                'url'                 : "http://gamebots.chat/crossbot",
+                'title'               : "More Wins - Tap Here",
+                'webview_height_ratio': "full"
+            })
 
     else:
         element = coin_flip_element(sender_id, True)
@@ -747,6 +769,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
     row = None
     item_id = None
     deposit = get_session_deposit(sender_id)
+    left = deposit - win_value_last_day(sender_id)
 
     min_price = 0.00
     if pay_wall is True or random.uniform(0, 1) <= 1 / float(3):
@@ -930,6 +953,8 @@ def coin_flip(wins=0, losses=0, deposit=0, item_cost=0.01, quantity=1, total_qua
 def coin_flip_results(sender_id, item_id=None):
     logger.info("coin_flip_results(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
+    send_tracker(fb_psid=sender_id, category="flip")
+
     image_url = Const.FLIP_COIN_START_GIF_URL
     bot_type = get_session_bot_type(sender_id)
     if bot_type == Const.BOT_TYPE_GAMEBOTS:
@@ -1035,8 +1060,8 @@ def coin_flip_results(sender_id, item_id=None):
     set_session_bonus(sender_id)
 
     if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True:# or sender_id in Const.ADMIN_FB_PSID:
-        send_tracker(fb_psid=sender_id, category="flip-win", label=flip_item['asset_name'], value=flip_item['price'])
-        send_tracker(fb_psid=sender_id, category="purchase", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="win", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="transaction", label=flip_item['asset_name'], value=flip_item['price'])
 
         payload = {
             'v'  : 1,
@@ -1113,7 +1138,7 @@ def coin_flip_results(sender_id, item_id=None):
             )
 
     else:
-        send_tracker(fb_psid=sender_id, category="flip-loss", label=flip_item['asset_name'], value=flip_item['price'])
+        send_tracker(fb_psid=sender_id, category="loss", label=flip_item['asset_name'], value=flip_item['price'])
         record_coin_flip(sender_id, item_id, False)
         inc_session_loss_streak(sender_id)
 
@@ -1711,6 +1736,29 @@ def wins_last_day(sender_id):
     return total_wins
 
 
+def win_value_last_day(sender_id):
+    logger.info("win_value_last_day(sender_id=%s)" % (sender_id,))
+
+    win_val = 0
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT ROUND(SUM(`flip_inventory`.`min_sell`), 2) AS `tot` FROM `flip_inventory` INNER JOIN `item_winners` ON `flip_inventory`.`name` = `item_winners`.`item_name` WHERE `item_winners`.`fb_id` = %s AND `item_winners`.`limiter` = 1 AND `item_winners`.`added` >= DATE_SUB(NOW(), INTERVAL 24 HOUR);', (sender_id,))
+            row = cur.fetchone()
+            win_val = 0 if row is None else row['tot']
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    logger.info("win_val=%d" % (win_val or 0,))
+    return win_val or 0
+
+
 def deposit_amount_for_price(price):
     logger.info("deposit_amount_for_price(price=%s)" % (price,))
 
@@ -1870,7 +1918,7 @@ def clear_session_dub(sender_id):
 
 def purchase_item(sender_id, payment):
     logger.info("purchase_item(sender_id=%s, payment=%s)" % (sender_id, payment))
-    send_tracker(fb_psid=sender_id, category="purchase")
+    send_tracker(fb_psid=sender_id, category="fb-purchase")
 
     purchase_id = 0
     item_id = re.match(r'^PURCHASE_ITEM\-(?P<item_id>\d+)$', payment['payload']).group('item_id')
@@ -1943,7 +1991,7 @@ def purchase_item(sender_id, payment):
     time.sleep(3.33)
 
     min_price, max_price = price_range_for_deposit(amount)
-    send_text(sender_id, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
+    send_text(sender_id, "You have unlocked high tier wins. Happy flipping!", main_menu_quick_reply())
 
 
 def item_setup(sender_id, item_id, preview=False):
@@ -2035,8 +2083,8 @@ def tac0_webhook():
 
                 if 'read' in messaging_event:  # read confirmation
                     logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
-                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
-                    send_tracker(fb_psid=messaging_event['sender']['id'], category="active")
+                    # send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    # send_tracker(fb_psid=messaging_event['sender']['id'], category="active")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
@@ -2185,7 +2233,7 @@ def webhook(bot_webhook):
 
                 if 'read' in messaging_event:  # read confirmation
                     logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
-                    send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    # send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
@@ -2242,7 +2290,7 @@ def webhook(bot_webhook):
                         logger.info("REFERRAL ---> %s", (referral,))
                         if referral.split("/")[-1].startswith("gb"):
                             if valid_purchase_code(sender_id, referral):
-                                send_tracker(fb_psid=sender_id, category="purchase")
+                                send_tracker(fb_psid=sender_id, category="point-purchase")
 
                                 purchase_code = referral.split("/")[-1]
                                 full_name, first_name, last_name = get_session_name(sender_id)
@@ -2354,6 +2402,7 @@ def paypal(bot_webhook):
         fb_psid = request.form['fb_psid']
         amount = float(request.form['amount'])
         logger.info("fb_psid=%s, amount=%s" % (fb_psid, amount))
+        send_tracker(fb_psid=fb_psid, category="paypal-purchase")
         set_session_deposit(fb_psid, int(round(amount)))
 
         full_name, f_name, l_name = get_session_name(fb_psid)
@@ -2378,7 +2427,7 @@ def paypal(bot_webhook):
                 conn.close()
 
         min_price, max_price = price_range_for_deposit(amount)
-        send_text(fb_psid, "You have unlocked 100 Item Flips between ${min_price:.2f} to ${max_price:.2f}. This will last 24 hours.".format(min_price=min_price, max_price=max_price), main_menu_quick_reply())
+        send_text(fb_psid, "You have unlocked high tier wins. Happy flipping!", main_menu_quick_reply())
 
         if amount >= 1.00:
             payload = {
@@ -2550,6 +2599,21 @@ def slack(bot_webhook):
 
             send_text(fb_psid, "Support says:\n{message_text}".format(message_text=message_text), main_menu_quick_reply())
 
+            conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+            try:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute('UPDATE sessions SET support = 0 WHERE fb_psid = ?;', (fb_psid,))
+                conn.commit()
+                set_session_state(fb_psid, Const.SESSION_STATE_SUPPORT)
+
+            except sqlite3.Error as er:
+                logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+            finally:
+                if conn:
+                    conn.close()
+
     return "OK", 200
 
 
@@ -2609,7 +2673,7 @@ def handle_payload(sender_id, payload_type, payload):
 
 
     elif payload == "NEXT_ITEM":
-        send_tracker(fb_psid=sender_id, category="next-item")
+        #send_tracker(fb_psid=sender_id, category="next-item")
 
         if random.uniform(0, 1) > 0.80:
             if random.uniform(0, 1) > 0.80:
@@ -2631,7 +2695,7 @@ def handle_payload(sender_id, payload_type, payload):
 
 
     elif re.search('FLIP_COIN-(\d+)', payload) is not None:
-        send_tracker(fb_psid=sender_id, category="flip-coin", label=re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id'))
+        #send_tracker(fb_psid=sender_id, category="flip-coin", label=re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id'))
         item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload).group('item_id')
         if item_id is not None:
             item_setup(sender_id, item_id, False)
@@ -2675,14 +2739,14 @@ def handle_payload(sender_id, payload_type, payload):
 
 
     elif payload == "DISCORD":
-        send_tracker(fb_psid=sender_id, category="discord")
+        # send_tracker(fb_psid=sender_id, category="discord")
 
         send_discord_card(sender_id)
         send_text(sender_id, "Join {bot_title}'s Discord channel. Txt \"upload\" to transfer".format(bot_title=bot_title(get_session_bot_type(sender_id))), main_menu_quick_reply())
 
 
     elif payload == "INVITE":
-        send_tracker(fb_psid=sender_id, category="invite-friends")
+        # send_tracker(fb_psid=sender_id, category="invite-friends")
 
         send_card(
             recipient_id =sender_id,
@@ -2695,7 +2759,7 @@ def handle_payload(sender_id, payload_type, payload):
 
 
     elif payload == "LMON8_REFERRAL":
-        send_tracker(fb_psid=sender_id, category="lmon8-referral")
+        # send_tracker(fb_psid=sender_id, category="lmon8-referral")
 
         send_card(
             recipient_id=sender_id,
@@ -2713,7 +2777,7 @@ def handle_payload(sender_id, payload_type, payload):
         )
 
     elif payload == "FAQ":
-        send_tracker(fb_psid=sender_id, category="faq")
+        # send_tracker(fb_psid=sender_id, category="faq")
         send_text(sender_id, "1. Wait up to 24 hours for each trade request.\n\n2. Accept trade request within one hour.\n\n3. You may purchase access to higher priced items.\n\n4. Each purchase gives you 2 more wins and 50 more chances.\n\n5. You may be banned for repeat abuse of our system, mods, support, and social staff.", main_menu_quick_reply())
 
 
@@ -2753,7 +2817,7 @@ def handle_payload(sender_id, payload_type, payload):
                 conn.close()
 
     elif payload == "NO_THANKS":
-        send_tracker(fb_psid=sender_id, category="no-thanks")
+        # send_tracker(fb_psid=sender_id, category="no-thanks")
         default_carousel(sender_id)
 
     elif payload == "TRADE_URL_OK":
@@ -2770,7 +2834,7 @@ def handle_payload(sender_id, payload_type, payload):
                 conn.close()
 
         trade_url = get_session_trade_url(sender_id)
-        send_tracker(fb_psid=sender_id, category="trade-url-set")
+        # send_tracker(fb_psid=sender_id, category="trade-url-set")
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
@@ -2806,7 +2870,7 @@ def handle_payload(sender_id, payload_type, payload):
     elif payload == "SUBMIT_YES":
         if get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL:
             trade_url = get_session_trade_url(sender_id)
-            send_tracker(fb_psid=sender_id, category="trade-url-set")
+            # send_tracker(fb_psid=sender_id, category="trade-url-set")
 
             conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
             try:
