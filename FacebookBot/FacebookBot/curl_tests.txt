@@ -58,9 +58,9 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Welcome to CSGOMafia on Messenger."
+    "text":"Welcome to Mobile Legend on Messenger."
   }
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADRndz6bqMBAA1XqZC2Qu3v06KyoMJ5HrttNBFV5RDuELgsvkV5uUTLjOdku7AX4OflR4ITmdBIJGrGAMpvcEv7Wn5lNWwICfGmfDTKD0e43ZAMizgmWMyiKZCnTRk6mf3UcBXVARAcUzteKBjTZCwqJhZBj5jfKz1AMFLRVtgZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAJZB9WX9SxIBAEewlk7Oow1aruUJirtTLpW9SWsR9b3f7kVz7ZBlCZCq2nxBPFERQj5U1mRBS8jnENmkUpwBNPyy7O66pM3VphFLqBMnyWcd1HtZAXCZCB5IjcFJZCBizT2pY5GKT2hbnXSKHPw60v2A65I0iZCpms8ZB4TGP1KygZDZD"
 
 {{user_first_name}}
 {{user_last_name}}
@@ -77,6 +77,27 @@ curl -X POST -H "Content-Type: application/json" -d '{
   "get_started":{
     "payload":"WELCOME_MESSAGE"
   }
-}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAbdOWMstfUBANZBWp7uzVZBXfeqt5pem13BhPKlVQQi6rSnNZBDIpKHuBcFmZCZBW1NkssFZCszZAY51OAlKWZBlDwVqBZBpl8pqnkqT9ljNQItDdhwRbb4dO0qruzcLPiWeXbuRI6kNxtOft55CBL9kp7ZAUZCdxhER2WWGgoJ1vkkQZDZD"
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAJZB9WX9SxIBAEewlk7Oow1aruUJirtTLpW9SWsR9b3f7kVz7ZBlCZCq2nxBPFERQj5U1mRBS8jnENmkUpwBNPyy7O66pM3VphFLqBMnyWcd1HtZAXCZCB5IjcFJZCBizT2pY5GKT2hbnXSKHPw60v2A65I0iZCpms8ZB4TGP1KygZDZD"
 
 while read l ; do curl -X POST -H "Content-Type: application/json" -d '{"get_started":{"payload":"WELCOME_MESSAGE"}}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
+
+
+
+
+Attachment ID:
+curl -X POST -H "Content-Type: application/json" -d '{
+  "recipient":{
+    "id":"1232148453580477"
+  },
+  "message":{
+    "attachment":{
+      "type":"image",
+      "payload":{
+        "url":"https://i.imgur.com/qJu6BtA.gif",
+        "is_reusable":true
+      }
+    }
+  }
+}' "https://graph.facebook.com/me/messages?access_token=EAAJZB9WX9SxIBAEewlk7Oow1aruUJirtTLpW9SWsR9b3f7kVz7ZBlCZCq2nxBPFERQj5U1mRBS8jnENmkUpwBNPyy7O66pM3VphFLqBMnyWcd1HtZAXCZCB5IjcFJZCBizT2pY5GKT2hbnXSKHPw60v2A65I0iZCpms8ZB4TGP1KygZDZD"
+
+

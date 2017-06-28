@@ -2,6 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 
+import csv
 import hashlib
 import json
 import locale
@@ -190,6 +191,9 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOFRAT:
         return Const.CSGOFRAT_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_MOBILELEGEND:
+        return Const.MOBILELEGENDS_ACCESS_TOKEN
+
     # elif bot_type == Const.:
     #     return Const.
     #
@@ -351,6 +355,9 @@ def bot_webhook_type(webhook):
     elif webhook == "csgofrat":
         return Const.BOT_TYPE_CSGOFRAT
 
+    elif webhook == "mobile-legend":
+        return Const.BOT_TYPE_MOBILELEGEND
+
 
 
 def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
@@ -482,6 +489,9 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOFRAT:
         return "CSGOFrat"
 
+    elif bot_type == Const.BOT_TYPE_MOBILELEGEND:
+        return "Mobile Legend"
+
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
     logger.info("send_tracker(fb_psid=%s, category=%s, action=%s, label=%s, value=%s)" % (fb_psid, category, action, label, value))
@@ -540,7 +550,7 @@ def write_message_log(sender_id, message_id, message_txt):
 
 
 def main_menu_quick_reply():
-    logger.info("home_quick_replies()")
+    logger.info("main_menu_quick_reply()")
     return [{
         'content_type': "text",
         'title'       : "Main Menu",
@@ -823,6 +833,17 @@ def pay_wall_deposit(sender_id, min_price, max_price):
         quick_replies=coin_flip_quick_replies()
     )
 
+
+def mobile_legend_item(sender_id):
+    logger.info("mobile_legend_item(sender_id=%s)" % (sender_id,))
+
+    items = []
+    with open("/var/www/FacebookBot/FacebookBot/data/csv/mobile-legend.csv", 'rb') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            items.append(row)
+
+    return random.choice(items)
 
 
 def next_coin_flip_item(sender_id, pay_wall=False):
@@ -2101,7 +2122,7 @@ def item_setup(sender_id, item_id, preview=False):
 @app.route('/<bot_webhook>/', methods=['GET'])
 def verify(bot_webhook):
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s [%s]\n" % (bot_name, request.args.get('hub.mode'), request))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-= VERIFY (%s)->%s [%s]\n" % (bot_webhook, request.args.get('hub.mode'), request))
     logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 
     if request.args.get('hub.mode') == "subscribe" and request.args.get('hub.challenge'):
@@ -2315,6 +2336,164 @@ def webhook(bot_webhook):
                 referral = None if 'referral' not in messaging_event else messaging_event['referral']['ref'].encode('ascii', 'ignore')
                 if referral is None and 'postback' in messaging_event and 'referral' in messaging_event['postback']:
                     referral = messaging_event['postback']['referral']['ref'].encode('ascii', 'ignore')
+
+
+                if bot_type == Const.BOT_TYPE_MOBILELEGEND:
+                    set_session_state(sender_id, 1)
+                    set_session_bot_type(sender_id, Const.BOT_TYPE_MOBILELEGEND)
+                    payload = None
+
+                    # ------- POSTBACK BUTTON MESSAGE
+                    if 'postback' in messaging_event:  # user clicked/tapped "postback" button in earlier message
+                        payload = messaging_event['postback']['payload']
+                        logger.info("POSTBACK --> %s" % (payload,))
+
+                    if 'message' in messaging_event:
+                        message = messaging_event['message']
+                        if 'quick_reply' in message and message['quick_reply']['payload'] is not None:
+                            payload = message['quick_reply']['payload']
+                            logger.info("QR --> %s" % (payload, ))
+
+                        if 'text' in message and payload is None:
+                            message_text = message['text']
+
+                            if get_session_trade_url(sender_id) == "_{PENDING}_":
+                                set_session_trade_url(sender_id, message_text)
+                                send_text(sender_id, "Your username / email has been set to:\n{trade_url}".format(trade_url=message_text))
+
+                                send_carousel(
+                                    recipient_id=sender_id,
+                                    elements=[{
+                                        'title'    : "Open Mobile Legends",
+                                        'subtitle' : "Tap here to launch",
+                                        'image_url': "https://i.ytimg.com/vi/WkMgq2Y9c4o/maxresdefault.jpg",
+                                        'item_url' : "http://taps.io/BvqCg",
+                                        'buttons'  : [{
+                                            'type'                : "web_url",
+                                            'url'                 : "http://taps.io/BvqCg",
+                                            'title'               : "Launch",
+                                            'webview_height_ratio': "full"
+                                        }]}],
+                                    quick_replies=[{
+                                        'content_type': "text",
+                                        'title'       : "Next Item",
+                                        'payload'     : "NEXT_ITEM"
+                                    }]
+                                )
+
+                            else:
+                                item = mobile_legend_item(sender_id)
+                                send_carousel(
+                                    recipient_id=sender_id,
+                                    elements=[{
+                                        'title'    : item[1].encode('utf8'),
+                                        'subtitle' : "",
+                                        'image_url': item[2],
+                                        'item_url' : None,
+                                        'buttons'  : [{
+                                            'type'   : "postback",
+                                            'payload': "FLIP_COIN-{item_id}".format(item_id=item[0]),
+                                            'title'  : "Flip Coin"
+                                        }]}],
+                                    quick_replies=[{
+                                        'content_type': "text",
+                                        'title'       : "Next Item",
+                                        'payload'     : "NEXT_ITEM"
+                                    }]
+                                )
+
+
+                    if payload == "WELCOME_MESSAGE":
+                        logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
+                        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+
+                        item = mobile_legend_item(sender_id)
+                        send_carousel(
+                            recipient_id=sender_id,
+                            elements=[{
+                                'title'    : item[1].encode('utf8'),
+                                'subtitle' : "",
+                                'image_url': item[2],
+                                'item_url' : None,
+                                'buttons'  : [{
+                                    'type'   : "postback",
+                                    'payload': "FLIP_COIN-{item_id}".format(item_id=item[0]),
+                                    'title'  : "Flip Coin"
+                            }]}],
+                            quick_replies=[{
+                                'content_type': "text",
+                                'title'       : "Next Item",
+                                'payload'     : "NEXT_ITEM"
+                            }]
+                        )
+
+                    elif payload == "NEXT_ITEM":
+                        item = mobile_legend_item(sender_id)
+                        send_carousel(
+                            recipient_id=sender_id,
+                            elements=[{
+                                'title'    : item[1].encode('utf8'),
+                                'subtitle' : "",
+                                'image_url': item[2],
+                                'item_url' : None,
+                            }],
+                        )
+
+                        if item is not None:
+                            send_image(sender_id, "https://i.imgur.com/qJu6BtA.gif")
+                            outcome = random.uniform(0, 1) >= 0.875
+                            if outcome is True:
+                                send_text(sender_id, "You won {item_name}!\n\nEnter your Mobile Legends username or email".format(item_name=item[1]))
+                                set_session_trade_url(sender_id, "_{PENDING}_")
+
+                            else:
+                                send_text(
+                                    recipient_id=sender_id,
+                                    message_text="TRY AGAIN! You lost {item_name}.".format(item_name=item[1]),
+                                    quick_replies=[{
+                                        'content_type': "text",
+                                        'title'       : "Next Item",
+                                        'payload'     : "NEXT_ITEM"
+                                    }]
+                                )
+
+                        else:
+                            send_text(sender_id, "Couldn't find that item!")
+
+                    elif re.search(r'FLIP_COIN-(\d+)', payload or "") is not None:
+                        item_id = re.match(r'FLIP_COIN-(?P<item_id>\d+)', payload or "").group('item_id')
+                        item = None
+
+                        with open("/var/www/FacebookBot/FacebookBot/data/csv/mobile-legend.csv", 'rb') as csvfile:
+                            reader = csv.reader(csvfile)
+                            for row in reader:
+                                if row[0] == item_id:
+                                    item = row
+                                    break
+
+                        if item is not None:
+                            send_image(sender_id, "https://i.imgur.com/qJu6BtA.gif")
+                            outcome = random.uniform(0, 1) >= 0.875
+                            if outcome is True:
+                                send_text(sender_id, "You won {item_name}!\n\nEnter your Mobile Legends username or email".format(item_name=item[1]))
+                                set_session_trade_url(sender_id, "_{PENDING}_")
+
+                            else:
+                                send_text(
+                                    recipient_id=sender_id,
+                                    message_text="TRY AGAIN! You lost {item_name}.".format(item_name=item[1]),
+                                    quick_replies=[{
+                                        'content_type': "text",
+                                        'title'       : "Next Item",
+                                        'payload'     : "NEXT_ITEM"
+                                    }]
+                                )
+
+                        else:
+                            send_text(sender_id, "Couldn't find that item!")
+
+                    return "OK", 200
+
 
                 # -- insert to log
                 write_message_log(sender_id, message_id, {key: messaging_event[key] for key in messaging_event if key != 'timestamp'})
