@@ -160,6 +160,48 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_CSGOMAFIA:
         return Const.CSGOMAFIA_ACCESS_TOKEN
 
+    elif bot_type == Const.BOT_TYPE_CSGOMICKEY:
+        return Const.CSGOMICKEY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOBIGGIE:
+        return Const.CSGOBIGGIE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGONUKE:
+        return Const.CSGONUKE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOKANYE:
+        return Const.CSGOKANYE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOPIE:
+        return Const.CSGOPIE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOWHIP:
+        return Const.CSGOWHIP_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOCRAY:
+        return Const.CSGOCRAY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOWU:
+        return Const.CSGOWU_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOKNIFE:
+        return Const.CSGOKNIFE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOFRAT:
+        return Const.CSGOFRAT_ACCESS_TOKEN
+
+    # elif bot_type == Const.:
+    #     return Const.
+    #
+    # elif bot_type == Const.:
+    #     return Const.
+    #
+    # elif bot_type == Const.:
+    #     return Const.
+    #
+    # elif bot_type == Const.:
+    #     return Const.
+
 
 
 def bot_webhook_type(webhook):
@@ -279,46 +321,36 @@ def bot_webhook_type(webhook):
     elif webhook == "csgomafia":
         return Const.BOT_TYPE_CSGOMAFIA
 
+    elif webhook == "csgomickey":
+        return Const.BOT_TYPE_CSGOMICKEY
 
+    elif webhook == "csgobiggie":
+        return Const.BOT_TYPE_CSGOBIGGIE
 
-def bot_name(bot_type=Const.BOT_TYPE_GAMEBOTS):
-    logger.info("bot_name(bot_type=%s)" % (bot_type,))
+    elif webhook == "csgonuke":
+        return Const.BOT_TYPE_CSGONUKE
 
-    if bot_type == Const.BOT_TYPE_GAMEBOTS:
-        return "gamebotsc"
+    elif webhook == "csgokanye":
+        return Const.BOT_TYPE_CSGOKANYE
 
-    elif bot_type == Const.BOT_TYPE_GAMEBAE:
-        return "GameBAE"
+    elif webhook == "csgopie":
+        return Const.BOT_TYPE_CSGOPIE
 
-    elif bot_type == Const.BOT_TYPE_H1Z1:
-        return "H1Z1"
+    elif webhook == "csgowhip":
+        return Const.BOT_TYPE_CSGOWHIP
 
-    elif bot_type == Const.BOT_TYPE_DOTA2:
-        return "bot.dota2"
+    elif webhook == "csgocray":
+        return Const.BOT_TYPE_CSGOCRAY
 
-    elif bot_type == Const.BOT_TYPE_CSGOSPICE:
-        return "csgospice"
+    elif webhook == "csgowu":
+        return Const.BOT_TYPE_CSGOWU
 
-    elif bot_type == Const.BOT_TYPE_CSGOBUNNY:
-        return "csgobunny"
+    elif webhook == "csgoknife":
+        return Const.BOT_TYPE_CSGOKNIFE
 
-    elif bot_type == Const.BOT_TYPE_CSGOBURRITO:
-        return "csgoburrito"
+    elif webhook == "csgofrat":
+        return Const.BOT_TYPE_CSGOFRAT
 
-    elif bot_type == Const.BOT_TYPE_CSGOPIZZA:
-        return "csgopizza"
-
-    elif bot_type == Const.BOT_TYPE_CSGOSUSHI:
-        return "csgosushi"
-
-    elif bot_type == Const.BOT_TYPE_CSGOSTONER:
-        return "csgostoner"
-
-    elif bot_type == Const.BOT_TYPE_CSGOBLAZE:
-        return "csgoblaze"
-
-    elif bot_type == Const.BOT_TYPE_TAC0:
-        return "taco0"
 
 
 def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
@@ -419,6 +451,36 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_CSGOMAFIA:
         return "CSGOMafia"
+
+    elif bot_type == Const.BOT_TYPE_CSGOMICKEY:
+        return "CSGOMickey"
+
+    elif bot_type == Const.BOT_TYPE_CSGOBIGGIE:
+        return "CSGOBiggie"
+
+    elif bot_type == Const.BOT_TYPE_CSGONUKE:
+        return "CSGONuke"
+
+    elif bot_type == Const.BOT_TYPE_CSGOKANYE:
+        return "CSGOKanye"
+
+    elif bot_type == Const.BOT_TYPE_CSGOPIE:
+        return "CSGOPie"
+
+    elif bot_type == Const.BOT_TYPE_CSGOWHIP:
+        return "CSGOWhip"
+
+    elif bot_type == Const.BOT_TYPE_CSGOCRAY:
+        return "CSGOCray"
+
+    elif bot_type == Const.BOT_TYPE_CSGOWU:
+        return "CSGOWu"
+
+    elif bot_type == Const.BOT_TYPE_CSGOKNIFE:
+        return "CSGOKnife"
+
+    elif bot_type == Const.BOT_TYPE_CSGOFRAT:
+        return "CSGOFrat"
 
 
 def send_tracker(fb_psid, category, action=None, label=None, value=None):
@@ -2752,7 +2814,8 @@ def handle_payload(sender_id, payload_type, payload):
             recipient_id =sender_id,
             title="Share {bot_title}".format(bot_title=bot_title(bot_type)),
             image_url=Const.SHARE_IMAGE_URL,
-            card_url="http://m.me/{bot_name}".format(bot_name=bot_name(bot_type)),
+            # card_url="http://m.me/{bot_name}".format(bot_name=bot_name(bot_type)),
+            card_url="http://m.me/{bot_name}".format(bot_name="gamebotsc"),
             buttons=[{ 'type' : "element_share" }],
             quick_replies=main_menu_quick_reply()
         )
@@ -3082,7 +3145,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, sender_id, main_menu_quick_reply())
 
     # elif message_text.lower() in Const.TASK_REPLIES.split("|"):
-    #     send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_name} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_name(get_session_bot_type(sender_id))))
+    #     send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_title} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_title(get_session_bot_type(sender_id))))
 
     elif message_text.lower() == ":payment":
         amount = get_session_deposit(sender_id)
