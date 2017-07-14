@@ -66,9 +66,9 @@ curl -X POST -H "Content-Type: application/json" -d '{
   },
   "message":{
     "attachment":{
-      "type":"image",
+      "type":"video",
       "payload":{
-        "url":"https://i.imgur.com/6Q8o21L.gif",
+        "url":"http://prebot.me/videos/lmon8_final.mp4",
         "is_reusable":true
       }
     }
