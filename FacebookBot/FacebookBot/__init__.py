@@ -22,6 +22,7 @@ from urllib import urlencode
 import MySQLdb as mdb
 import pycurl
 import requests
+import urllib
 
 from flask import Flask, request
 from flask_cors import CORS, cross_origin
@@ -101,6 +102,18 @@ def bot_page_id(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_BOTWREK:
         return "660584334132524"
+
+    elif bot_type == Const.BOT_TYPE_MAINGAME:
+        return "325498671237787"
+
+    elif bot_type == Const.BOT_TYPE_JAN:
+        return "787325224762591"
+
+    elif bot_type == Const.BOT_TYPE_ITSNANCY:
+        return "331592810621913"
+
+    elif bot_type == Const.BOT_TYPE_CSGOHOPE:
+        return "772647349584673"
 
 
 
@@ -346,6 +359,18 @@ def bot_type_token(bot_type=Const.BOT_TYPE_GAMEBOTS):
 
     elif bot_type == Const.BOT_TYPE_BOTWREK:
         return Const.BOTWREK_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_MAINGAME:
+        return Const.MAINGAME_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_JAN:
+        return Const.JAN_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_ITSNANCY:
+        return Const.ITSNANCY_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_CSGOHOPE:
+        return Const.CSGOHOPE_ACCESS_TOKEN
 
     # elif bot_type == Const.:
     #     return Const.
@@ -598,6 +623,18 @@ def bot_webhook_type(webhook):
     elif webhook == "bot-wrek":
         return Const.BOT_TYPE_BOTWREK
 
+    elif webhook == "maingame":
+        return Const.BOT_TYPE_MAINGAME
+
+    elif webhook == "jan":
+        return Const.BOT_TYPE_JAN
+
+    elif webhook == "its-nancy":
+        return Const.BOT_TYPE_ITSNANCY
+
+    elif webhook == "csgohope":
+        return Const.BOT_TYPE_CSGOHOPE
+
     # elif webhook == "":
     #     return Const.BOT_TYPE_
 
@@ -830,6 +867,18 @@ def bot_title(bot_type=Const.BOT_TYPE_GAMEBOTS):
     elif bot_type == Const.BOT_TYPE_BOTWREK:
         return "BOT WREK"
 
+    elif bot_type == Const.BOT_TYPE_MAINGAME:
+        return "Maingame"
+
+    elif bot_type == Const.BOT_TYPE_JAN:
+        return "Jan"
+
+    elif bot_type == Const.BOT_TYPE_ITSNANCY:
+        return "ItsNancy"
+
+    elif bot_type == Const.BOT_TYPE_CSGOHOPE:
+        return "CSGOHope"
+
     # elif bot_type == Const.BOT_TYPE_:
     #     return ""
 
@@ -1009,7 +1058,6 @@ def default_carousel(sender_id, amount=1):
         quick_replies=home_quick_replies()
     )
 
-
 def send_discord_card(sender_id):
     logger.info("send_discord_card(sender_id=%s)" % (sender_id,))
 
@@ -1021,7 +1069,6 @@ def send_discord_card(sender_id):
         quick_replies=main_menu_quick_reply()
     )
 
-
 def send_install_card(sender_id):
     logger.info("send_install_card(sender_id=%s)" % (sender_id,))
 
@@ -1029,10 +1076,21 @@ def send_install_card(sender_id):
         recipient_id=sender_id,
         title="Earn More Points",
         image_url="https://i.imgur.com/DbcITTT.png",
-        card_url="http://taps.io/Bvj-A",
-        quick_replies=main_menu_quick_reply()
+        card_url="http://taps.io/skins"
     )
 
+    send_text(sender_id, "Unlock two more flips. Install 2 & upload screenshot. (txt \"upload\")", main_menu_quick_reply())
+
+def send_ad_card(sender_id):
+    logger.info("send_ad_card(sender_id=%s)" % (sender_id,))
+
+    send_card(
+        recipient_id=sender_id,
+        title="Unlock Your Win",
+        image_url="https://i.ytimg.com/vi/WkMgq2Y9c4o/maxresdefault.jpg",
+        card_url="http://taps.io/skins",
+        quick_replies=main_menu_quick_reply()
+    )
 
 def send_pay_wall(sender_id, item):
     logger.info("send_pay_wall(sender_id=%s, item=%s)" % (sender_id, item))
@@ -1240,7 +1298,7 @@ def next_coin_flip_item(sender_id, pay_wall=False):
                     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s ORDER BY RAND() LIMIT 1;', (game_name, min_price))
 
                 else:
-                    logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price)),))
+                    logger.info("1ST ATTEMPT AT ITEM FOR (%s) =|=|=|=|=|=|=|=|=|=|=|=> %s" % (sender_id, ('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;' % (game_name, min_price, max_price)),))
                     cur.execute('SELECT `id`, `type_id`, `asset_name`, `game_name`, `image_url`, `price` FROM `flip_items` WHERE `game_name` = %s AND `quantity` > 0 AND `price` >= %s AND `price` < %s AND `type_id` = 1 AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (game_name, min_price, max_price))
 
                 row = cur.fetchone()
@@ -1480,7 +1538,24 @@ def coin_flip_results(sender_id, item_id=None):
         image_url = "https://i.imgur.com/NNKie1P.gif"
     elif bot_type == Const.BOT_TYPE_UNICORN:
         image_url = "https://i.imgur.com/OUv9W9o.gif"
-
+    elif bot_type == Const.BOT_TYPE_LORDHELIX:
+        image_url = "https://i.imgur.com/mWKd5Ag.gif"
+    elif bot_type == Const.BOT_TYPE_OZZNY09:
+        image_url = "https://i.imgur.com/uw9dX1w.gif"
+    elif bot_type == Const.BOT_TYPE_SUFFERCSGO:
+        image_url = "https://i.imgur.com/pOBhKza.gif"
+    elif bot_type == Const.BOT_TYPE_TELLFULGAMES:
+        image_url = "https://i.imgur.com/2LViM6t.gif"
+    elif bot_type == Const.BOT_TYPE_VASCO:
+        image_url = "https://i.imgur.com/wfgNUl6.gif"
+    elif bot_type == Const.BOT_TYPE_CSGOHOPE:
+        image_url = "https://media.giphy.com/media/K0WEtL8FbxgYM/giphy.gif"
+    elif bot_type == Const.BOT_TYPE_MAINGAME:
+        image_url = "https://i.imgur.com/CeFy6C0.gif"
+    elif bot_type == Const.BOT_TYPE_ITSNANCY:
+        image_url = "http://i.imgur.com/UJpnZeD.gif"
+    elif bot_type == Const.BOT_TYPE_JAN:
+        image_url = "https://media.giphy.com/media/K0WEtL8FbxgYM/giphy.gif"
 
 
     send_image(sender_id, image_url)
@@ -1532,19 +1607,19 @@ def coin_flip_results(sender_id, item_id=None):
 
     set_session_bonus(sender_id)
 
-    if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True:# or sender_id in Const.ADMIN_FB_PSID:
+    if coin_flip_prep(sender_id, get_session_deposit(sender_id), item_id) is True or sender_id in Const.ADMIN_FB_PSID:
         send_tracker(fb_psid=sender_id, category="win", label=flip_item['asset_name'], value=flip_item['price'])
         send_tracker(fb_psid=sender_id, category="transaction", label=flip_item['asset_name'], value=flip_item['price'])
 
         payload = {
-            'v'  : 1,
-            't'  : "event",
-            'tid': "UA-79705534-2",
-            'cid': hashlib.md5(sender_id.encode()).hexdigest(),
-            'ec' : "purchase",
-            'ea' : "purchase",
-            'el' : flip_item['asset_name'],
-            'ev' : flip_item['price']
+            'v'   : 1,
+            't'   : "event",
+            'tid' : "UA-79705534-2",
+            'cid' : hashlib.md5(sender_id.encode()).hexdigest(),
+            'ec'  : "purchase",
+            'ea'  : "purchase",
+            'el'  : flip_item['asset_name'],
+            'ev'  : flip_item['price']
         }
 
         c = pycurl.Curl()
@@ -1588,6 +1663,12 @@ def coin_flip_results(sender_id, item_id=None):
                 conn.close()
 
         send_text(sender_id, "You won {item_name}.".format(item_name=flip_item['asset_name']))
+
+        if bot_type == Const.BOT_TYPE_GAMEBOTS:
+            send_text(sender_id, "Tap on the following link to confirm... taps.io/skins")
+
+        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+        send_ad_card(sender_id)
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -2243,7 +2324,7 @@ def deposit_amount_for_price(price):
         amount = 2
 
     else:
-        amount = int(price)
+        amount = 2#int(price)
 
     logger.info("deposit_amount_for_price(price=%s) ::::: %s" % (price, amount))
     return amount
@@ -2252,7 +2333,7 @@ def deposit_amount_for_price(price):
 def price_range_for_deposit(deposit):
     logger.info("price_range_for_deposit(deposit=%s)" % (deposit,))
 
-    if deposit <= 2:
+    if deposit < 2:
         price = (0.00, 1.00)
 
     else:
@@ -2306,30 +2387,44 @@ def valid_purchase_code(sender_id, deeplink=None):
     return is_valid
 
 
+def enter_support(sender_id):
+    logger.info("enter_support(sender_id=%s)" % (sender_id,))
+
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        row = cur.fetchone()
+        # if row['support'] + 86400 <= int(time.time()):
+        cur.execute('UPDATE sessions SET support = ? WHERE fb_psid = ?;', (int(time.time()), sender_id))
+        conn.commit()
+
+        set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
+
+        send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(get_session_bot_type(sender_id)), fb_psid=sender_id))
+        send_text(
+            recipient_id=sender_id,
+            message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+            quick_replies=[{
+                'content_type': "text",
+                'title'       : "Cancel",
+                'payload'     : "NO_THANKS"
+            }]
+        )
+
+        # else:
+        #     send_text(sender_id, "You can only submit 1 support ticket per 24 hours", main_menu_quick_reply())
+
+    except sqlite3.Error as er:
+        logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
 def enter_giveaway(sender_id):
     logger.info("enter_giveaway(sender_id=%s)" % (sender_id,))
-
-    bot_type = get_session_bot_type(sender_id)
-    response = requests.get("http://steamcommunity.com/inventory/76561198385848170/730/2", data=json.dumps({'l': "english"}))
-
-    ind = 0
-    if bot_type == Const.BOT_TYPE_CSGOSNAKE:
-        ind = 0
-    elif bot_type == Const.BOT_TYPE_CSGOINACTIVE:
-        ind = 1
-    elif bot_type == Const.BOT_TYPE_AEROFAM420:
-        ind = 2
-    elif bot_type == Const.BOT_TYPE_CSGOBEAST:
-        ind = 3
-    elif bot_type == Const.BOT_TYPE_SPIN2WIN:
-        ind = 4
-    elif bot_type == Const.BOT_TYPE_UNICORN:
-        ind = 5
-
-    item = response.json()['descriptions'][min(max(0, ind), len(response.json()['descriptions']) - 1)]#random.choice(response.json()['descriptions'])
-    item_name = item['market_name']
-    image_url = "https://steamcommunity-a.akamaihd.net/economy/image/{url}".format(url=item['icon_url_large'])
-
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
@@ -2340,15 +2435,52 @@ def enter_giveaway(sender_id):
                 send_text(sender_id, "You can only enter giveaways once per day", main_menu_quick_reply())
 
             else:
-                cur.execute('INSERT INTO `giveaways` (`id`, `bot_type`, `fb_psid`, `item_name`, `added`) VALUES (NULL, %s, %s, %s, NOW());', (bot_type, sender_id, item_name))
-                conn.commit()
-                cur.execute('SELECT COUNT(*) AS `total` FROM `giveaways` WHERE `added` >= DATE(NOW());')
-                total = max(0, cur.fetchone()['total'] - 1)
+                bot_type = get_session_bot_type(sender_id)
+                response = requests.get("http://steamcommunity.com/inventory/76561198385848170/730/2", data=json.dumps({'l': "english"}))
 
-                # send_text(sender_id, "You have completed a giveaway entry with {total} other player{suff}. You will be messaged here when the winner is selected.\n\nToday's extra item is:\n{item_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", item_name=item_name))
-                send_image(sender_id, image_url)
-                send_text(sender_id, "Today's Giveaway Item from {bot_title} is {item_name}. Please share the following URL with friends.".format(bot_title=bot_title(bot_type), item_name=item_name))
-                send_text(sender_id, "https://m.me/{page_id}?ref=/giveaway".format(page_id=bot_page_id(bot_type)), quick_replies=main_menu_quick_reply())
+                if response.json()['total_inventory_count'] == 0:
+                    send_text(sender_id, "Giveawsays are unavailable at this time", main_menu_quick_reply())
+                    return "OK", 200
+                
+                elements = []
+                for item in response.json()['descriptions']:
+                    if len(elements) <= 5:
+                        elements.append({
+                            'title'    : item['market_name'],
+                            'subtitle' : "",
+                            'image_url': "https://steamcommunity-a.akamaihd.net/economy/image/{url}".format(url=item['icon_url_large']),
+                            'item_url' : "https://twitter.com/intent/tweet?text={tweet}".format(tweet=urllib.quote("GA from {bot_title}.\nFollow + RT + Tag 1\nOpen In Messenger: https://m.me/{page_id}?ref=/giveaway\n#{hashtag}".format(bot_title=bot_title(bot_type), page_id=bot_page_id(bot_type), hashtag=bot_title(bot_type).replace(" ", "")))),
+                            'buttons'  : None
+                        })
+
+                send_text(sender_id, "You have entered {bot_title}'s daily giveaway for a chance to win one of these items.".format(bot_title=bot_title(bot_type)))
+                send_carousel(
+                    recipient_id=sender_id,
+                    elements=elements
+                )
+
+                cur.execute('INSERT INTO `giveaways` (`id`, `bot_type`, `fb_psid`, `added`) VALUES (NULL, %s, %s, NOW());', (bot_type, sender_id))
+                conn.commit()
+                cur.execute('SELECT COUNT(*) AS `total` FROM `giveaways` WHERE `bot_type` = %s AND `added` >= DATE(NOW());', (bot_type,))
+                total = min(100, cur.fetchone()['total'])
+
+                send_text(sender_id, "Rules: This giveaway requires {total} more entries to unlock. Please share URL with friends.".format(total=(100 - total)))
+                send_text(sender_id, "https://m.me/{page_id}?ref=/giveaway".format(page_id=bot_page_id(bot_type)))
+
+                trade_url = get_session_trade_url(sender_id)
+                set_session_state(sender_id, Const.SESSION_STATE_GIVEAWAY_TRADE_URL)
+                if trade_url is None:
+                    send_text(sender_id, "To be eligible to win one of the above items, please enter your steam trade url", main_menu_quick_reply())
+
+                else:
+                    send_text(
+                        recipient_id=sender_id,
+                        message_text="Your Steam Trade URL is set to:\n\n{trade_url}".format(trade_url=trade_url),
+                        quick_replies=[{
+                            'content_type': "text",
+                            'title'       : "Main Menu",
+                            'payload'     : "MAIN_MENU"
+                        }] + submit_quick_replies(["Confirm", "Enter URL"]))
 
     except mdb.Error, e:
         logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
@@ -2512,9 +2644,11 @@ def item_setup(sender_id, item_id, preview=False):
     item = get_item_details(item_id)
     logger.info("ITEM --> %s", item)
 
-    if item['price'] > 1.00 and get_session_deposit(sender_id) < 1.00:
+    if (item['price'] > 1.00 and get_session_deposit(sender_id) < 1.00) or deposit_amount_for_price(item['price']) > get_session_deposit(sender_id):
         send_text(sender_id, "To Flip high tier items you must make a deposit. Get 2 More Wins Below or wait 24 hours.")
         send_pay_wall(sender_id, item)
+        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+        send_ad_card(sender_id)
         return "OK", 200
 
     if item is None:
@@ -2525,8 +2659,11 @@ def item_setup(sender_id, item_id, preview=False):
         coin_flip_results(sender_id, item_id)
         return "OK", 200
 
-    if wins_last_day(sender_id) >= Const.MAX_TIER_WINS * win_mulitplier(sender_id) or deposit_amount_for_price(item['price']) > get_session_deposit(sender_id):
+    if wins_last_day(sender_id) >= Const.MAX_TIER_WINS * win_mulitplier(sender_id):
         send_pay_wall(sender_id, item)
+        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+        send_ad_card(sender_id)
+
 
     else:
         if preview:
@@ -2943,11 +3080,13 @@ def webhook(bot_webhook):
                     set_session_state(sender_id)
                     set_session_bot_type(sender_id, bot_type)
                     send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title(bot_type)))
-                    send_image(sender_id, "http://i.imgur.com/QHHovfa.gif")
-                    default_carousel(sender_id)
+                    send_image(sender_id, "https://i.imgur.com/mWKd5Ag.gif" if bot_type == Const.BOT_TYPE_LORDHELIX else "https://i.imgur.com/uw9dX1w.gif" if bot_type == Const.BOT_TYPE_OZZNY09 else "https://i.imgur.com/pOBhKza.gif" if bot_type == Const.BOT_TYPE_SUFFERCSGO else "https://i.imgur.com/2LViM6t.gif" if bot_type == Const.BOT_TYPE_TELLFULGAMES else "https://i.imgur.com/wfgNUl6.gif" if bot_type == Const.BOT_TYPE_VASCO else "https://media.giphy.com/media/K0WEtL8FbxgYM/giphy.gif" if bot_type == Const.BOT_TYPE_CSGOHOPE or bot_type == Const.BOT_TYPE_JAN else "http://i.imgur.com/UJpnZeD.gif" if bot_type == Const.BOT_TYPE_ITSNANCY else "https://i.imgur.com/CeFy6C0.gif" if bot_type == Const.BOT_TYPE_MAINGAME else "http://i.imgur.com/QHHovfa.gif")
+                    # default_carousel(sender_id)
                     graph = fb_graph_user(sender_id)
                     if graph is not None:
                         set_session_name(sender_id, graph['first_name'] or "", graph['last_name'] or "")
+
+                    enter_giveaway(sender_id)
 
                 # -- existing
                 elif get_session_state(sender_id) >= Const.SESSION_STATE_HOME and get_session_state(sender_id) < Const.SESSION_STATE_PURCHASED_ITEM:
@@ -2983,6 +3122,9 @@ def webhook(bot_webhook):
 
                         elif referral.split("/")[-1].startswith("giveaway") or referral.split("/")[-1].startswith("ga"):
                             enter_giveaway(sender_id)
+
+                        elif referral.split("/")[-1].startswith("support"):
+                            enter_support(sender_id)
 
                         else:
                             if valid_bonus_code(sender_id, referral):
@@ -3314,6 +3456,7 @@ def slack(bot_webhook):
                 if conn:
                     conn.close()
 
+            send_text(fb_psid, "You have been rewarded a ${amount:.2f} deposit for the next 24 hours. Happy flipping!".format(amount=amount), main_menu_quick_reply())
 
         elif re.search('^(\d+)\ (.*)$', request.form['text']) is not None:
             fb_psid = re.match(r'(?P<fb_psid>\d+)\ (?P<message_text>.*)$', request.form['text']).group('fb_psid')
@@ -3506,38 +3649,52 @@ def handle_payload(sender_id, payload_type, payload):
 
     elif payload == "SUPPORT":
         send_tracker(fb_psid=sender_id, category="support")
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-        try:
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
-            row = cur.fetchone()
 
-            logger.info("::::::::::::::::::::: %s + 86400 = (%s) [%s]" % (row['support'], row['support'] + 864000, int(time.time())))
+        set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
 
-            if row['support'] + 86400 <= int(time.time()):
-                set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
+        send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(bot_type), fb_psid=sender_id))
+        send_text(
+            recipient_id=sender_id,
+            message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+            quick_replies=[{
+                'content_type': "text",
+                'title'       : "Cancel",
+                'payload'     : "NO_THANKS"
+            }]
+        )
 
-                send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(bot_type), fb_psid=sender_id))
-                send_text(
-                    recipient_id=sender_id,
-                    message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
-                    quick_replies=[{
-                        'content_type': "text",
-                        'title'       : "Cancel",
-                        'payload'     : "NO_THANKS"
-                    }]
-                )
-
-            else:
-                send_text(sender_id, "You can only submit 1 support ticket per 24 hours")
-
-        except sqlite3.Error as er:
-            logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
-
-        finally:
-            if conn:
-                conn.close()
+        # conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+        # try:
+        #     conn.row_factory = sqlite3.Row
+        #     cur = conn.cursor()
+        #     cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
+        #     row = cur.fetchone()
+        #
+        #     logger.info("::::::::::::::::::::: %s + 86400 = (%s) [%s]" % (row['support'], row['support'] + 864000, int(time.time())))
+        #
+        #     if row['support'] + 86400 <= int(time.time()):
+        #         set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
+        #
+        #         send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(bot_type), fb_psid=sender_id))
+        #         send_text(
+        #             recipient_id=sender_id,
+        #             message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
+        #             quick_replies=[{
+        #                 'content_type': "text",
+        #                 'title'       : "Cancel",
+        #                 'payload'     : "NO_THANKS"
+        #             }]
+        #         )
+        #
+        #     else:
+        #         send_text(sender_id, "You can only submit 1 support ticket per 24 hours")
+        #
+        # except sqlite3.Error as er:
+        #     logger.info("::::::support[cur.execute] sqlite3.Error - %s" % (er.message,))
+        #
+        # finally:
+        #     if conn:
+        #         conn.close()
 
     elif payload == "NO_THANKS":
         # send_tracker(fb_psid=sender_id, category="no-thanks")
@@ -3636,7 +3793,7 @@ def handle_payload(sender_id, payload_type, payload):
                 if conn:
                     conn.close()
 
-            send_text(sender_id, "Please wait up to 24 hours to transfer. Keep notifications on and accept trade within 1 hour.")
+            send_text(sender_id, "Giveaway results are determined once per day. Keep notifications on and accept trade within 1 hour.")
             set_session_state(sender_id)
             default_carousel(sender_id)
 
@@ -3696,7 +3853,7 @@ def handle_payload(sender_id, payload_type, payload):
             send_text(sender_id, "Re-enter your lmon8 shop url to recieve {item_name}".format(item_name=get_item_details(get_session_item(sender_id))['asset_name']), main_menu_quick_reply())
 
         elif get_session_state(sender_id) == Const.SESSION_STATE_GIVEAWAY_TRADE_URL:
-            send_text(sender_id, "Re-enter your steam trade url to recieve {item_name}".format(item_name=get_item_details(get_session_item(sender_id))['asset_name']), main_menu_quick_reply())
+            send_text(sender_id, "Re-enter your steam trade url", main_menu_quick_reply())
 
         else:
             clear_session_dub(sender_id)
@@ -3733,38 +3890,7 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, "1. Wait up to 24 hours for each trade request.\n\n2. Accept trade request within one hour.\n\n3. You may purchase access to higher priced items.\n\n4. Each purchase gives you 2 more wins and 50 more chances.\n\n5. You may be banned for repeat abuse of our system, mods, support, and social staff.", main_menu_quick_reply())
 
     elif message_text.lower() in Const.SUPPORT_REPLIES.split("|"):
-        conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-        try:
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            cur.execute('SELECT support FROM sessions WHERE fb_psid = ? ORDER BY added DESC LIMIT 1;', (sender_id,))
-            row = cur.fetchone()
-            if row['support'] + 86400 <= int(time.time()):
-                cur.execute('UPDATE sessions SET support = ? WHERE fb_psid = ?;', (int(time.time()), sender_id))
-                conn.commit()
-
-                set_session_state(sender_id, Const.SESSION_STATE_SUPPORT)
-
-                send_text(sender_id, "Welcome to {bot_title} Support. Your user id has been identified: {fb_psid}".format(bot_title=bot_title(get_session_bot_type(sender_id)), fb_psid=sender_id))
-                send_text(
-                    recipient_id=sender_id,
-                    message_text="Please describe your support issue (500 character limit). Include purchase ID for faster look up.",
-                    quick_replies=[{
-                        'content_type': "text",
-                        'title'       : "Cancel",
-                        'payload'     : "NO_THANKS"
-                    }]
-                )
-
-            else:
-                send_text(sender_id, "You can only submit 1 support ticket per 24 hours", main_menu_quick_reply())
-
-        except sqlite3.Error as er:
-            logger.info("::::::set_session_state[cur.execute] sqlite3.Error - %s" % (er.message,))
-
-        finally:
-            if conn:
-                conn.close()
+        enter_support(sender_id)
 
     elif message_text.lower() in Const.GIVEAWAY_REPLIES.split("|"):
         enter_giveaway(sender_id)
@@ -3865,7 +3991,7 @@ def recieved_text_reply(sender_id, message_text):
             response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
             clear_session_dub(sender_id)
 
-        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL or get_session_state == Const.SESSION_STATE_GIVEAWAY_TRADE_URL:
+        elif get_session_state(sender_id) == Const.SESSION_STATE_FLIP_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_PURCHASED_TRADE_URL or get_session_state(sender_id) == Const.SESSION_STATE_GIVEAWAY_TRADE_URL:
             if re.search(r'.*steamcommunity\.com\/tradeoffer\/.*$', message_text) is not None:
                 set_session_trade_url(sender_id, message_text)
                 recieved_trade_url(sender_id, message_text)
