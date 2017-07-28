@@ -600,34 +600,7 @@ def webhook(bot_webhook):
                             set_user(sender_id)
                             set_user_bot_type(sender_id, bot_webhook_type(bot_webhook))
 
-
-                        if message['text'] in Const.RESERVED_ALERT_REPLIES.split("|"):
-                            send_text(sender_id, "It's 4pm. Time to Get Happy!", build_quick_replies(sender_id))
-                            return "OK", 200
-
-                        elif message['text'] in Const.RESERVED_OPTOUT_REPLIES.split("|"):
-                            set_optout(sender_id)
-                            send_text(sender_id, "You have opted out.")
-                            return "OK", 200
-
-                        elif get_email(sender_id) == "_{PENDING}_":
-                            if re.search(r'^.+\@.+\..*$', message['text']) is not None:
-                                set_email(sender_id, message['text'])
-                                send_text(sender_id, "{email_addr} saved".format(email_addr=message['text']), build_quick_replies(sender_id))
-
-                            else:
-                                send_text(sender_id, "Invalid email", [build_cancel_button()])
-                                return "OK", 200
-
-                        elif get_zipcode(sender_id) == "_{PENDING}_":
-                            if re.search(r'^\d+$', message['text']) is not None:
-                                set_zipcode(sender_id, message['text'])
-                                send_text(sender_id, "{zipcode} saved".format(zipcode=message['text']), build_quick_replies(sender_id))
-
-                            else:
-                                send_text(sender_id, "Invalid zipcode", [build_cancel_button()])
-                                return "OK", 200
-
+                        handle_text_reply(sender_id, message['text'])
                         send_default_carousel(sender_id)
 
 
@@ -696,6 +669,36 @@ def handle_payload(sender_id, payload, bot_type):
         set_zipcode(sender_id)
         send_default_carousel(sender_id)
 
+
+def handle_text_reply(sender_id, message_text):
+    logger.info("handle_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
+
+    if message_text in Const.RESERVED_ALERT_REPLIES.split("|"):
+        send_text(sender_id, "It's 4pm. Time to Get Happy!", build_quick_replies(sender_id))
+        return "OK", 200
+
+    elif message_text in Const.RESERVED_OPTOUT_REPLIES.split("|"):
+        set_optout(sender_id)
+        send_text(sender_id, "You have opted out.")
+        return "OK", 200
+
+    elif get_email(sender_id) == "_{PENDING}_":
+        if re.search(r'^.+\@.+\..*$', message_text) is not None:
+            set_email(sender_id, message_text)
+            send_text(sender_id, "{email_addr} saved".format(email_addr=message_text), build_quick_replies(sender_id))
+
+        else:
+            send_text(sender_id, "Invalid email", [build_cancel_button()])
+            return "OK", 200
+
+    elif get_zipcode(sender_id) == "_{PENDING}_":
+        if re.search(r'^\d+$', message_text) is not None:
+            set_zipcode(sender_id, message_text)
+            send_text(sender_id, "{zipcode} saved".format(zipcode=message_text), build_quick_replies(sender_id))
+
+        else:
+            send_text(sender_id, "Invalid zipcode", [build_cancel_button()])
+            return "OK", 200
 
 # =- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 # =- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
