@@ -1600,7 +1600,7 @@ def welcome_message(recipient_id, entry_type, deeplink="/"):
                     conn.close()
 
 
-            send_text(recipient_id, "You have completed a giveaway entry with {total} other player{suff}. You will be messaged here when the winner is selected.\n\nToday's extra item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name), main_menu_quick_replies(recipient_id))
+            send_text(recipient_id, "You have completed a giveaway entry with {total} other player{suff}. You will be messaged here when the winner is selected.".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s"), main_menu_quick_replies(recipient_id))
             send_image(customer.fb_psid, image_url, quick_replies=main_menu_quick_replies(recipient_id))
             send_tracker(fb_psid=customer.fb_psid, category="transaction", label="giveaway")
             send_tracker(fb_psid=customer.fb_psid, category="giveaway", label=product_name)
@@ -1695,7 +1695,7 @@ def clone_storefront(recipient_id, storefront_id):
             product.attachment_id = product_ref.attachment_id
             product.prebot_url = "http://prebot.me/{product_name}".format(product_name=product.name)
             product.price = product_ref.price
-            product.tags = "autogen-resell {tags}".format(tags=product_ref.tags)
+            product.tags = "autogen-resell {tags}".format(tags=product_ref.tags.replace("autogen-resell", ""))
             product.creation_state = 7
             db.session.add(product)
             db.session.commit()
@@ -1992,8 +1992,8 @@ def activate_premium_quick_replies(storefront):
     logger.info("activate_premium_quick_replies(storefront=%s)" % (storefront,))
 
     return [
-               build_quick_reply(Const.KWIK_BTN_TEXT, caption="${price:.2f}".format(price=Const.PREMIUM_SHOP_PRICE), payload=Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT)
-           ] + cancel_entry_quick_reply()
+        build_quick_reply(Const.KWIK_BTN_TEXT, caption="${price:.2f}".format(price=Const.PREMIUM_SHOP_PRICE), payload=Const.PB_PAYLOAD_ACTIVATE_PRO_STOREFRONT)
+    ] + cancel_entry_quick_reply()
 
 
 def cancel_entry_quick_reply():
@@ -2161,52 +2161,10 @@ def build_sponsor_element():
     )
 
 
-def build_featured_storefront_elements(amt=3):
-    logger.info("build_featured_storefront_elements(amt=%s)" % (amt,))
-
-    elements = []
-    try:
-        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        with conn:
-            cur = conn.cursor(mysql.cursors.DictCursor)
-            cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', ("%{tag}%".format(tag="autogen-import"), min(max(amt, 0), 10)))
-            for row in cur.fetchall():
-                product = Product.query.filter(Product.id == row['id']).first()
-                if product is not None:
-                    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
-                    if storefront is not None:
-                        elements.append(build_card_element(
-                            title=storefront.display_name_utf8,
-                            subtitle=product.display_name_utf8,
-                            image_url=product.image_url,
-                            item_url=product.messenger_url,
-                            buttons=[
-                                build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
-                                build_button(Const.CARD_BTN_INVITE)
-                            ]
-                        ))
-
-
-    except mysql.Error, e:
-        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-    return elements
-
-
 def build_autogen_storefront_elements(recipient_id):
     logger.info("build_autogen_storefront_elements(recipient_id=%s)" % (recipient_id,))
     elements = []
-
-    templates = [{
-        'key'      : "GamebotsMysteryFlip",
-        'title'    : "Gamebots Mystery Flip",
-        'subtitle' : "1 Flip High Tier Item",
-        'image_url': "https://i.imgur.com/lGxBTQR.png"
-    }]
+    templates = []
 
     try:
         conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
@@ -2215,7 +2173,7 @@ def build_autogen_storefront_elements(recipient_id):
 
             product = None
             while product is None:
-                cur.execute('SELECT `id`, `name`, `display_name`, `image_url` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY `views` DESC LIMIT 5;', ("%{tag}%".format(tag="autogen-import"),))
+                cur.execute('SELECT `id`, `name`, `display_name`, `image_url` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() DESC LIMIT 7;', ("%{tag}%".format(tag="autogen-import"),))
                 for row in cur.fetchall():
                     if row is not None:
                         product = Product.query.filter(Product.id == row['id']).first()
@@ -2435,22 +2393,19 @@ def send_admin_carousel(recipient_id):
     cards = [
     ]
 
-    #-- look for created storefront
-    if storefront is None:
-        cards.append(build_sponsor_element())
-
-        cards.append(
-            build_card_element(
-                title="Refer a Friend to Lmon8",
-                subtitle="Share your Lmon8 referral URL",
-                image_url=Const.IMAGE_URL_REFERRAL_CARD,
-                buttons=[
-                    build_button(Const.CARD_BTN_POSTBACK, caption="Referral Link", payload=Const.PB_PAYLOAD_REFERRAL_FAQ)
-                ]
-            )
+    cards.append(
+        build_card_element(
+            title="Lmon8 ICO",
+            subtitle="Tap to learn more about our ICO",
+            image_url="https://i.imgur.com/TXBVzcf.png",
+            buttons=[
+                build_button(Const.CARD_BTN_POSTBACK, caption="Lmon8 ICO", payload=Const.PB_PAYLOAD_ICO)
+            ]
         )
+    )
 
-    else:
+    #-- look for created storefront
+    if storefront is not None:
         product = Product.query.filter(Product.storefront_id == storefront.id).filter(Product.creation_state == 7).first()
         if product is None:
             cards.append(
@@ -2464,40 +2419,13 @@ def send_admin_carousel(recipient_id):
                 )
             )
 
-            cards.append(build_sponsor_element())
-            cards.append(
-                build_card_element(
-                    title="Refer a Friend to Lmon8",
-                    subtitle="Share your Lmon8 referral URL",
-                    image_url=Const.IMAGE_URL_REFERRAL_CARD,
-                    buttons=[
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral Link", payload=Const.PB_PAYLOAD_REFERRAL_FAQ)
-                    ]
-                )
-            )
-
-        else:
-            cards.append(build_sponsor_element())
-            purchases = Purchase.query.filter(Purchase.storefront_id == storefront.id).all()
-            cards.append(
-                build_card_element(
-                    title="Refer a Friend to Lmon8",
-                    subtitle="Share your Lmom8 ID now with Friends",
-                    image_url=Const.IMAGE_URL_REFERRAL_CARD,
-                    buttons=[
-                        build_button(Const.CARD_BTN_POSTBACK, caption="Referral Link", payload=Const.PB_PAYLOAD_REFERRAL_FAQ)
-                    ]
-                )
-            )
-
-
     cards.append(
         build_card_element(
-            title="Lmon8 ICO",
-            subtitle="Tap to learn more about our ICO",
-            image_url="https://i.imgur.com/TXBVzcf.png",
+            title="Refer a Friend to Lmon8",
+            subtitle="Share your Lmon8 referral URL",
+            image_url=Const.IMAGE_URL_REFERRAL_CARD,
             buttons=[
-                build_button(Const.CARD_BTN_POSTBACK, caption="Lmon8 ICO", payload=Const.PB_PAYLOAD_ICO)
+                build_button(Const.CARD_BTN_POSTBACK, caption="Referral Link", payload=Const.PB_PAYLOAD_REFERRAL_FAQ)
             ]
         )
     )
@@ -2531,7 +2459,7 @@ def send_customer_carousel(recipient_id, product_id):
                 elements.append(
                     build_card_element(
                         title = product.display_name_utf8,
-                        subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
+                        subtitle = "{points}pts".format(points=points_per_dollar(product.price)),
                         image_url = product.image_url,
                         buttons = [
                             build_button(Const.CARD_BTN_POSTBACK, caption="Purchase", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT)
@@ -2576,9 +2504,39 @@ def send_autogen_carousel(recipient_id):
 def send_featured_carousel(recipient_id):
     logger.info("send_featured_carousel(recipient_id=%s)" % (recipient_id,))
 
+    elements = []
+    try:
+        conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+        with conn:
+            cur = conn.cursor(mysql.cursors.DictCursor)
+            cur.execute('SELECT `id` FROM `products` WHERE `tags` LIKE %s AND `enabled` = 1 ORDER BY RAND() LIMIT %s;', ("%{tag}%".format(tag="autogen-import"), min(max(amt, 0), 10)))
+            for row in cur.fetchall():
+                product = Product.query.filter(Product.id == row['id']).first()
+                if product is not None:
+                    storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+                    if storefront is not None:
+                        elements.append(build_card_element(
+                            title=storefront.display_name_utf8,
+                            subtitle=product.display_name_utf8,
+                            image_url=product.image_url,
+                            item_url=product.messenger_url,
+                            buttons=[
+                                build_button(Const.CARD_BTN_POSTBACK, caption="Flip Now", payload="{payload}-{product_id}".format(payload=Const.PB_PAYLOAD_VIEW_PRODUCT, product_id=product.id)),
+                                build_button(Const.CARD_BTN_INVITE)
+                            ]
+                        ))
+
+
+    except mysql.Error, e:
+        logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
     data = build_carousel(
         recipient_id=recipient_id,
-        cards=build_featured_storefront_elements(recipient_id, 10),
+        cards=elements,
         quick_replies=main_menu_quick_replies(recipient_id)
     )
 
@@ -2674,7 +2632,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle ="{description} - ${price:.2f}".format(description=product.description, price=product.price),
+                subtitle = "{points}pts".format(points=points_per_dollar(product.price)),
                 image_url = product.image_url,
                 buttons = [
                     build_button(Const.CARD_BTN_POSTBACK, caption="Buy", payload=Const.PB_PAYLOAD_CHECKOUT_PRODUCT),
@@ -2688,7 +2646,7 @@ def send_product_card(recipient_id, product_id, card_type=Const.CARD_TYPE_PRODUC
             data = build_standard_card(
                 recipient_id = recipient_id,
                 title = product.display_name_utf8,
-                subtitle = "{description} — ${price:.2f}".format(description=product.description, price=product.price),
+                subtitle = "{points}pts".format(points=points_per_dollar(product.price)),
                 image_url = product.image_url,
                 quick_replies = [
                     build_quick_reply(Const.KWIK_BTN_TEXT, "Submit", Const.PB_PAYLOAD_SUBMIT_PRODUCT),
@@ -3038,13 +2996,18 @@ def send_trade_card(recipient_id):
         ],
         quick_replies=None
     )))
-    send_text(recipient_id, "Please trade any item to unlock access to Lmon8 and utilize your points.")
+    send_text(recipient_id, "Please trade any item to unlock access to Lmon8 and utilize your points.", main_menu_quick_replies(recipient_id))
 
 #-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= --#
 
 
 def send_ico_info(recipient_id):
     logger.info("send_ico_info(recipient_id=%s)" % (recipient_id,))
+
+    response = requests.get("https://coinmarketcap-nexuist.rhcloud.com/api/eth")
+    eth_price = response.json()['price']['usd']
+
+
 
     tokens = 0
     customer = Customer.query.filter(Customer.fb_psid == recipient_id).first()
@@ -3053,8 +3016,10 @@ def send_ico_info(recipient_id):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('SELECT SUM(`tokens`) AS `total` FROM `users`;')
+                cur.execute('SELECT SUM(`price`) AS `total` FROM `trader_items`;')
                 total = float(cur.fetchone()['total'])
+                cur.execute('SELECT SUM(`price`) AS `total` FROM `ico_tokens`;')
+                total += float(cur.fetchone()['total'])
 
         except mysql.Error, e:
             logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
@@ -3064,10 +3029,10 @@ def send_ico_info(recipient_id):
                 conn.close()
 
 
-        tokens = total
+        tokens = total / float(eth_price)
 
         send_video(recipient_id, url="http://prebot.me/videos/lmon8_final.mp4", attachment_id="285225218619981")
-        send_text(recipient_id, "Lmon8 is hosting an Initial Coin Offering (ICO) in Q4 2017. A total of ${price} or {tokens} Lmon8 tokens have been reserved.\n\nAll proceeds from the release of Lmon8 tokens in the ICO shall be used to finance further development, support, marketing of new gaming projects: trading platforms and gaming services associated with virtual items.".format(price=locale.format('%.2f', round(tokens * Const.TOKENS_PER_DOLLAR, 2), grouping=True), tokens=locale.format('%.5f', tokens, grouping=True)))
+        send_text(recipient_id, "Lmon8 is hosting an Initial Coin Offering (ICO) in Q4 2017. A total of ${price} or {tokens} Lmon8 tokens have been reserved.\n\nAll proceeds from the release of Lmon8 tokens in the ICO shall be used to finance further development, support, marketing of new gaming projects: trading platforms and gaming services associated with virtual items.".format(price=locale.format('%.2f', round(total, 2), grouping=True), tokens=locale.format('%.8f', tokens, grouping=True)))
         send_text(
             recipient_id=recipient_id,
             message_text="Deposit skins and or transfer PTS to reserve Lmon8 tokens below.",
@@ -3544,21 +3509,22 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         purchase_points_pak(recipient_id, int(re.match(r'^PURCHASE_POINTS_PAK_(?P<amount>\d+)$', payload).group('amount')))
 
     elif payload == Const.PB_PAYLOAD_CHECKOUT_PRODUCT:
-        # try:
-        #     conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
-        #     with conn:
-        #         cur = conn.cursor(mysql.cursors.DictCursor)
-        #         cur.execute('SELECT `id` FROM `unlocked_users` WHERE `fb_psid` = %s LIMIT 1;', (recipient_id,))
-        #         if cur.fetchone() is None:
-        #             send_text(recipient_id, "You are currently not authorized to purchase this item.")
-        #             return "OK", 200
-        #
-        # except mysql.Error, e:
-        #     logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
-        #
-        # finally:
-        #     if conn:
-        #         conn.close()
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT SUM(`price`) AS `total` FROM `trader_items` WHERE `steam_id64` = %s LIMIT 1;', (customer.steam_id64,))
+                total = cur.fetchone()['total']
+                if total < 5:
+                    send_text(recipient_id, "You must deposit $5 worth of items before purchasing", main_menu_quick_replies(recipient_id))
+                    return "OK", 200
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         if product is not None:
@@ -3657,6 +3623,23 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
 
         product = Product.query.filter(Product.id == customer.product_id).first()
         storefront = Storefront.query.filter(Storefront.id == product.storefront_id).first()
+
+        try:
+            conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
+            with conn:
+                cur = conn.cursor(mysql.cursors.DictCursor)
+                cur.execute('SELECT SUM(`price`) AS `total` FROM `trader_items` WHERE `steam_id64` = %s LIMIT 1;', (customer.steam_id64,))
+                total = cur.fetchone()['total']
+                if total < 5:
+                    send_text(recipient_id, "You must deposit $5 worth of items before purchasing", main_menu_quick_replies(recipient_id))
+                    return "OK", 200
+
+        except mysql.Error, e:
+            logger.info("MySqlError (%d): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
 
         if customer.points >= product.price * Const.POINTS_PER_DOLLAR:
             try:
@@ -4897,7 +4880,7 @@ def received_text_response(recipient_id, message_text):
 
         send_tracker(fb_psid=recipient_id, category="transaction", label="giveaway")
         send_tracker(fb_psid=customer.fb_psid, category="giveaway", label=product_name)
-        send_text(recipient_id, "You have completed a giveaway entry with {total} other player{suff}. You will be messaged here when the winner is selected.\n\nToday's extra item is:\n{product_name}".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s", product_name=product_name), main_menu_quick_replies(recipient_id))
+        send_text(recipient_id, "You have completed a giveaway entry with {total} other player{suff}. You will be messaged here when the winner is selected.".format(total=locale.format('%d', total, grouping=True), suff="" if total == 1 else "s"), main_menu_quick_replies(recipient_id))
         send_image(customer.fb_psid, image_url, quick_replies=main_menu_quick_replies(recipient_id))
 
     #-- reserved points reply
