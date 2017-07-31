@@ -3126,6 +3126,9 @@ def webhook(bot_webhook):
                         elif referral.split("/")[-1].startswith("support"):
                             enter_support(sender_id)
 
+                        elif referral.split("/")[-1].startswith("mod"):
+                            send_text(sender_id, "You have signed up to be a mod. We will send you details shortly.", main_menu_quick_reply())
+
                         else:
                             if valid_bonus_code(sender_id, referral):
                                 set_session_bonus(sender_id, referral.split("/")[-1])
@@ -3938,6 +3941,8 @@ def recieved_text_reply(sender_id, message_text):
         send_text(sender_id, sender_id, main_menu_quick_reply())
 
 
+    elif message_text.lower() == ":url":
+        send_text(sender_id, "https://steamcommunity.com", main_menu_quick_reply())
 
     # elif message_text.lower() in Const.TASK_REPLIES.split("|"):
     #     send_text(sender_id, "Mod tasks:\n\n1. 100 PTS: Invite a friend to join & txt Lmon8 your referral ID.\n2. 50 PTS: Add \"mod for @gamebotsc\" to your Twitter & Steam Profile. \n3. 1000 PTS: Become a reseller and sell an item on Lmon8. Sale has to complete. \n4. 100 PTS: Like & 5 star review Lmon8 on Facebook. fb.com/lmon8\n5. 100 PTS: Like & 5 star review {bot_title} on Facebook. fb.com/gamebotsc \n6. 25 PTS: Invite friends to @lmon8 and @gamebotsc in Twitter. Have each invite @reply us your Lmon8 referral id.\n7. 500 PTS: Install 10 free games taps.io/skins\n8: 50 PTS: add your referral id to your Twitter and Steam Profile.".format(bot_name=bot_title(get_session_bot_type(sender_id))))
