@@ -3236,10 +3236,14 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
         send_text(recipient_id, "How many PTS do you want to transfer?", cancel_entry_quick_reply())
 
     elif payload == Const.PB_PAYLOAD_CONVERT_YES:
+        response = requests.get("https://coinmarketcap-nexuist.rhcloud.com/api/eth")
+        eth_price = response.json()['price']['usd']
+
+
         points = customer.input_state
         customer.input_state = 2
         customer.tokens = customer.tokens or 0
-        customer.tokens += (points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR
+        customer.tokens += (points / float(Const.POINTS_PER_DOLLAR)) / float(eth_price)
         add_points(recipient_id, -points)
         db.session.commit()
 
@@ -3247,7 +3251,8 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             conn = mysql.connect(host=Const.MYSQL_HOST, user=Const.MYSQL_USER, passwd=Const.MYSQL_PASS, db=Const.MYSQL_NAME, use_unicode=True, charset='utf8')
             with conn:
                 cur = conn.cursor(mysql.cursors.DictCursor)
-                cur.execute('UPDATE `users` SET `tokens` = `tokens` + %s WHERE `id` = %s LIMIT 1;', ((points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR,  customer.id,))
+                cur.execute('INSERT INTO `point_converts` (`id`, `fb_psid`, `amount`, `rate`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (recipient_id, points, eth_price))
+                cur.execute('UPDATE `users` SET `tokens` = `tokens` + %s WHERE `id` = %s LIMIT 1;', ((points / float(Const.POINTS_PER_DOLLAR)) / float(eth_price), customer.id))
                 conn.commit()
 
         except mysql.Error, e:
@@ -3257,7 +3262,7 @@ def received_payload(recipient_id, payload, type=Const.PAYLOAD_TYPE_POSTBACK):
             if conn:
                 conn.close()
 
-        send_text(recipient_id, "You have transferred {points} PTS for {tokens} Lmon8 tokens. For more information on Lmom8's ICO please join our slack channel.".format(points=locale.format('%d', points, grouping=True), tokens=locale.format('%.5f', (points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR, grouping=True)))
+        send_text(recipient_id, "You have transferred {points} PTS for {tokens} Lmon8 tokens. For more information on Lmom8's ICO please join our slack channel.".format(points=locale.format('%d', points, grouping=True), tokens=locale.format('%.8f', (points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR, grouping=True)))
         send_text(recipient_id, " https://discord.gg/sgmcn8K", main_menu_quick_replies(recipient_id))
 
     elif payload == Const.PB_PAYLOAD_CONVERT_NO:
@@ -4886,7 +4891,10 @@ def received_text_response(recipient_id, message_text):
     #-- reserved points reply
     elif message_text.lower() in Const.RESERVED_POINTS_REPLIES.split("|"):
         rank, points = customer_points_rank(recipient_id)
-        send_text(recipient_id, "You have {points} Lmon8 Points & are Ranked #{rank}.".format(points=locale.format('%d', points, grouping=True), rank=locale.format('%d', rank, grouping=True)), main_menu_quick_replies(recipient_id))
+        send_text(
+            recipient_id=recipient_id,
+            message_text="You have {points} Lmon8 Points & are Ranked #{rank}.".format(points=locale.format('%d', points, grouping=True), rank=locale.format('%d', rank, grouping=True)),
+            quick_replies=main_menu_quick_replies(recipient_id))
 
     #-- appnext reply
     elif message_text.lower() in Const.RESERVED_APPNEXT_REPLIES.split("|"):
@@ -4901,6 +4909,20 @@ def received_text_response(recipient_id, message_text):
     #-- tasks reply
     elif message_text.lower() in Const.RESERVED_ICO_REPLIES.split("|"):
         send_ico_info(recipient_id)
+
+    elif message_text.lower() in Const.RESERVED_TOKEN_REPLIES.split("|"):
+        percent = random.uniform(9.99, 17.99)
+        response = requests.get("https://coinmarketcap-nexuist.rhcloud.com/api/eth")
+        eth_price = response.json()['price']['usd']
+
+        send_text(
+            recipient_id=recipient_id,
+            message_text="Total: ${price:.2f} | LMON8 Coin: {tokens:.8f} | ICO Potential ${potential_price:.2f} ({percent:.2f}%)".format(price=customer.tokens * eth_price, tokens=customer.tokens, potential_price=(customer.tokens * eth_price) * (1 + (percent * 0.01)), percent=percent),
+            quick_replies=[
+                build_quick_reply(Const.KWIK_BTN_TEXT, caption="Menu", payload=Const.PB_PAYLOAD_MAIN_MENU),
+                build_quick_reply(Const.KWIK_BTN_TEXT, caption="How", payload=Const.PB_PAYLOAD_HOW_ICO)
+            ])
+
 
     #-- autogenerate shop
     elif message_text.lower() in Const.RESERVED_BONUS_AUTO_GEN_REPLIES.split("|"):
@@ -5090,7 +5112,7 @@ def received_text_response(recipient_id, message_text):
 
                 send_text(
                     recipient_id=recipient_id,
-                    message_text="Are you sure you want to transfer {points} number of points to reserve {tokens} Lmon8 tokens?".format(points=locale.format('%d', points, grouping=True), tokens=locale.format('%.5f', (points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR, grouping=True)),
+                    message_text="Are you sure you want to transfer {points} points to reserve {tokens} Lmon8 tokens?".format(points=locale.format('%d', points, grouping=True), tokens=locale.format('%.8f', (points / float(Const.POINTS_PER_DOLLAR)) * Const.TOKENS_PER_DOLLAR, grouping=True)),
                     quick_replies=[
                         build_quick_reply(Const.KWIK_BTN_TEXT, "Yes", Const.PB_PAYLOAD_CONVERT_YES),
                         build_quick_reply(Const.KWIK_BTN_TEXT, "No", Const.PB_PAYLOAD_CONVERT_NO)
