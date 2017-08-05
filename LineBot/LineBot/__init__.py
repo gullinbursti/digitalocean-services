@@ -178,9 +178,6 @@ def bot_webhook_type(webhook):
     #     return Const.BOT_TYPE_
 
 
-
-
-
 def bot_access_token_type(bot_type):
     logger.info("bot_access_token_type(bot_type=%s)" % (bot_type,))
 
@@ -308,7 +305,7 @@ def bot_access_token_type(bot_type):
         return Const.TOP10MEMES_ACCESS_TOKEN
 
     elif bot_type == Const.BOT_TYPE_NSFW:
-        return Const.TOP10MEMES_ACCESS_TOKEN
+        return Const.NSFW_ACCESS_TOKEN
 
     # elif bot_type == Const.BOT_TYPE_:
     #     return Const._ACCESS_TOKEN
@@ -507,7 +504,19 @@ def carousel_cards(bot_type):
         'card_url' : None
     }], [{
         'id'       : 1,
-        'title'    : "Item I",
+        'title'    : "Video I",
+        'subtitle' : "",
+        'image_url': "http://via.placeholder.com/640x320",
+        'card_url' : None
+    }, {
+        'id'       : 2,
+        'title'    : "Video II",
+        'subtitle' : "",
+        'image_url': "http://via.placeholder.com/640x320",
+        'card_url' : None
+    }, {
+        'id'       : 3,
+        'title'    : "Video III",
         'subtitle' : "",
         'image_url': "http://via.placeholder.com/640x320",
         'card_url' : None
@@ -515,26 +524,90 @@ def carousel_cards(bot_type):
 
     return cards[min(max(0, bot_type - 1), len(cards) - 1)]
 
+def get_user_fb_psid(user_id):
+    logger.info("get_user_fb_psid(user_id=%s)" % (user_id,))
 
-def set_user(sender_id):
-    logger.info("set_user(sender_id=%s)" % (sender_id,))
+    fb_psid = None
+    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    try:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute('SELECT fb_psid FROM users WHERE id = ? LIMIT 1;', (user_id,))
+        row = cur.fetchone()
+        if row is not None:
+            fb_psid = row['fb_psid']
 
+    except sqlite3.Error as er:
+        logger.info("::::::get_user_fb_psid[cur.execute] sqlite3.Error - %s" % (er.message,))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return fb_psid
+
+
+def get_user_id(sender_id):
+    logger.info("get_user_id(sender_id=%s)" % (sender_id,))
+
+    user_id = None
     conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute('SELECT id FROM users WHERE fb_psid = ? LIMIT 1;', (sender_id,))
         row = cur.fetchone()
-        if row is None:
-            cur.execute('INSERT INTO users (id, bot_type, fb_psid, flipped, added) VALUES (NULL, ?, ?, ?, ?);', (0, sender_id, 0, int(time.time())))
-            conn.commit()
+        if row is not None:
+            user_id = row['id']
 
     except sqlite3.Error as er:
-        logger.info("::::::set_user[cur.execute] sqlite3.Error - %s" % (er.message,))
+        logger.info("::::::get_user_id[cur.execute] sqlite3.Error - %s" % (er.message,))
 
     finally:
         if conn:
             conn.close()
+
+    return user_id
+
+
+def set_user(sender_id, bot_type):
+    logger.info("set_user(sender_id=%s, bot_type=%s)" % (sender_id, bot_type))
+
+    graph = fb_graph_user(sender_id)
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (sender_id,))
+            row = cur.fetchone()
+            if row is None:
+                cur.execute('INSERT INTO  `users` (`id`, `bot_id`, `fb_psid`, `first_name`, `last_name`, `added`) VALUES (NULL, %s, %s, %s, %s, UTC_TIMESTAMP());', (bot_type, sender_id, graph['first_name'] or "", graph['last_name'] or ""))
+                conn.commit()
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+    # conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
+    # try:
+    #     conn.row_factory = sqlite3.Row
+    #     cur = conn.cursor()
+    #     cur.execute('SELECT id FROM users WHERE fb_psid = ? LIMIT 1;', (sender_id,))
+    #     row = cur.fetchone()
+    #     if row is None:
+    #         cur.execute('INSERT INTO users (id, bot_type, fb_psid, flipped, added) VALUES (NULL, ?, ?, ?, ?);', (0, sender_id, 0, int(time.time())))
+    #         conn.commit()
+    #
+    # except sqlite3.Error as er:
+    #     logger.info("::::::set_user[cur.execute] sqlite3.Error - %s" % (er.message,))
+    #
+    # finally:
+    #     if conn:
+    #         conn.close()
 
 
 def get_user_bot_type(sender_id):
@@ -558,24 +631,6 @@ def get_user_bot_type(sender_id):
             conn.close()
 
     return bot_type
-
-
-def set_user_bot_type(sender_id, bot_type=0):
-    logger.info("set_user_bot_type(sender_id=%s, bot_type=%s)" % (sender_id, bot_type))
-
-    conn = sqlite3.connect("{script_path}/data/sqlite3/fb_bot.db".format(script_path=os.path.dirname(os.path.abspath(__file__))))
-    try:
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
-        cur.execute('UPDATE users SET bot_type = ? WHERE fb_psid = ?;', (bot_type, sender_id))
-        conn.commit()
-
-    except sqlite3.Error as er:
-        logger.info("::::::set_flipped[cur.execute] sqlite3.Error - %s" % (er.message,))
-
-    finally:
-        if conn:
-            conn.close()
 
 
 def get_zipcode(sender_id):
@@ -756,41 +811,40 @@ def build_cancel_button():
 def build_quick_replies(sender_id=None):
     logger.info("build_quick_replies(sender_id=%s)" % (sender_id,))
 
+    bot_type = get_user_bot_type(sender_id)
+    if bot_type == Const.BOT_TYPE_HAPPYHOUR or bot_type == Const.BOT_TYPE_TOPSTYLE:
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+            quick_replies = [{
+                'content_type': "text",
+                'title'       : "Enter Zipcode",
+                'payload'     : "ZIPCODE"
+            }]
 
-    if get_user_bot_type(sender_id) == 1:
-        quick_replies = [{
-            'content_type': "text",
-            'title'       : "Enter Zipcode",
-            'payload'     : "ZIPCODE"
-        }]
+        else:
+            quick_replies = []
 
-    else:
-        quick_replies = []
-
-
-    quick_replies.append({
-        'content_type': "text",
-        'title'       : "Menu",
-        'payload'     : "MENU"
-    })
-
-    flipped, updated = get_flipped(sender_id)
-    if updated <= int(time.time()) - 86400:
         quick_replies.append({
             'content_type': "text",
-            'title'       : "Flip",
-            'payload'     : "FLIP"
+            'title'       : "Menu",
+            'payload'     : "MAIN_MENU"
         })
 
-    return quick_replies + [{
-        'content_type': "text",
-        'title'       : "Website",
-        'payload'     : "WEBSITE"
-    }, {
-        'content_type': "text",
-        'title'       : "Support",
-        'payload'     : "SUPPORT"
-    }]
+    else:
+        quick_replies = [{
+            'content_type': "text",
+            'title'       : "Next Video",
+            'payload'     : "NEXT_VIDEO"
+        }, {
+            'content_type': "text",
+            'title'       : "Support",
+            'payload'     : "SUPPORT"
+        }, {
+            'content_type': "text",
+            'title'       : "More Bots",
+            'payload'     : "MORE_BOTS"
+        }]
+
+    return quick_replies
 
 
 def build_flip_element(sender_id):
@@ -812,6 +866,7 @@ def build_flip_element(sender_id):
 def build_carousel_elements(sender_id):
     logger.info("build_carousel_elements(sender_id=%s)" % (sender_id,))
 
+    bot_type = get_user_bot_type(sender_id)
     elements = []
     for element in carousel_cards(get_user_bot_type(sender_id)):
         elements.append({
@@ -822,7 +877,7 @@ def build_carousel_elements(sender_id):
             'buttons'  : [{
                 'type'   : "postback",
                 'payload': "VIEW-{item_id}".format(item_id=len(elements) + 1),
-                'title'  : "Call an Uber" if get_user_bot_type(sender_id) == 1 else "View Style"
+                'title'  : "Call an Uber" if bot_type == Const.BOT_TYPE_HAPPYHOUR else "View Style" if bot_type == Const.BOT_TYPE_TOPSTYLE else "Watch"
             }]
         })
 
@@ -870,13 +925,20 @@ def send_flip(sender_id, item_id):
 def send_item_card(sender_id, item_id):
     logger.info("send_item_card(sender_id=%s, item_id=%s)" % (sender_id, item_id))
 
-    element = carousel_cards(get_user_bot_type(sender_id))[max(0, int(item_id) - 1)]
+    bot_type = get_user_bot_type(sender_id)
+    element = carousel_cards(bot_type)[max(0, int(item_id) - 1)]
 
     send_card(
         recipient_id=sender_id,
         title=element['title'],
         image_url=element['image_url'],
-        card_url=element['card_url'] or "",
+        card_url=element['card_url'] or "" if bot_type == Const.BOT_TYPE_HAPPYHOUR else "http://app.gamebots.chat/player.php?user_id={user_id}&card_id=1".format(user_id=get_user_id(sender_id)),
+        buttons=None if bot_type == Const.BOT_TYPE_HAPPYHOUR else [{
+            'type'                : "web_url",
+            'url'                 : "http://app.gamebots.chat/player.php?user_id={user_id}&card_id=1".format(user_id=get_user_id(sender_id)),
+            'title'               : "Watch Now",
+            'webview_height_ratio': "tall"
+        }],
         quick_replies=build_quick_replies(sender_id)
     )
 
@@ -884,16 +946,24 @@ def send_item_card(sender_id, item_id):
 def send_default_carousel(sender_id, amount=3):
     logger.info("send_default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
 
-    elements = []
-    flipped, updated = get_flipped(sender_id)
-    if updated <= int(time.time()) - 86400:
-        elements.append(build_flip_element(sender_id))
+    if get_user_bot_type(sender_id) == Const.BOT_TYPE_HAPPYHOUR or get_user_bot_type(sender_id) == Const.BOT_TYPE_TOPSTYLE:
+        elements = []
+        flipped, updated = get_flipped(sender_id)
+        if updated <= int(time.time()) - 86400:
+            elements.append(build_flip_element(sender_id))
 
-    send_carousel(
-        recipient_id=sender_id,
-        elements=elements + build_carousel_elements(sender_id),
-        quick_replies=build_quick_replies(sender_id)
-    )
+        send_carousel(
+            recipient_id=sender_id,
+            elements=elements + build_carousel_elements(sender_id),
+            quick_replies=build_quick_replies(sender_id)
+        )
+
+    else:
+        send_carousel(
+            recipient_id=sender_id,
+            elements=build_carousel_elements(sender_id),
+            quick_replies=build_quick_replies(sender_id)
+        )
 
 
 
@@ -983,8 +1053,7 @@ def webhook(bot_webhook):
                     # ------- TYPED TEXT MESSAGE
                     if message is not None and 'text' in message:
                         if get_user_bot_type(sender_id) is None or get_user_bot_type(sender_id) == 0:
-                            set_user(sender_id)
-                            set_user_bot_type(sender_id, bot_webhook_type(bot_webhook))
+                            set_user(sender_id, bot_type)
 
                         handle_text_reply(sender_id, message['text'])
                         send_default_carousel(sender_id)
@@ -996,12 +1065,40 @@ def webhook(bot_webhook):
 # =- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 
+@app.route('/player/', methods=['POST'])
+def player():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/player/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.PLAYER_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        if 'user_id' in request.form and 'card_id' in request.form:
+            user_id = request.form['user_id']
+            card_id = request.form['card_id']
+            logger.info("user_id=%s, card_id=%s" % (user_id, card_id))
+
+            fb_psid = get_user_fb_psid(user_id)
+            send_video(
+                recipient_id=fb_psid,
+                url="http://192.241.212.32/videos/MobileLegends.mp4",
+                quick_replies=build_quick_replies(fb_psid)
+            )
+
+    return "OK", 200
+
+
+# =- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
+
+
 def handle_payload(sender_id, payload, bot_type):
     logger.info("handle_payload(sender_id=%s, payload=%s, bot_type=%s)" % (sender_id, payload, bot_type))
 
     if payload == "WELCOME_MESSAGE":
-        set_user(sender_id)
-        set_user_bot_type(sender_id, bot_type)
+        set_user(sender_id, bot_type)
 
         if bot_type == Const.BOT_TYPE_HAPPYHOUR:
             image_url = "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/9a11e8d50e223bc2c765f4e7f83f1cc7/flip_happyhour.gif"
@@ -1012,8 +1109,21 @@ def handle_payload(sender_id, payload, bot_type):
         else:
             image_url = "http://via.placeholder.com/640x320"
 
-        send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title_type(bot_type)))
-        send_image(sender_id, image_url)
+        send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title_type(bot_type)) if bot_type == Const.BOT_TYPE_HAPPYHOUR or bot_type == Const.BOT_TYPE_TOPSTYLE else "Welcome to Outrobot. Here is an awesome video just for you...")
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR or bot_type == Const.BOT_TYPE_TOPSTYLE:
+            send_image(sender_id, image_url)
+
+        else:
+            videos = [
+                "http://192.241.212.32/videos/intro_all.mp4",
+                "http://192.241.212.32/videos/neon.mp4",
+                "http://192.241.212.32/videos/redline.mp4"
+            ]
+
+            send_video(
+                recipient_id=sender_id,
+                url=random.choice(videos)
+            )
 
         if bot_type == Const.BOT_TYPE_HAPPYHOUR:
             set_zipcode(sender_id, "_{PENDING}_")
@@ -1026,7 +1136,7 @@ def handle_payload(sender_id, payload, bot_type):
         set_zipcode(sender_id, "_{PENDING}_")
         send_text(sender_id, "Please enter your Zip Code to receive updates on daily happy hours in your area.", [build_cancel_button()])
 
-    elif payload == "MENU":
+    elif payload == "MAIN_MENU":
         send_default_carousel(sender_id)
 
     elif payload == "FLIP":
@@ -1070,7 +1180,7 @@ def handle_payload(sender_id, payload, bot_type):
         send_text(sender_id, "Send support to {support_email}".format(support_email=support_email), build_quick_replies(sender_id))
 
     elif re.search(r'^VIEW\-(\d+)$', payload):
-        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+        if bot_type != Const.BOT_TYPE_TOPSTYLE:
             send_item_card(sender_id, re.match(r'^VIEW\-(?P<item_id>\d+)$', payload).group('item_id'))
 
         else:
@@ -1088,11 +1198,22 @@ def handle_payload(sender_id, payload, bot_type):
 def handle_text_reply(sender_id, message_text):
     logger.info("handle_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
 
-    if message_text in Const.RESERVED_ALERT_REPLIES.split("|"):
+    bot_type = get_user_bot_type(sender_id)
+    if message_text.lower() in Const.RESERVED_ALERT_REPLIES.split("|"):
         send_text(sender_id, "It's 4pm. Time to Get Happy!", build_quick_replies(sender_id))
         return "OK", 200
 
-    elif message_text in Const.RESERVED_OPTOUT_REPLIES.split("|"):
+    elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES.split("|"):
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+            support_email = "support@happyhour.bot"
+        elif bot_type == Const.BOT_TYPE_TOPSTYLE:
+            support_email = "support@foxandjanesalon.com"
+        else:
+            support_email = "support@example.com"
+
+        send_text(sender_id, "Send support to {support_email}".format(support_email=support_email), build_quick_replies(sender_id))
+
+    elif message_text.lower() in Const.RESERVED_OPTOUT_REPLIES.split("|"):
         set_optout(sender_id)
         send_text(sender_id, "You have opted out.")
         return "OK", 200
@@ -1277,6 +1398,16 @@ def send_message(bot_type, payload):
     logger.info("SEND MESSAGE response: %s" % (response.json()))
 
     return True
+
+
+def fb_graph_user(recipient_id):
+    logger.info("fb_graph_user(recipient_id=%s)" % (recipient_id))
+    params = {
+        'fields'      : "first_name,last_name,profile_pic,locale,timezone,gender,is_payment_enabled",
+        'access_token': get_user_bot_type(recipient_id)
+    }
+    response = requests.get("https://graph.facebook.com/v2.6/{recipient_id}".format(recipient_id=recipient_id), params=params)
+    return None if 'error' in response.json() else response.json()
 
 
 if __name__ == '__main__':
