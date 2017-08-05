@@ -48,22 +48,404 @@ logger.setLevel(logging.INFO)
 
 def bot_webhook_type(webhook):
     logger.info("bot_webhook_type(webhook=%s)" % (webhook,))
-
     if webhook == "happy-hour":
-        return 1
+        return Const.BOT_TYPE_HAPPYHOUR
 
     elif webhook == "top-style":
-        return 2
+        return Const.BOT_TYPE_TOPSTYLE
+
+    elif webhook == "top10waystoprotect":
+        return Const.BOT_TYPE_TOP10WAYSTOPROTECT
+
+    elif webhook == "passwordprotector":
+        return Const.BOT_TYPE_PASSWORDPROTECTOR
+
+    elif webhook == "dontgethacked":
+        return Const.BOT_TYPE_DONTGETHACKED
+
+    elif webhook == "passkeyfingerprint":
+        return Const.BOT_TYPE_PASSKEYFINGERPRINT
+
+    elif webhook == "mcafeefavapp":
+        return Const.BOT_TYPE_MCAFEEFAVAPP
+
+    elif webhook == "fingerprintlogin":
+        return Const.BOT_TYPE_FINGERPRINTLOGIN
+
+    elif webhook == "igothacked":
+        return Const.BOT_TYPE_IGOTHACKED
+
+    elif webhook == "protectpasswords":
+        return Const.BOT_TYPE_PROTECTPASSWORDS
+
+    elif webhook == "stophacks":
+        return Const.BOT_TYPE_STOPHACKS
+
+    elif webhook == "stoppasswordhacks":
+        return Const.BOT_TYPE_STOPPASSWORDHACKS
+
+    elif webhook == "maddabs":
+        return Const.BOT_TYPE_MADDABS
+
+    elif webhook == "sftrees":
+        return Const.BOT_TYPE_SFTREES
+
+    elif webhook == "latrees":
+        return Const.BOT_TYPE_LATREES
+
+    elif webhook == "dro":
+        return Const.BOT_TYPE_DRO
+
+    elif webhook == "woahbro":
+        return Const.BOT_TYPE_WOAHBRO
+
+    elif webhook == "howhighru":
+        return Const.BOT_TYPE_HOWHIGHRU
+
+    elif webhook == "top10munchies":
+        return Const.BOT_TYPE_TOP10MUNCHIES
+
+    elif webhook == "getbombsamples":
+        return Const.BOT_TYPE_GETBOMBSAMPLES
+
+    elif webhook == "winfreesamples":
+        return Const.BOT_TYPE_WINFREESAMPLES
+
+    elif webhook == "top10freesamples":
+        return Const.BOT_TYPE_TOP10FREESAMPLES
+
+    elif webhook == "freebitcoincash":
+        return Const.BOT_TYPE_FREEBITCOINCASH
+
+    elif webhook == "bitcoingames":
+        return Const.BOT_TYPE_BITCOINGAMES
+
+    elif webhook == "winbitcoincash":
+        return Const.BOT_TYPE_WINBITCOINCASH
+
+    elif webhook == "bitcoingame":
+        return Const.BOT_TYPE_BITCOINGAME
+
+    elif webhook == "freebitcoingames":
+        return Const.BOT_TYPE_FREEBITCOINGAMES
+
+    elif webhook == "playbitcoingame":
+        return Const.BOT_TYPE_PLAYBITCOINGAME
+
+    elif webhook == "playbitcoin":
+        return Const.BOT_TYPE_PLAYBITCOIN
+
+    elif webhook == "freebitcoin":
+        return Const.BOT_TYPE_FREEBITCOIN
+
+    elif webhook == "bitcoincash":
+        return Const.BOT_TYPE_BITCOINCASH
+
+    elif webhook == "freebitcoincashwallet":
+        return Const.BOT_TYPE_FREEBITCOINCASHWALLET
+
+    elif webhook == "meme":
+        return Const.BOT_TYPE_MEME
+
+    elif webhook == "9gagbot":
+        return Const.BOT_TYPE_9GAGBOT
+
+    elif webhook == "trendingwtf":
+        return Const.BOT_TYPE_TRENDINGWTF
+
+    elif webhook == "topfunnymemes":
+        return Const.BOT_TYPE_TOPFUNNYMEMES
+
+    elif webhook == "memehunter":
+        return Const.BOT_TYPE_MEMEHUNTER
+
+    elif webhook == "omgwtf":
+        return Const.BOT_TYPE_OMGWTF
+
+    elif webhook == "rarepepe":
+        return Const.BOT_TYPE_RAREPEPE
+
+    elif webhook == "top109gagmemes":
+        return Const.BOT_TYPE_TOP109GAGMEMES
+
+    elif webhook == "top10memes":
+        return Const.BOT_TYPE_TOP10MEMES
+
+    elif webhook == "nsfw":
+        return Const.BOT_TYPE_NSFW
+
+    # elif webhook == "":
+    #     return Const.BOT_TYPE_
 
 
-def bot_access_token(bot_type):
-    logger.info("bot_webhook_type(webhook=%s)" % (webhook,))
 
-    if bot_type == 1:
+
+
+def bot_access_token_type(bot_type):
+    logger.info("bot_access_token_type(bot_type=%s)" % (bot_type,))
+
+    if bot_type == Const.BOT_TYPE_HAPPYHOUR:
         return Const.HAPPYHOUR_ACCESS_TOKEN
 
-    elif bot_type == 2:
+    elif bot_type == Const.BOT_TYPE_TOPSTYLE:
         return Const.TOPSTYLE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOP10WAYSTOPROTECT:
+        return Const.TOP10WAYSTOPROTECT_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PASSWORDPROTECTOR:
+        return Const.PASSWORDPROTECTOR_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_DONTGETHACKED:
+        return Const.DONTGETHACKED_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PASSKEYFINGERPRINT:
+        return Const.PASSKEYFINGERPRINT_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_MCAFEEFAVAPP:
+        return Const.MCAFEEFAVAPP_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_FINGERPRINTLOGIN:
+        return Const.FINGERPRINTLOGIN_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_IGOTHACKED:
+        return Const.IGOTHACKED_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PROTECTPASSWORDS:
+        return Const.PROTECTPASSWORDS_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_STOPHACKS:
+        return Const.STOPHACKS_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_STOPPASSWORDHACKS:
+        return Const.STOPPASSWORDHACKS_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_MADDABS:
+        return Const.MADDABS_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_SFTREES:
+        return Const.SFTREES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_LATREES:
+        return Const.LATREES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_DRO:
+        return Const.DRO_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_WOAHBRO:
+        return Const.WOAHBRO_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_HOWHIGHRU:
+        return Const.HOWHIGHRU_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOP10MUNCHIES:
+        return Const.TOP10MUNCHIES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_GETBOMBSAMPLES:
+        return Const.GETBOMBSAMPLES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_WINFREESAMPLES:
+        return Const.WINFREESAMPLES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOP10FREESAMPLES:
+        return Const.TOP10FREESAMPLES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINCASH:
+        return Const.FREEBITCOINCASH_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_BITCOINGAMES:
+        return Const.BITCOINGAMES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_WINBITCOINCASH:
+        return Const.WINBITCOINCASH_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_BITCOINGAME:
+        return Const.BITCOINGAME_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINGAMES:
+        return Const.FREEBITCOINGAMES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PLAYBITCOINGAME:
+        return Const.PLAYBITCOINGAME_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_PLAYBITCOIN:
+        return Const.PLAYBITCOIN_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOIN:
+        return Const.FREEBITCOIN_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_BITCOINCASH:
+        return Const.BITCOINCASH_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINCASHWALLET:
+        return Const.FREEBITCOINCASHWALLET_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_MEME:
+        return Const.MEME_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_9GAGBOT:
+        return Const.NINEGAGBOT_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TRENDINGWTF:
+        return Const.TRENDINGWTF_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOPFUNNYMEMES:
+        return Const.TOPFUNNYMEMES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_MEMEHUNTER:
+        return Const.MEMEHUNTER_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_OMGWTF:
+        return Const.OMGWTF_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_RAREPEPE:
+        return Const.RAREPEPE_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOP109GAGMEMES:
+        return Const.TOP109GAGMEMES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_TOP10MEMES:
+        return Const.TOP10MEMES_ACCESS_TOKEN
+
+    elif bot_type == Const.BOT_TYPE_NSFW:
+        return Const.TOP10MEMES_ACCESS_TOKEN
+
+    # elif bot_type == Const.BOT_TYPE_:
+    #     return Const._ACCESS_TOKEN
+
+
+def bot_title_type(bot_type):
+    logger.info("bot_title_type(bot_type=%s)" % (bot_type,))
+
+    if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+        return "HappyHour"
+
+    elif bot_type == Const.BOT_TYPE_TOPSTYLE:
+        return "TopStyle"
+
+    elif bot_type == Const.BOT_TYPE_TOP10WAYSTOPROTECT:
+        return "Top10waystoprotect"
+
+    elif bot_type == Const.BOT_TYPE_PASSWORDPROTECTOR:
+        return "PasswordProtector"
+
+    elif bot_type == Const.BOT_TYPE_DONTGETHACKED:
+        return "Dontgethacked"
+
+    elif bot_type == Const.BOT_TYPE_PASSKEYFINGERPRINT:
+        return "PassKeyfingerprint"
+
+    elif bot_type == Const.BOT_TYPE_MCAFEEFAVAPP:
+        return "McafeeFavapp"
+
+    elif bot_type == Const.BOT_TYPE_FINGERPRINTLOGIN:
+        return "FingerprintLogin"
+
+    elif bot_type == Const.BOT_TYPE_IGOTHACKED:
+        return "Igothacked"
+
+    elif bot_type == Const.BOT_TYPE_PROTECTPASSWORDS:
+        return "ProtectPasswords"
+
+    elif bot_type == Const.BOT_TYPE_STOPHACKS:
+        return "StopHacks"
+
+    elif bot_type == Const.BOT_TYPE_STOPPASSWORDHACKS:
+        return "Stoppasswordhacks"
+
+    elif bot_type == Const.BOT_TYPE_MADDABS:
+        return "MadDabs"
+
+    elif bot_type == Const.BOT_TYPE_SFTREES:
+        return "SFTrees"
+
+    elif bot_type == Const.BOT_TYPE_LATREES:
+        return "LATrees"
+
+    elif bot_type == Const.BOT_TYPE_DRO:
+        return "DRO"
+
+    elif bot_type == Const.BOT_TYPE_WOAHBRO:
+        return "WoahBro"
+
+    elif bot_type == Const.BOT_TYPE_HOWHIGHRU:
+        return "HowHighRU"
+
+    elif bot_type == Const.BOT_TYPE_TOP10MUNCHIES:
+        return "Top10Munchies"
+
+    elif bot_type == Const.BOT_TYPE_GETBOMBSAMPLES:
+        return "GetBombSamples"
+
+    elif bot_type == Const.BOT_TYPE_WINFREESAMPLES:
+        return "WinFreeSamples"
+
+    elif bot_type == Const.BOT_TYPE_TOP10FREESAMPLES:
+        return "Top10FreeSamples"
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINCASH:
+        return "FreeBitcoincash"
+
+    elif bot_type == Const.BOT_TYPE_BITCOINGAMES:
+        return "BitcoinGames"
+
+    elif bot_type == Const.BOT_TYPE_WINBITCOINCASH:
+        return "WinBitcoincash"
+
+    elif bot_type == Const.BOT_TYPE_BITCOINGAME:
+        return "BitcoinGame"
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINGAMES:
+        return "FreeBitcoingames"
+
+    elif bot_type == Const.BOT_TYPE_PLAYBITCOINGAME:
+        return "PlayBitcoingame"
+
+    elif bot_type == Const.BOT_TYPE_PLAYBITCOIN:
+        return "PlayBitcoin"
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOIN:
+        return "FREEBitcoin"
+
+    elif bot_type == Const.BOT_TYPE_BITCOINCASH:
+        return "Bitcoincash"
+
+    elif bot_type == Const.BOT_TYPE_FREEBITCOINCASHWALLET:
+        return "FreeBitcoincashwallet"
+
+    elif bot_type == Const.BOT_TYPE_MEME:
+        return "MEME"
+
+    elif bot_type == Const.BOT_TYPE_9GAGBOT:
+        return "9gagbot"
+
+    elif bot_type == Const.BOT_TYPE_TRENDINGWTF:
+        return "Trendingwtf"
+
+    elif bot_type == Const.BOT_TYPE_TOPFUNNYMEMES:
+        return "TopFunnymemes"
+
+    elif bot_type == Const.BOT_TYPE_MEMEHUNTER:
+        return "MemeHunter"
+
+    elif bot_type == Const.BOT_TYPE_OMGWTF:
+        return "Omgwtf"
+
+    elif bot_type == Const.BOT_TYPE_RAREPEPE:
+        return "RarePepe"
+
+    elif bot_type == Const.BOT_TYPE_TOP109GAGMEMES:
+        return "Top109GagMemes"
+
+    elif bot_type == Const.BOT_TYPE_TOP10MEMES:
+        return "Top10Memes"
+
+    elif bot_type == Const.BOT_TYPE_NSFW:
+        return "NSFW"
+
+    # elif bot_type == Const.BOT_TYPE_:
+    #     return ""
+
 
 
 def carousel_cards(bot_type):
@@ -123,9 +505,15 @@ def carousel_cards(bot_type):
         'subtitle' : "",
         'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/33d1124b002d14d215dc04ecc6c2f52a/hair5.jpg",
         'card_url' : None
+    }], [{
+        'id'       : 1,
+        'title'    : "Item I",
+        'subtitle' : "",
+        'image_url': "http://via.placeholder.com/640x320",
+        'card_url' : None
     }]]
 
-    return cards[max(0, bot_type - 1)]
+    return cards[min(max(0, bot_type - 1), len(cards) - 1)]
 
 
 def set_user(sender_id):
@@ -354,8 +742,6 @@ def set_optout(sender_id, optout=True):
     finally:
         if conn:
             conn.close()
-
-
 
 
 def build_cancel_button():
@@ -596,7 +982,7 @@ def webhook(bot_webhook):
                 else:
                     # ------- TYPED TEXT MESSAGE
                     if message is not None and 'text' in message:
-                        if get_user_bot_type(sender_id) == 0:
+                        if get_user_bot_type(sender_id) is None or get_user_bot_type(sender_id) == 0:
                             set_user(sender_id)
                             set_user_bot_type(sender_id, bot_webhook_type(bot_webhook))
 
@@ -617,10 +1003,19 @@ def handle_payload(sender_id, payload, bot_type):
         set_user(sender_id)
         set_user_bot_type(sender_id, bot_type)
 
-        send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title="HappyHour" if bot_type == 1 else "Top Style"))
-        send_image(sender_id, "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/9a11e8d50e223bc2c765f4e7f83f1cc7/flip_happyhour.gif" if bot_type == 1 else "https://i.imgur.com/1o4YoY1.gif")
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+            image_url = "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/9a11e8d50e223bc2c765f4e7f83f1cc7/flip_happyhour.gif"
 
-        if bot_type == 1:
+        elif bot_type == Const.BOT_TYPE_TOPSTYLE:
+            image_url = "https://i.imgur.com/1o4YoY1.gif"
+
+        else:
+            image_url = "http://via.placeholder.com/640x320"
+
+        send_text(sender_id, "Welcome to {bot_title}. To opt-out of further messaging, type exit, quit, or stop.".format(bot_title=bot_title_type(bot_type)))
+        send_image(sender_id, image_url)
+
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
             set_zipcode(sender_id, "_{PENDING}_")
             send_text(sender_id, "Please enter your Zip Code to receive updates on daily happy hours in your area.", [build_cancel_button()])
 
@@ -643,19 +1038,39 @@ def handle_payload(sender_id, payload, bot_type):
         # )
 
     elif payload == "WEBSITE":
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+            title = "happyhour.bot"
+            card_url = "http://www.happyhour.bot"
+            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294516_106493256703647_5694536636197485639_n.png?oh=dc6ae511db1644ca247b30f5d16be5a6&oe=5A378726"
+        elif bot_type == Const.BOT_TYPE_TOPSTYLE:
+            title = "foxandjanesalon.com"
+            card_url = "http://www.foxandjanesalon.com"
+            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294515_254659165032297_7229853044888461966_n.png?oh=2b270114e028ff27a733d85e58a01c53&oe=5A07B2EE"
+        else:
+            title = "example.com"
+            card_url = "http://www.example.com"
+            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294515_254659165032297_7229853044888461966_n.png?oh=2b270114e028ff27a733d85e58a01c53&oe=5A07B2EE"
+
         send_card(
             recipient_id=sender_id,
-            title="happyhour.bot" if bot_type == 1 else "foxandjanesalon.com",
-            image_url="https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294516_106493256703647_5694536636197485639_n.png?oh=dc6ae511db1644ca247b30f5d16be5a6&oe=5A378726" if bot_type == 1 else "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294515_254659165032297_7229853044888461966_n.png?oh=2b270114e028ff27a733d85e58a01c53&oe=5A07B2EE",
-            card_url="http://www.happyhour.bot" if bot_type == 1 else "http://www.foxandjanesalon.com",
+            title=title,
+            image_url=image_url,
+            card_url=card_url,
             quick_replies=build_quick_replies(sender_id)
         )
 
     elif payload == "SUPPORT":
-        send_text(sender_id, "Send support to {support_email}".format(support_email="support@happyhour.bot" if bot_type == 1 else "support@foxandjanesalon.com"), build_quick_replies(sender_id))
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
+            support_email = "support@happyhour.bot"
+        elif bot_type == Const.BOT_TYPE_TOPSTYLE:
+            support_email = "support@foxandjanesalon.com"
+        else:
+            support_email = "support@example.com"
+
+        send_text(sender_id, "Send support to {support_email}".format(support_email=support_email), build_quick_replies(sender_id))
 
     elif re.search(r'^VIEW\-(\d+)$', payload):
-        if bot_type == 1:
+        if bot_type == Const.BOT_TYPE_HAPPYHOUR:
             send_item_card(sender_id, re.match(r'^VIEW\-(?P<item_id>\d+)$', payload).group('item_id'))
 
         else:
@@ -855,7 +1270,7 @@ def send_message(bot_type, payload):
     logger.info("send_message(bot_type=%s, payload=%s)" % (bot_type, payload))
 
     response = requests.post(
-        url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=bot_access_token(bot_type)),
+        url="https://graph.facebook.com/v2.6/me/messages?access_token={token}".format(token=bot_access_token_type(bot_type)),
         headers={'Content-Type': "application/json"},
         data=payload
     )
