@@ -693,19 +693,39 @@ def send_welcome(sender_id, bot_id):
 
     set_user(sender_id, bot_id)
 
-    if bot_id == Const.BOT_TYPE_HAPPYHOUR:
-        image_url = "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/9a11e8d50e223bc2c765f4e7f83f1cc7/flip_happyhour.gif"
-
-    elif bot_id == Const.BOT_TYPE_TOPSTYLE:
-        image_url = "https://i.imgur.com/1o4YoY1.gif"
-
-    else:
-        image_url = "http://via.placeholder.com/640x320"
+    # conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    # try:
+    #     with conn:
+    #         cur = conn.cursor(mdb.cursors.DictCursor)
+    #         cur.execute('SELECT `title`, `description`, `landing_image` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+    #         row = cur.fetchone()
+    #         if row is not None:
+    #             send_card(
+    #                 recipient_id=sender_id,
+    #                 title=row['title'],
+    #                 subtitle=row['description'],
+    #                 image_url="http://via.placeholder.com/640x320" if row['landing_image'] == "" else row['landing_image'],
+    #                 buttons=[{
+    #                     'type'                : "web_url",
+    #                     'url'                 : "http://outro.chat/player/{user_id}/{bot_id}".format(user_id=get_user_id(sender_id), bot_id=bot_id),
+    #                     'title'               : "Watch App Video",
+    #                     'webview_height_ratio': "tall"
+    #                 }],
+    #                 quick_replies=build_quick_replies(sender_id)
+    #             )
+    #
+    #
+    # except mdb.Error, e:
+    #     logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+    #
+    # finally:
+    #     if conn:
+    #         conn.close()
 
     f_name, l_name = get_user_name(sender_id)
     send_text(
         recipient_id=sender_id,
-        message_text="Hi {first_name}, do you want to watch videos on {bot_title} for iOS and Android?".format(first_name=f_name, bot_title=bot_title_type(get_user_bot_id(sender_id))),
+        message_text="Hi {first_name}, do you want to watch videos on {bot_title} for iOS and Android? To opt-out of further messaging, type exit, quit, or stop.".format(first_name=f_name, bot_title=bot_title_type(get_user_bot_id(sender_id))),
         quick_replies=[{
             'content_type': "text",
             'title'       : "Yes",
@@ -766,6 +786,7 @@ def send_item_card(sender_id, item_id, tag=True):
                 send_card(
                     recipient_id=sender_id,
                     title=row['title'],
+                    subtitle=row['subtitle'],
                     image_url="{image_url}?r={rand}".format(image_url=row['image_url'], rand=random.uniform(0, 1)),
                     card_url=None if len(row['media_url']) == 0 else "http://outro.chat/landing/{user_id}/{card_id}".format(user_id=get_user_id(sender_id), card_id=item_id),
                     buttons=None if len(row['media_url']) == 0 else [{
@@ -775,7 +796,8 @@ def send_item_card(sender_id, item_id, tag=True):
                         'webview_height_ratio': "compact"
                     }, {
                         'type': "element_share",
-                    }]
+                    }],
+                    quick_replies=build_quick_replies(sender_id)
                 )
 
             else:
@@ -1033,8 +1055,11 @@ def handle_payload(sender_id, bot_id, payload):
     elif payload == "WELCOME_YES":
         rating, previews = app_store(bot_id)
 
-        send_text(sender_id, "Ok, Great! {bot_title} is a {rating:.1f} ⭐️ app!".format(bot_title=bot_title_type(bot_id), rating=rating))
-        send_image(sender_id, random.choice(previews))
+        if rating != 0:
+            send_text(sender_id, "Ok, Great! {bot_title} is a {rating:.1f} ⭐️ app!".format(bot_title=bot_title_type(bot_id), rating=rating))
+
+        if previews is not None:
+            send_image(sender_id, random.choice(previews))
 
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
@@ -1049,7 +1074,7 @@ def handle_payload(sender_id, bot_id, payload):
                         recipient_id=sender_id,
                         title="Video Placeholder",
                         image_url="http://via.placeholder.com/640x320",
-                        buttons=[{ 'type' : "element_share" }],
+                        buttons=[{'type': "element_share"}],
                         quick_replies=build_quick_replies(sender_id)
                     )
 
@@ -1367,6 +1392,7 @@ def send_card(recipient_id, title, image_url, card_url=None, subtitle=None, butt
                 'type'   : "template",
                 'payload': {
                     'template_type': "generic",
+                    'image_aspect_ratio': "square",
                     'elements'     : [{
                         'title'    : title,
                         'item_url' : card_url,
@@ -1401,8 +1427,9 @@ def send_carousel(recipient_id, elements, quick_replies=None):
             'attachment': {
                 'type'   : "template",
                 'payload': {
-                    'template_type': "generic",
-                    'elements'     : elements
+                    'template_type'      : "generic",
+                     'image_aspect_ratio': "square",
+                    'elements'           : elements
                 }
             }
         }
