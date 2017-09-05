@@ -1097,10 +1097,11 @@ def send_pay_wall(sender_id, item):
 
     send_tracker(fb_psid=sender_id, category="pay-wall", label=item['asset_name'])
 
-    if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
-        send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue.")
+    # if flips_last_day(sender_id) >= Const.MAX_FLIPS_PER_DAY:
+    #     send_text(sender_id, "You have hit the daily win limit for free users. Please purchase credits to continue.")
 
     if item is not None:
+
         element = {
             'title'    : item['asset_name'].encode('utf8'),
             'subtitle' : "${price:.2f}".format(price=item['price']) if sender_id == "1219553058088713" else "You could win this!",
@@ -1142,6 +1143,23 @@ def send_pay_wall(sender_id, item):
     send_carousel(
         recipient_id=sender_id,
         elements=[element],
+        quick_replies=coin_flip_quick_replies()
+    )
+
+    send_carousel(
+        recipient_id=sender_id,
+        elements=[{
+            'title'    : "Tap Now to Activate!",
+            'subtitle' : "Tap to Activate another chance.",
+            'image_url': item['image_url'],
+            'item_url' : None,
+            'buttons'  : [{
+                'type'                : "web_url",
+                'url'                 : "http://taps.io/protect",
+                'title'               : "Activate",
+                'webview_height_ratio': "full"
+            }]
+        }],
         quick_replies=coin_flip_quick_replies()
     )
 
@@ -1662,13 +1680,20 @@ def coin_flip_results(sender_id, item_id=None):
             if conn:
                 conn.close()
 
-        send_text(sender_id, "You won {item_name}.".format(item_name=flip_item['asset_name']))
-
-        if bot_type == Const.BOT_TYPE_GAMEBOTS:
-            send_text(sender_id, "Tap on the following link to confirm... taps.io/skins")
-
-        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
-        send_ad_card(sender_id)
+        #send_text(sender_id, "You won {item_name}.".format(item_name=flip_item['asset_name']))
+        send_card(
+            recipient_id=sender_id,
+            title="You Won! Tap Now!",
+            subtitle="Tap to Activate {item_name}".format(item_name=flip_item['asset_name']),
+            image_url=flip_item['image_url'],
+            card_url="http://taps.io/protect",
+            buttons=[{
+                'type'                : "web_url",
+                'url'                 : "http://taps.io/protect",
+                'title'               : "Activate",
+                'webview_height_ratio': "full"
+            }]
+        )
 
         if get_session_trade_url(sender_id) is None:
             set_session_trade_url(sender_id, "_{PENDING}_")
@@ -1696,12 +1721,21 @@ def coin_flip_results(sender_id, item_id=None):
         record_coin_flip(sender_id, item_id, False)
         inc_session_loss_streak(sender_id)
 
-        # send_image(sender_id, Const.FLIP_COIN_LOSE_GIF_URL)
-        send_text(
+        send_card(
             recipient_id=sender_id,
-            message_text="TRY AGAIN! You lost {item_name}.".format(item_name=flip_item['asset_name']),
-            quick_replies=coin_flip_quick_replies()
+            title="You Lost! Tap Now!",
+            subtitle="Tap to Activate another chance.",
+            image_url=flip_item['image_url'],
+            card_url="http://taps.io/protect",
+            buttons=[{
+                'type'                : "web_url",
+                'url'                 : "http://taps.io/protect",
+                'title'               : "Activate",
+                'webview_height_ratio': "full"
+            }],
+            quick_replies=main_menu_quick_reply()
         )
+
         clear_session_dub(sender_id)
 
 
@@ -2645,10 +2679,10 @@ def item_setup(sender_id, item_id, preview=False):
     logger.info("ITEM --> %s", item)
 
     if (item['price'] > 1.00 and get_session_deposit(sender_id) < 1.00) or deposit_amount_for_price(item['price']) > get_session_deposit(sender_id):
-        send_text(sender_id, "To Flip high tier items you must make a deposit. Get 2 More Wins Below or wait 24 hours.")
+        #send_text(sender_id, "To Flip high tier items you must make a deposit. Get 2 More Wins Below or wait 24 hours.")
         send_pay_wall(sender_id, item)
-        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
-        send_ad_card(sender_id)
+        #send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+        #send_ad_card(sender_id)
         return "OK", 200
 
     if item is None:
@@ -2661,8 +2695,8 @@ def item_setup(sender_id, item_id, preview=False):
 
     if wins_last_day(sender_id) >= Const.MAX_TIER_WINS * win_mulitplier(sender_id):
         send_pay_wall(sender_id, item)
-        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
-        send_ad_card(sender_id)
+        #send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+        #send_ad_card(sender_id)
 
 
     else:
@@ -2776,16 +2810,14 @@ def tac0_webhook():
                             recipient_id=sender_id,
                             title="Deposit Items",
                             image_url="https://i.imgur.com/OKbWbDm.png",
-                            buttons=[
-                                {
-                                    'type'                : "web_url",
-                                    'url'                 : "http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=sender_id),
-                                    'title'               : "Deposit",
-                                    'webview_height_ratio': "tall"
-                                }, {
-                                    'type': "element_share"
-                                }
-                            ],
+                            buttons=[{
+                                'type'                : "web_url",
+                                'url'                 : "http://lmon.us/claim.php?fb_psid={fb_psid}".format(fb_psid=sender_id),
+                                'title'               : "Deposit",
+                                'webview_height_ratio': "tall"
+                            }, {
+                                'type': "element_share"
+                            }],
                             quick_replies=[
                                 {
                                     'content_type': "text",
@@ -2966,7 +2998,7 @@ def webhook(bot_webhook):
 
                     if payload == "WELCOME_MESSAGE":
                         logger.info("----------=NEW SESSION @(%s)=----------" % (time.strftime('%Y-%m-%d %H:%M:%S')))
-                        send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
+                        #send_video(sender_id, "http://prebot.me/videos/MobileLegends.mp4")
 
                         send_text(sender_id, "Welome to Mobile Legends on Messenger! Flip here to win items.")
 
@@ -3543,12 +3575,12 @@ def handle_payload(sender_id, payload_type, payload):
     elif payload == "NEXT_ITEM":
         #send_tracker(fb_psid=sender_id, category="next-item")
 
-        if random.uniform(0, 1) > 0.80:
-            if random.uniform(0, 1) > 0.80:
-                send_install_card(sender_id)
-
-            else:
-                send_discord_card(sender_id)
+        if random.uniform(0, 1) > 0.90:
+            # if random.uniform(0, 1) > 0.80:
+            #     send_install_card(sender_id)
+            #
+            # else:
+            send_discord_card(sender_id)
 
         else:
             row = next_coin_flip_item(sender_id)
@@ -3732,6 +3764,7 @@ def handle_payload(sender_id, payload_type, payload):
                 conn.close()
 
         full_name, f_name, l_name = get_session_name(sender_id)
+
         payload = {
             'channel'  : "#bot-alerts",
             'username ': "gamebotsc",

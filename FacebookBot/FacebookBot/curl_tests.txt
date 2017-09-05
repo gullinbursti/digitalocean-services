@@ -26,24 +26,24 @@ curl -X POST -H "Content-Type: application/json" -d '{
       "composer_input_disabled":false,
       "call_to_actions":[
         {
+          "title":"Next Video",
+          "type":"postback",
+          "payload":"NEXT_VIDEO"
+        }, {
+          "title":"Get App",
+          "type":"postback",
+          "payload":"LANDING_URL"
+        }, {
           "title":"Menu",
           "type":"postback",
           "payload":"MAIN_MENU"
-        }, {
-          "title":"Flip",
-          "type":"postback",
-          "payload":"NEXT_ITEM"
-        }, {
-          "title":"Deposit",
-          "type":"postback",
-          "payload":"DEPOSIT-5"
         }
       ]
     }
   ]
-}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAAXFDiMELKsBAESoNb9hvGcOarJZCSuHJOQCjC835GS1QwwlOn8D255xPF86We1Wxg4DtxQqr91aHFYjFoOybUOVBTdtDalFKNLcjA2EXTEIGHXEMRbsA4vghEWKiIpB6nbzsX6G5rYBZCHuBc1UlsUnOqwZAS2jY56xppiIgZDZD"
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAABlUXJodZB4BAOWDDitRmAq2fQZBfEqr1ZB8a4qF1IGU90W36ZA10oPGw5J2AY3D9020FZBIDGnHTPLWYIZAegoQH5BvUK8LTiI0CZBbduHLmolI08gZCFdi14o4GMPFULfG0IALgA0nK1CAvDKyRNCPOoRBUOcZCmuaW0OTbg9F3gZDZD"
 
-while read l ; do curl -X POST -H "Content-Type: application/json" -d '{"persistent_menu":[{"locale":"default","composer_input_disabled":false,"call_to_actions":[{"title":"Menu","type":"postback","payload":"MAIN_MENU"}, {"title":"Flip","type":"postback","payload":"NEXT_ITEM"}, {"title":"Deposit","type":"postback","payload":"DEPOSIT-5"}]}]}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
+while read l ; do curl -X POST -H "Content-Type: application/json" -d  "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
 
 
 curl -X DELETE -H "Content-Type: application/json" -d '{
@@ -58,9 +58,9 @@ Greeting:
 curl -X POST -H "Content-Type: application/json" -d '{
   "setting_type":"greeting",
   "greeting":{
-    "text":"Hello La Li Lu Le Lo stay a while, and listen because Ive been thinking!• Owner Of @CSGORisk..."
+    "text":"Welcome to Gamebots on Messenger."
   }
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAaUrHM1ZA9gBABEUlca43iOCO5KZAkboSjOqZBghLuYFjbgh6ZAxCuzszXvWWtqfQ0bOibii6ryMWJyggb1gneXRCw0eMwwMQu3HaXLeaKkkRuNpZBAoy15DXaFUHZBaHHP3kJDd5nQxo0oWaejALblmext39JbztPzKIl3Ej5AZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAhrHeHIsZA0BAMoXadxA1kyx7Dss9SFwRmXvoY2KP4fxNLNWZCWuaEu88ItMvavRiwpSNgZBxtog7ILQZAkT8MmQUs4UBl5VnBnoKZAZC5jHQXTXOIiqHl7YB0eJexaJHtQFitAZAyUsoBPpQZCFfx5IqYo3zjxXNKpMj9SrYavBgZDZD"
 
 {{user_first_name}}
 {{user_last_name}}
@@ -68,7 +68,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
 
 curl -X DELETE -H "Content-Type: application/json" -d '{
   "setting_type":"greeting"
-}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAADzAMIzYPEBABaq36yMR0YeVNEVVf4e3r1Fkp4gqQ7XyFjZBmAKLYqfydNMAp0PkZB4PZAxJyXNYWGzeqnPZBTlA0fqdkyDg7J47sK4dIQNpBY3Rzcy6QZAuZAeqJHtVnfZCthVzZBAf3dN17bfBsrH5WVm7MJkRX2e0mpYAkpIPwZDZD"
+}' "https://graph.facebook.com/v2.6/me/thread_settings?access_token=EAAXFDiMELKsBAG7g6cOO4ZA3CrCqp48Bjvk6A34xvrSYxbNm2jcfbCMjvRndrMIka0Xez0VB3P97LKSI0Wj1E2Vojwh3mY4pCIl4c4QURU2d3cDoZAyJ7DYNYZAAUiZAIDBPxhi9fenZAXaxbzpYpvJiDuVvJ37fRp9gLQQUnTAZDZD"
 
 
 
@@ -77,7 +77,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
   "get_started":{
     "payload":"WELCOME_MESSAGE"
   }
-}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAADo7UONMbQBAG7fZBXMO5TYmZBHpKGgEzrIWG0LuAScIRbVQhgtN2Q4nJiMKCnvZBP9TRkhiaexEXfTpJXhlMpkl0ZBsnJm4lVu3qXZB69b7WzmNsHhpZCmcKTnKwCLS1jJGsUvqnGHW7x743T2LOTnFjFfXhZC2HyMl1P0vMxEgZDZD"
+}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=EAABlUXJodZB4BAOWDDitRmAq2fQZBfEqr1ZB8a4qF1IGU90W36ZA10oPGw5J2AY3D9020FZBIDGnHTPLWYIZAegoQH5BvUK8LTiI0CZBbduHLmolI08gZCFdi14o4GMPFULfG0IALgA0nK1CAvDKyRNCPOoRBUOcZCmuaW0OTbg9F3gZDZD"
 
 while read l ; do curl -X POST -H "Content-Type: application/json" -d '{"get_started":{"payload":"WELCOME_MESSAGE"}}' "https://graph.facebook.com/v2.6/me/messenger_profile?access_token=${l}" ; echo ; done < ~/Desktop/access.txt
 
