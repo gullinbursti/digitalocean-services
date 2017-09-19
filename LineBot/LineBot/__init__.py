@@ -11,7 +11,9 @@ import os
 import random
 import re
 import sqlite3
+import subprocess
 import sys
+import threading
 import time
 
 from datetime import datetime
@@ -21,10 +23,12 @@ from urllib import urlencode
 import MySQLdb as mdb
 import pycurl
 import requests
+import speech_recognition as sr
 import urllib
 
 from flask import Flask, escape, request, session
 from flask_cors import CORS, cross_origin
+from wit import Wit
 
 from constants import Const
 
@@ -43,8 +47,71 @@ hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
 logger.setLevel(logging.INFO)
 
+wit_client = Wit(access_token=Const.WIT_ACCESS_TOKEN)
+
 
 # =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+
+
+class VideoAudioRenderer(threading.Thread):
+    def __init__(self, src_url, out_mp3):
+        threading.Thread.__init__(self)
+        self.src_url = src_url
+        self.out_mp3 = out_mp3
+
+    def run(self):
+        p = subprocess.Popen(
+            # ('/usr/bin/ffmpeg -i %s -q:a 0 -map a %s' % (self.src_url, self.out_mp3)).split(),
+            ('/usr/bin/ffmpeg -i %s -vn -acodec pcm_s16le -ar 44100 -ac 1 %s' % (self.src_url, self.out_mp3)).split(),
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        stdout, stderr = p.communicate()
+
+
+class VideoMetaData(threading.Thread):
+    def __init__(self, src_url):
+        threading.Thread.__init__(self)
+        self.src_url = src_url
+        self.info = None
+
+    def run(self):
+        p = stdout, stderr = subprocess.Popen(
+            ('/usr/bin/ffprobe %s' % (self.src_url)).split(),
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        ).communicate()
+
+        list = stderr.split("\n")
+        dur = re.sub(r'\s{2,}', "", [s for s in list if "Duration:" in s][0]).split()[1][:-1]
+        duration = (float(dur.split(":")[0]) * 3600) + (float(dur.split(":")[1]) * 60) + float(dur.split(":")[2])
+        size = [s for s in list if "Stream" in s][0].split(", ")[2].split()[0]
+        frmt = [s for s in list if "Stream" in s][0].split(", ")[0].split()[3]
+
+        self.info = {
+            'duration': duration,
+            'size'    : (int(size.split("x")[0]), int(size.split("x")[1])),
+            'format'  : frmt
+        }
+
+
+# =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+# =- -=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=-=#=- -=#
+
+def copy_remote_asset(src_url, local_file):
+    logger.info("copy_remote_asset(src_url=%s, local_file=%s)" % (src_url, local_file))
+
+    with open(local_file, 'wb') as handle:
+        response = requests.get(src_url, stream=True)
+        if response.status_code == 200:
+            for block in response.iter_content(1024):
+                handle.write(block)
+        else:
+            logger.info("DOWNLOAD FAILED!!! %s" % (response.text))
+        del response
+
 
 
 def bot_webhook_type(webhook):
@@ -114,6 +181,53 @@ def bot_title_type(bot_id):
             conn.close()
 
     return title
+
+
+def app_title_type(bot_id):
+    logger.info("app_title_type(bot_id=%s)" % (bot_id,))
+
+    title = None
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `app_title` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+            row = cur.fetchone()
+            if row is not None:
+                title = row['app_title']
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return title
+
+
+def bot_modules(bot_id):
+    logger.info("bot_modules(bot_id=%s)" % (bot_id))
+
+    modules = None
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `modules` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+            row = cur.fetchone()
+            if row is not None:
+                modules = row['modules']
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    return modules
+
 
 
 def write_log(sender_id, bot_id, message):
@@ -201,83 +315,6 @@ def carousel_cards(bot_id):
     return cards
 
 
-    # cards = [[{
-    #     'id'       : 1,
-    #     'title'    : "98 Turk",
-    #     'subtitle' : "Starts at 5pm. Ends at 6pm",
-    #     'image_url': "https://imgur.com/0hfrKK1.png",
-    #     'card_url' : "http://example.com"
-    # }, {
-    #     'id'       : 2,
-    #     'title'    : "Black Cat",
-    #     'subtitle' : "Starts at 4pm. Ends at 6pm",
-    #     'image_url': "https://i.imgur.com/qZF2Ix5.png",
-    #     'card_url' : "http://example.com"
-    # }, {
-    #     'id'       : 3,
-    #     'title'    : "Mezcalito",
-    #     'subtitle' : "Starts at 4pm. Ends at 7pm",
-    #     'image_url': "https://i.imgur.com/mAqjn4w.png",
-    #     'card_url' : "http://example.com"
-    # }, {
-    #     'id'       : 4,
-    #     'title'    : "The Treasury",
-    #     'subtitle' : "Starts at 4pm. Ends at 5:30",
-    #     'image_url': "https://i.imgur.com/LiqtzoF.png",
-    #     'card_url' : "http://example.com"
-    # }], [{
-    #     'id'       : 1,
-    #     'title'    : "Jenny (@jennyInsta)",
-    #     'subtitle' : "",
-    #     'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/ccbe43e029714325635391627bad51cd/hair1.jpg",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 2,
-    #     'title'    : "Megan (@julieInsta)",
-    #     'subtitle' : "",
-    #     'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/e466f78fcc08ba52f7a258fc57072a67/hair2.jpg",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 3,
-    #     'title'    : "Julie (@julieInsta)",
-    #     'subtitle' : "",
-    #     'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/a71fd2bb3b8608e9b2869ecfe5e0bf0f/hair3.jpg",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 4,
-    #     'title'    : "Kyle (@julieInsta)",
-    #     'subtitle' : "",
-    #     'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/a080d2c164f6d048d3ec416e0149b88c/hair4.jpg",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 5,
-    #     'title'    : "Mandy (@mandyInsta)",
-    #     'subtitle' : "",
-    #     'image_url': "https://trello-attachments.s3.amazonaws.com/596cff877f832eab7df9b621/59790100fd912da6f9a952ad/33d1124b002d14d215dc04ecc6c2f52a/hair5.jpg",
-    #     'card_url' : None
-    # }], [{
-    #     'id'       : 1,
-    #     'title'    : "Video I",
-    #     'subtitle' : "",
-    #     'image_url': "http://via.placeholder.com/640x320",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 2,
-    #     'title'    : "Video II",
-    #     'subtitle' : "",
-    #     'image_url': "http://via.placeholder.com/640x320",
-    #     'card_url' : None
-    # }, {
-    #     'id'       : 3,
-    #     'title'    : "Video III",
-    #     'subtitle' : "",
-    #     'image_url': "http://via.placeholder.com/640x320",
-    #     'card_url' : None
-    # }]]
-    #
-    # return cards[min(max(0, bot_id - 1), len(cards) - 1)]
-
-
 def get_user_fb_psid(user_id):
     logger.info("get_user_fb_psid(user_id=%s)" % (user_id,))
 
@@ -344,7 +381,7 @@ def set_user(sender_id, bot_id):
             cur.execute('SELECT `id` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (sender_id,))
             row = cur.fetchone()
             if row is None:
-                cur.execute('INSERT INTO  `users` (`id`, `bot_id`, `fb_psid`, `first_name`, `last_name`, `image_url`, `last_active`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (bot_id, sender_id, "" if 'first_name' not in graph else graph['first_name'], "" if 'last_name' not in graph else graph['last_name'], "" if 'profile_pic' not in graph else graph['profile_pic']))
+                cur.execute('INSERT INTO  `users` (`id`, `bot_id`, `fb_psid`, `first_name`, `last_name`, `gender`, `locale`, `timezone`, `image_url`, `last_active`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP());', (bot_id, sender_id, "" if 'first_name' not in graph else graph['first_name'], "" if 'last_name' not in graph else graph['last_name'], "N" if 'gender' not in graph else graph['gender'][0].upper(), "" if 'locale' not in graph else graph['locale'], "" if 'timezone' not in graph else graph['timezone'], "" if 'profile_pic' not in graph else graph['profile_pic']))
                 conn.commit()
 
     except mdb.Error, e:
@@ -403,46 +440,46 @@ def get_user_name(sender_id):
     return (f_name, l_name)
 
 
+def get_user_sentiment(sender_id):
+    logger.info("get_user_sentiment(sender_id=%s)" % (sender_id,))
 
-def get_zipcode(sender_id):
-    logger.info("get_zipcode(sender_id=%s)" % (sender_id,))
+    sentiment = 0
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `sentiment` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (sender_id,))
+            row = cur.fetchone()
+            logger.info("row=%s" % (row,))
+            if row is not None and row['sentiment'] is not None:
+                sentiment = row['sentiment']
 
-    zipcode = None
-    # conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    # try:
-    #     with conn:
-    #         cur = conn.cursor(mdb.cursors.DictCursor)
-    #         cur.execute('SELECT `zipcode` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (sender_id,))
-    #         row = cur.fetchone()
-    #         if row is not None:
-    #             zipcode = row['zipcode']
-    #
-    # except mdb.Error, e:
-    #     logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-    #
-    # finally:
-    #     if conn:
-    #         conn.close()
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
-    return zipcode
+    finally:
+        if conn:
+            conn.close()
+
+    return sentiment
 
 
-def set_zipcode(sender_id, zipcode=None):
-    logger.info("set_zipcode(sender_id=%s, zipcode=%s)" % (sender_id, zipcode))
+def set_user_sentiment(sender_id, value):
+    logger.info("set_user_sentiment(sender_id=%s, value=%s)" % (sender_id, value))
 
-    # conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    # try:
-    #     with conn:
-    #         cur = conn.cursor(mdb.cursors.DictCursor)
-    #         cur.execute('UPDATE `users` SET `zipcode` = %s WHERE `fb_psid` = %s LIMIT 1;', (zipcode or "", sender_id))
-    #         conn.commit()
-    #
-    # except mdb.Error, e:
-    #     logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-    #
-    # finally:
-    #     if conn:
-    #         conn.close()
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('UPDATE `users` SET `sentiment` = %s WHERE `fb_psid` = %s LIMIT 1;', (value, sender_id,))
+            conn.commit()
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_flipped(sender_id):
@@ -486,48 +523,6 @@ def set_flipped(sender_id):
         if conn:
             conn.close()
 
-
-def get_email(sender_id):
-    logger.info("get_email(sender_id=%s)" % (sender_id,))
-
-    email = None
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('SELECT `email` FROM `users` WHERE `fb_psid` = %s LIMIT 1;', (sender_id,))
-            row = cur.fetchone()
-            if row is not None:
-                email = row['email']
-
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-    return email
-
-
-def set_email(sender_id, email=None):
-    logger.info("set_email(sender_id=%s, email=%s)" % (sender_id, email))
-
-    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    try:
-        with conn:
-            cur = conn.cursor(mdb.cursors.DictCursor)
-            cur.execute('UPDATE `users` SET `email` = %s WHERE `fb_psid` = %s LIMIT 1;', (email, sender_id))
-            conn.commit()
-
-    except mdb.Error, e:
-        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-    finally:
-        if conn:
-            conn.close()
-
-
 def get_optout(sender_id):
     logger.info("get_optout(sender_id=%s)" % (sender_id,))
 
@@ -552,7 +547,7 @@ def get_optout(sender_id):
 
 
 def set_optout(sender_id, optout=True):
-    logger.info("set_email(sender_id=%s, optout=%s)" % (sender_id, optout))
+    logger.info("set_optout(sender_id=%s, optout=%s)" % (sender_id, optout))
 
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
     try:
@@ -583,39 +578,77 @@ def build_quick_replies(sender_id=None):
     logger.info("build_quick_replies(sender_id=%s)" % (sender_id,))
 
     bot_id = get_user_bot_id(sender_id)
-    if bot_id == Const.BOT_TYPE_HAPPYHOUR or bot_id == Const.BOT_TYPE_TOPSTYLE:
-        if bot_id == Const.BOT_TYPE_HAPPYHOUR:
-            quick_replies = [{
-                'content_type': "text",
-                'title'       : "Enter Zipcode",
-                'payload'     : "ZIPCODE"
-            }]
 
-        else:
-            quick_replies = []
+    quick_replies = [{
+        'content_type': "text",
+        'title'       : "Get {app_title}".format(app_title="App" if app_title_type(bot_id) == "" else app_title_type(bot_id)),
+        'payload'     : "LANDING_URL"
+    }]
 
+    if bot_modules(bot_id) == 0:
         quick_replies.append({
-            'content_type': "text",
-            'title'       : "Menu",
-            'payload'     : "MAIN_MENU"
-        })
-
-    else:
-        quick_replies = [{
-            'content_type': "text",
-            'title'       : "Get {bot_title}".format(bot_title=bot_title_type(bot_id)),
-            'payload'     : "LANDING_URL"
-        }, {
             'content_type': "text",
             'title'       : "Next Video",
             'payload'     : "NEXT_VIDEO"
-        }, {
+        })
+
+    elif bot_modules(bot_id) == 1:
+        quick_replies.append({
             'content_type': "text",
-            'title'       : "Screenshots",
-            'payload'     : "APP_SCREENSHOTS"
-        }]
+            'title'       : "Next Question",
+            'payload'     : "NEXT_SURVEY"
+        })
+
+    elif bot_modules(bot_id) == 2:
+        quick_replies.append({
+            'content_type': "text",
+            'title'       : "Next",
+            'payload'     : "NEXT_LIST"
+        })
+
+    elif bot_modules(bot_id) == 4:
+        quick_replies.append({
+            'content_type': "text",
+            'title'       : "A/B Test",
+            'payload'     : "AB_TEST"
+        })
+
+    elif bot_modules(bot_id) == 8:
+        quick_replies.append({
+            'content_type': "text",
+            'title'       : "Next",
+            'payload'     : "NEXT_RATING"
+        })
+
+    # quick_replies.append({
+    #     'content_type': "text",
+    #     'title'       : "Screenshots",
+    #     'payload'     : "APP_SCREENSHOTS"
+    # })
+
+    quick_replies.append({
+        'content_type': "text",
+        'title'       : "Video Upload",
+        'payload'     : "SEND_VIDEO"
+    })
 
     return quick_replies
+
+
+def build_card_element(title, subtitle=None, image_url=None, item_url=None, buttons=None):
+    logger.info("build_card_element(title=%s, subtitle=%s, image_url=%s, item_url=%s, buttons=%s)" % (title, subtitle, image_url, item_url, buttons))
+
+    element = {
+        'title'    : title,
+        'subtitle' : subtitle or "",
+        'image_url': image_url,
+        'item_url' : item_url
+    }
+
+    if buttons is not None:
+        element['buttons'] = buttons
+
+    return element
 
 
 def build_flip_element(sender_id):
@@ -658,20 +691,6 @@ def build_carousel_elements(sender_id):
     bot_id = get_user_bot_id(sender_id)
     elements = []
     for element in carousel_cards(get_user_bot_id(sender_id)):
-        # if bot_id == 15:
-        #     elements.append({
-        #         'title'    : element['title'],
-        #         'subtitle' : element['subtitle'] or "",
-        #         'image_url': "{image_url}?r={rand}".format(image_url=element['image_url'], rand=random.uniform(0, 1)),
-        #         'item_url' : None,
-        #         'buttons'  : [{
-        #             'type'   : "postback",
-        #             'payload': "PLAY_VIDEO-{card_id}".format(card_id=element['id']),
-        #             'title'  : "Play Now"
-        #         }]
-        #     })
-        #
-        # else:
         elements.append({
             'title'    : element['title'],
             'subtitle' : element['subtitle'] or "",
@@ -693,49 +712,101 @@ def send_welcome(sender_id, bot_id):
 
     set_user(sender_id, bot_id)
 
-    # conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-    # try:
-    #     with conn:
-    #         cur = conn.cursor(mdb.cursors.DictCursor)
-    #         cur.execute('SELECT `title`, `description`, `landing_image` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
-    #         row = cur.fetchone()
-    #         if row is not None:
-    #             send_card(
-    #                 recipient_id=sender_id,
-    #                 title=row['title'],
-    #                 subtitle=row['description'],
-    #                 image_url="http://via.placeholder.com/640x320" if row['landing_image'] == "" else row['landing_image'],
-    #                 buttons=[{
-    #                     'type'                : "web_url",
-    #                     'url'                 : "http://outro.chat/player/{user_id}/{bot_id}".format(user_id=get_user_id(sender_id), bot_id=bot_id),
-    #                     'title'               : "Watch App Video",
-    #                     'webview_height_ratio': "tall"
-    #                 }],
-    #                 quick_replies=build_quick_replies(sender_id)
-    #             )
-    #
-    #
-    # except mdb.Error, e:
-    #     logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-    #
-    # finally:
-    #     if conn:
-    #         conn.close()
+    # f_name, l_name = get_user_name(sender_id)
+    # send_text(sender_id, "Welcome to {bot_title}. You can opt out anytime by texting Optout.".format(bot_title=bot_title_type(get_user_bot_id(sender_id))))
+    send_text(sender_id, "Welcome to {app_title}. You can opt out anytime by texting Optout.".format(app_title=app_title_type(get_user_bot_id(sender_id))))
 
-    f_name, l_name = get_user_name(sender_id)
-    send_text(
-        recipient_id=sender_id,
-        message_text="Hi {first_name}, do you want to watch videos on {bot_title} for iOS and Android? To opt-out of further messaging, type exit, quit, or stop.".format(first_name=f_name, bot_title=bot_title_type(get_user_bot_id(sender_id))),
-        quick_replies=[{
-            'content_type': "text",
-            'title'       : "Yes",
-            'payload'     : "WELCOME_YES"
-        }, {
-            'content_type': "text",
-            'title'       : "No",
-            'payload'     : "WELCOME_NO"
-        }]
-    )
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `welcome_msg` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+            row = cur.fetchone()
+            if row is not None and row['welcome_msg'] != "":
+                send_text(
+                    recipient_id=sender_id,
+                    message_text=row['welcome_msg'],
+                    quick_replies=[{
+                        'content_type': "text",
+                        'title'       : "Yes",
+                        'payload'     : "WELCOME_YES"
+                    }, {
+                        'content_type': "text",
+                        'title'       : "No",
+                        'payload'     : "WELCOME_NO"
+                    }]
+                )
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+
+    modules = bot_modules(bot_id)
+    if modules == 1:
+        survey = []
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `id`, `video_url`, `topic`, `answer_1`, `answer_2`, `answer_3`  FROM `surveys` WHERE `bot_id` = %s ORDER BY `sort`;', (bot_id,))
+                for row in cur.fetchall():
+                    logger.info("MODULES[%s] : %s" % (bot_id, modules))
+                    survey.append({
+                        'id'        : row['id'],
+                        'topic'     : row['topic'],
+                        'video_url' : row['video_url'],
+                        'answers'   : [
+                            row['answer_1'],
+                            row['answer_2'],
+                            row['answer_3']
+                        ]
+                    })
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        if len(survey) > 0:
+            send_video(sender_id, survey[0]['video_url'])
+            send_text(
+                recipient_id=sender_id,
+                message_text="{topic}".format(topic=survey[0]['topic']),
+                quick_replies=[
+                    {
+                        'content_type': "text",
+                        'title'       : survey[0]['answers'][0],
+                        'payload'     : "SURVEY-{survey_id}-0".format(survey_id=survey[0]['id'])
+                    }, {
+                        'content_type': "text",
+                        'title'       : survey[0]['answers'][1],
+                        'payload'     : "SURVEY-{survey_id}-1".format(survey_id=survey[0]['id'])
+                    }, {
+                        'content_type': "text",
+                        'title'       : survey[0]['answers'][2],
+                        'payload'     : "SURVEY-{survey_id}-2".format(survey_id=survey[0]['id'])
+                    }, {
+                        'content_type': "text",
+                        'title'       : "Get {app_title}".format(app_title=app_title_type(bot_id)),
+                        'payload'     : "LANDING_URL"
+                    }
+                ]
+            )
+
+    elif modules == 2:
+        send_default_carousel(sender_id)
+
+    elif modules == 4:
+        send_default_carousel(sender_id)
+
+    elif modules == 8:
+        send_default_carousel(sender_id)
 
 
 def send_flip(sender_id, item_id):
@@ -752,15 +823,14 @@ def send_flip(sender_id, item_id):
         time.sleep(2)
 
         if outcome is True:
-            set_email(sender_id, "_{PENDING}_")
-            send_text(sender_id, "You Won! A 1 month Subscription to Passkey. Please enter your email address.", [build_cancel_button()])
+            send_text(sender_id, "You Won! A 1 month Subscription to Passkey.", [build_cancel_button()])
 
         else:
-            send_text(sender_id, "You Lost. Enter your email address for more details on how you could win.", build_quick_replies(sender_id))
+            send_text(sender_id, "You Lost.", build_quick_replies(sender_id))
 
 
-def send_item_card(sender_id, item_id, tag=True):
-    logger.info("send_item_card(sender_id=%s, item_id=%s, tag=%s)" % (sender_id, item_id, tag))
+def send_video_card(sender_id, item_id, tagline=True):
+    logger.info("send_video_card(sender_id=%s, item_id=%s, tagline=%s)" % (sender_id, item_id, tagline))
 
     bot_id = get_user_bot_id(sender_id)
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -770,19 +840,6 @@ def send_item_card(sender_id, item_id, tag=True):
             cur.execute('SELECT `id`, `title`, `subtitle`, `image_url`, `card_url`, `media_url` FROM `cards` WHERE `id` = %s AND `enabled` = 1 LIMIT 1;', (item_id,))
             row = cur.fetchone()
             if row is not None:
-                # if bot_id == 15:
-                #     send_card(
-                #         recipient_id=sender_id,
-                #         title=row['title'],
-                #         image_url="{image_url}?r={rand}".format(image_url=row['image_url'], rand=random.uniform(0, 1)),
-                #         buttons=None if len(row['media_url']) == 0 else [{
-                #             'type'   : "postback",
-                #             'payload': "PLAY_VIDEO-{card_id}".format(card_id=row['id']),
-                #             'title'  : "Play Now"
-                #         }]
-                #     )
-                #
-                # else:
                 send_card(
                     recipient_id=sender_id,
                     title=row['title'],
@@ -795,7 +852,7 @@ def send_item_card(sender_id, item_id, tag=True):
                         'title'               : "Play Now",
                         'webview_height_ratio': "compact"
                     }, {
-                        'type': "element_share",
+                        'type': "element_share"
                     }],
                     quick_replies=build_quick_replies(sender_id)
                 )
@@ -809,7 +866,7 @@ def send_item_card(sender_id, item_id, tag=True):
                     quick_replies=build_quick_replies(sender_id)
                 )
 
-            if tag is True:
+            if tagline is True:
                 cur.execute('SELECT `tag_line` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
                 row = cur.fetchone()
                 if row is not None:
@@ -822,18 +879,323 @@ def send_item_card(sender_id, item_id, tag=True):
         if conn:
             conn.close()
 
+    send_text(sender_id, "You can also send a text response or video for more content", build_quick_replies(sender_id))
+
+
+def send_survey_card(sender_id, card=False):
+    logger.info("send_survey_card(sender_id=%s, card=%s)" % (sender_id, card))
+
+    bot_id = get_user_bot_id(sender_id)
+    if bot_modules(bot_id) == 1:
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                if card is True:
+                    cur.execute('SELECT `survey_id` FROM `survey_responses` WHERE `user_id` = %s ORDER BY `added` DESC LIMIT 1;', (get_user_id(sender_id),))
+                    row = cur.fetchone()
+                    if row is not None:
+                        cur.execute('SELECT `id`, `topic`, `title`, `subtitle`, `image_url` FROM `surveys` WHERE `bot_id` = %s AND `id` = %s ORDER BY `sort` LIMIT 1;', (bot_id, row['survey_id']))
+                        row = cur.fetchone()
+                        if row is not None:
+                            send_card(
+                                recipient_id=sender_id,
+                                title=row['title'],
+                                image_url=row['image_url'],
+                                subtitle=row['subtitle'],
+                                buttons=[{
+                                    'type'                : "web_url",
+                                    'url'                 : "http://outro.chat/survey/{user_id}/{survey_id}".format(user_id=get_user_id(sender_id), survey_id=row['id']),
+                                    'title'               : "Get {app_name}".format(app_name=app_title_type(bot_id)),
+                                    'webview_height_ratio': "compact"
+                                }, {
+                                    'type': "element_share"
+                                }],
+                                quick_replies=build_quick_replies(sender_id)
+                            )
+
+                        else:
+                            cur.execute('SELECT `id`, `topic`, `title`, `subtitle`, `image_url` FROM `surveys` WHERE `bot_id` = %s ORDER BY `sort` LIMIT 1;', (bot_id,))
+                            row = cur.fetchone()
+                            if row is not None:
+                                send_card(
+                                    recipient_id=sender_id,
+                                    title=row['title'],
+                                    image_url=row['image_url'],
+                                    subtitle=row['subtitle'],
+                                    buttons=[{
+                                        'type'                : "web_url",
+                                        'url'                 : "http://outro.chat/survey/{user_id}/{survey_id}".format(user_id=get_user_id(sender_id), survey_id=row['id']),
+                                        'title'               : "Get {app_name}".format(app_name=app_title_type(bot_id)),
+                                        'webview_height_ratio': "compact"
+                                    }, {
+                                        'type': "element_share"
+                                    }],
+                                    quick_replies=build_quick_replies(sender_id)
+                                )
+
+                            else:
+                                send_card(
+                                    recipient_id=sender_id,
+                                    title="Survey Placeholder",
+                                    image_url="http://via.placeholder.com/640x320",
+                                    subtitle="Subtitle",
+                                    buttons=[{
+                                        'type'                : "web_url",
+                                        'url'                 : "http://outro.chat/survey/{user_id}/{survey_id}".format(user_id=get_user_id(sender_id), survey_id=0),
+                                        'title'               : "Get {app_name}".format(app_name=app_title_type(bot_id)),
+                                        'webview_height_ratio': "compact"
+                                    }, {
+                                        'type': "element_share"
+                                    }],
+                                    quick_replies=build_quick_replies(sender_id)
+                                )
+
+                    else:
+                        send_card(
+                            recipient_id=sender_id,
+                            title="Survey Placeholder",
+                            image_url="http://via.placeholder.com/640x320",
+                            subtitle="Subtitle",
+                            buttons=[{
+                                'type'                : "web_url",
+                                'url'                 : "http://outro.chat/survey/{user_id}/{survey_id}".format(user_id=get_user_id(sender_id), survey_id=0),
+                                'title'               : "Get {app_name}".format(app_name=app_title_type(bot_id)),
+                                'webview_height_ratio': "compact"
+                            }, {
+                                'type': "element_share"
+                            }],
+                            quick_replies=build_quick_replies(sender_id)
+                        )
+
+                cur.execute('SELECT `tag_line` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+                row = cur.fetchone()
+                if row is not None:
+                  send_text(sender_id, row['tag_line'], build_quick_replies(sender_id))
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+
+def send_item_card(sender_id, list_id=0, item_id=0):
+    logger.info("send_item_card(sender_id=%s, list_id=%s, item_id=%s)" % (sender_id, list_id, item_id))
+
+    bot_id = get_user_bot_id(sender_id)
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `title`, `subtitle`, `image_url`, `button_url` FROM `list_items` WHERE `list_id` = %s AND `enabled` = 1 LIMIT 1;', (item_id,))
+            row = cur.fetchone()
+            if row is not None:
+                send_card(
+                    recipient_id=sender_id,
+                    title=row['title'],
+                    subtitle=row['subtitle'],
+                    image_url="{image_url}?r={rand}".format(image_url=row['image_url'], rand=random.uniform(0, 1)),
+                    card_url=None if len(row['button_url']) == 0 else "http://outro.chat/list/{user_id}/{item_id}".format(user_id=get_user_id(sender_id), item_id=item_id),
+                    buttons=None if len(row['button_url']) == 0 else [{
+                        'type'                : "web_url",
+                        'url'                 : "http://outro.chat/list/{user_id}/{item_id}".format(user_id=get_user_id(sender_id), item_id=item_id),
+                        'title'               : "Open Now",
+                        'webview_height_ratio': "compact"
+                    }, {
+                        'type': "element_share"
+                    }],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+            else:
+                send_card(
+                    recipient_id=sender_id,
+                    title="Video Placeholder",
+                    image_url="http://via.placeholder.com/640x320",
+                    buttons=[{'type': "element_share"}],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    send_text(sender_id, "You can also send a text response or video for more content", build_quick_replies(sender_id))
+
+
+def send_list(sender_id, list_id=0):
+    logger.info("send_list(sender_id=%s, list_id=%s)" % (sender_id, list_id))
+
+    bot_id = get_user_bot_id(sender_id)
+    if bot_modules(bot_id) == 2:
+        list_id = 0
+        header_element = {}
+        body_elements = []
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `id`, `title`, `subtitle`, `image_url`, `button_url` FROM `lists` WHERE `bot_id` = %s LIMIT 1;', (bot_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    list_id = row['id']
+                    header_element = build_card_element(
+                        title=row['title'],
+                        subtitle=row['subtitle'],
+                        image_url=row['image_url']
+                    )
+
+                    cur.execute('SELECT `id`, `title`, `subtitle`, `image_url`, `button_url` FROM `list_items` WHERE `list_id` = %s ORDER BY `sort`;', (list_id,))
+                    for row in cur.fetchall():
+                        body_elements.append(build_card_element(
+                            title=row['title'],
+                            subtitle=row['subtitle'],
+                            image_url=row['image_url'],
+                            buttons=[{
+                                'type'   : "postback",
+                                'payload': "LIST_ITEM-{list_id}-{item_id}".format(list_id=list_id, item_id=row['id']),
+                                'title'  : "Open Now"
+                            }]
+                        ))
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_list_card(
+            recipient_id=sender_id,
+            body_elements=body_elements,
+            header_element=header_element,
+            quick_replies=build_quick_replies(sender_id)
+        )
+
+    send_text(sender_id, "You can also send a text response or video for more content", build_quick_replies(sender_id))
+
+
+def send_ab_test_card(sender_id):
+    logger.info("send_ab_test_card(sender_id=%s)" % (sender_id,))
+
+    bot_id = get_user_bot_id(sender_id)
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `title`, `subtitle`, `image_url` FROM `ab_tests` WHERE `bot_id` = %s AND `enabled` = 1 LIMIT 1;', (bot_id,))
+            row = cur.fetchone()
+            if row is not None:
+                send_card(
+                    recipient_id=sender_id,
+                    title=row['title'],
+                    subtitle=row['subtitle'],
+                    image_url=row['image_url'],
+                    buttons=[{
+                        'type'                : "web_url",
+                        'url'                 : "http://outro.chat/ab-test/{user_id}/{test_id}".format(user_id=get_user_id(sender_id), test_id=row['id']),
+                        'title'               : "Choose Now",
+                        'webview_height_ratio': "tall"
+                    }, {
+                        'type': "element_share"
+                    }],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+            else:
+                send_card(
+                    recipient_id=sender_id,
+                    title="A/B Test Placeholder",
+                    image_url="http://via.placeholder.com/640x320",
+                    buttons=[{'type': "element_share"}],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    send_text(sender_id, "You can also send a text response or video for more content", build_quick_replies(sender_id))
+
+
+def send_rating_card(sender_id, rating_id=0):
+    logger.info("send_rating_card(sender_id=%s, rating_id=%s)" % (sender_id, rating_id))
+
+    bot_id = get_user_bot_id(sender_id)
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('SELECT `id`, `title`, `subtitle`, `image_url` FROM `ratings` WHERE `bot_id` = %s AND `enabled` = 1 ORDER BY RAND() LIMIT 1;', (bot_id,))
+            row = cur.fetchone()
+            if row is not None:
+                send_card(
+                    recipient_id=sender_id,
+                    title=row['title'],
+                    subtitle=row['subtitle'],
+                    image_url=row['image_url'],
+                    buttons=[{
+                        'type'   : "postback",
+                        'payload': "RATING-{rating_id}-1".format(rating_id=row['id']),
+                        'title'  : "⭐"
+                    }, {
+                        'type'   : "postback",
+                        'payload': "RATING-{rating_id}-2".format(rating_id=row['id']),
+                        'title'  : "⭐⭐"
+                    }, {
+                        'type'   : "postback",
+                        'payload': "RATING-{rating_id}-3".format(rating_id=row['id']),
+                        'title'  : "⭐⭐⭐"
+                    }],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+            else:
+                send_card(
+                    recipient_id=sender_id,
+                    title="Rating Placeholder",
+                    image_url="http://via.placeholder.com/640x320",
+                    buttons=[{
+                        'type'   : "postback",
+                        'payload': "RATE-0-1".format(rating_id=row['id']),
+                        'title'  : "⭐"
+                    }, {
+                        'type'   : "postback",
+                        'payload': "RATE-0-2".format(rating_id=row['id']),
+                        'title'  : "⭐⭐"
+                    }, {
+                        'type'   : "postback",
+                        'payload': "RATE-0-3".format(rating_id=row['id']),
+                        'title'  : "⭐⭐⭐"
+                    }],
+                    quick_replies=build_quick_replies(sender_id)
+                )
+
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+    finally:
+        if conn:
+            conn.close()
+
+    send_text(sender_id, "You can also send a text response or video for more content", build_quick_replies(sender_id))
+
 
 def send_default_carousel(sender_id, amount=3):
-    logger.info("send_default_carousel(sender_id=%s amount=%s)" % (sender_id, amount))
+    logger.info("send_default_carousel(sender_id=%s, amount=%s)" % (sender_id, amount))
 
-    if get_user_bot_id(sender_id) == Const.BOT_TYPE_HAPPYHOUR or get_user_bot_id(sender_id) == Const.BOT_TYPE_TOPSTYLE:
-        elements = []
-        if get_flipped(sender_id) <= int(time.time()) - 86400:
-            elements.append(build_flip_element(sender_id))
-
+    if bot_modules(get_user_bot_id(sender_id)) == 2:
         send_carousel(
             recipient_id=sender_id,
-            elements=elements + build_carousel_elements(sender_id),
+            elements=build_carousel_elements(sender_id),
             quick_replies=build_quick_replies(sender_id)
         )
 
@@ -898,11 +1260,25 @@ def webhook(bot_webhook):
                 if 'read' in messaging_event:  # read confirmation
                     logger.info("-=- READ CONFIRM -=- %s" % (messaging_event,))
                     # send_tracker(fb_psid=messaging_event['sender']['id'], category="read-receipt")
+                    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                    try:
+                        with conn:
+                            cur = conn.cursor(mdb.cursors.DictCursor)
+                            cur.execute('INSERT INTO `reads` (`id`, `bot_id`, `fb_psid`, `added`) VALUES (NULL, %s, %s, UTC_TIMESTAMP());', (bot_id, messaging_event['sender']['id']))
+                            conn.commit()
+
+                    except mdb.Error, e:
+                        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                    finally:
+                        if conn:
+                            conn.close()
                     return "OK", 200
 
                 if 'optin' in messaging_event:  # optin confirmation
                     logger.info("-=- OPT-IN -=-")
                     return "OK", 200
+
 
                 payload = None
                 sender_id = messaging_event['sender']['id']
@@ -931,7 +1307,6 @@ def webhook(bot_webhook):
                     return "OK", 200
 
                 # -- insert to log
-                # send_text(sender_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), build_quick_replies(sender_id))
                 write_log(sender_id, bot_id, message)
 
                 conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -950,12 +1325,43 @@ def webhook(bot_webhook):
 
                 if payload is not None:
                     session['payload'] = payload
+                    if message is not None and 'text' in message:
+                        response = wit_client.message(message['text'])
+                        logger.info("WIT SAYS: %s" % (str(response),))
+                        if 'sentiment' in response['entities'] and float(response['entities']['sentiment'][0]['confidence']) >= Const.WIT_CONFIDENCE:
+                            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                            try:
+                                with conn:
+                                    cur.execute('SELECT `survey_id` FROM `survey_responses` WHERE `user_id` = %s ORDER BY `added` DESC LIMIT 1;', (get_user_id(sender_id),))
+                                    row = cur.fetchone()
+                                    survey_id = 0
+                                    if row is not None:
+                                        survey_id = row['survey_id']
+
+                                    cur = conn.cursor(mdb.cursors.DictCursor)
+                                    cur.execute('INSERT INTO `sentiments` (`id`, `user_id`, `bot_id`, `media_id`, `source`, `entities`, `sentiment`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP()) ;', (get_user_id(sender_id), bot_id, survey_id, "button", json.dumps(response), 1 if response['entities']['sentiment'][0]['value'] == "positive" else -1))
+                                    conn.commit()
+
+                            except mdb.Error, e:
+                                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                            finally:
+                                if conn:
+                                    conn.close()
+
                     handle_payload(sender_id, bot_id, payload)
 
                 if referral is not None:
                     logger.info("REFERRAL ---> %s", (referral,))
-                    handle_referral(sender_id, bot_id, referral[1:])
+                    handle_referral(sender_id, bot_id, referral)
 
+                if message is not None and 'attachments' in message:
+                    for attachment in message['attachments']:
+                        if attachment['type'] == "fallback" and 'text' in message:
+                            handle_text_reply(sender_id, message['text'])
+
+                        else:
+                            handle_attachment(sender_id, attachment['type'], attachment['payload'])
 
                 if payload is None and referral is None:
                     # ------- TYPED TEXT MESSAGE
@@ -963,6 +1369,23 @@ def webhook(bot_webhook):
                         if get_user_bot_id(sender_id) is None or get_user_bot_id(sender_id) == 0:
                             send_welcome(sender_id, bot_id)
 
+                        response = wit_client.message(message['text'])
+                        logger.info("WIT SAYS: %s" % (str(response),))
+                        if 'sentiment' in response['entities'] and float(response['entities']['sentiment'][0]['confidence']) >= Const.WIT_CONFIDENCE:
+                            pass
+                            # conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                            # try:
+                            #     with conn:
+                            #         cur = conn.cursor(mdb.cursors.DictCursor)
+                            #         cur.execute('INSERT INTO `sentiments` (`id`, `user_id`, `bot_id`, `source`, `entities`, `sentiment`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, UTC_TIMESTAMP()) ;', (get_user_id(sender_id), bot_id, "text", json.dumps(response), 1 if response['entities']['sentiment'][0]['value'] == "positive" else -1))
+                            #         conn.commit()
+                            #
+                            # except mdb.Error, e:
+                            #     logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+                            #
+                            # finally:
+                            #     if conn:
+                            #         conn.close()
                         handle_text_reply(sender_id, message['text'])
 
     return "OK", 200
@@ -1022,28 +1445,64 @@ def player():
     return "OK", 200
 
 
+@app.route('/ab-test/', methods=['POST'])
+def ab_test():
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("=-=-=-=-=-= POST --\  '/ab-test/'")
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    logger.info("request.form=%s" % (", ".join(request.form),))
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+
+    if request.form['token'] == Const.AB_TOKEN:
+        logger.info("TOKEN VALID!")
+
+        if 'user_id' in request.form and 'test_id' in request.form and 'item_id' in request.form:
+            user_id = request.form['user_id']
+            test_id = request.form['test_id']
+            item_id = request.form['item_id']
+            logger.info("user_id=%s, test_id=%s, item_id=%s" % (user_id, test_id, item_id))
+
+            fb_psid = get_user_fb_psid(user_id)
+            bot_id = get_user_bot_id(fb_psid)
+
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('INSERT INTO `ab_test_responses` (`id`, `user_id`, `test_id`, `item_id`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (user_id, test_id, item_id))
+                    conn.commit()
+
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+    return "OK", 200
+
+
+
 # =- -=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=--=#=- -=#
 
 
 def handle_referral(sender_id, bot_id, deeplink=None):
     logger.info("handle_referral(sender_id=%s, bot_id=%s, deeplink=%s)" % (sender_id, bot_id, deeplink))
 
-    if re.search(r'^(\d+)$', deeplink):
-        tracking_id = re.match(r'^(?P<tracking_id>\d+)$', deeplink).group('tracking_id')
+    tracking_id = re.match(r'^(?P<tracking_id>.+)$', deeplink).group('tracking_id')
+    conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+    try:
+        with conn:
+            cur = conn.cursor(mdb.cursors.DictCursor)
+            cur.execute('UPDATE `users` SET `tracking_id` = %s WHERE `fb_psid` = %s LIMIT 1;', (tracking_id, sender_id,))
+            conn.commit()
 
-        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-        try:
-            with conn:
-                cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('UPDATE `users` SET `tracking_id` = %s WHERE `fb_psid` = %s LIMIT 1;', (tracking_id, sender_id,))
-                conn.commit()
+    except mdb.Error, e:
+        logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
 
-        except mdb.Error, e:
-            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
+    finally:
+        if conn:
+            conn.close()
 
 
 def handle_payload(sender_id, bot_id, payload):
@@ -1053,119 +1512,15 @@ def handle_payload(sender_id, bot_id, payload):
         send_welcome(sender_id, bot_id)
 
     elif payload == "WELCOME_YES":
-        rating, previews = app_store(bot_id)
+        if bot_modules(bot_id) == 2:
+            send_list(sender_id)
 
-        if rating != 0:
-            send_text(sender_id, "Ok, Great! {bot_title} is a {rating:.1f} ⭐️ app!".format(bot_title=bot_title_type(bot_id), rating=rating))
+        elif bot_modules(bot_id) == 4:
+            send_ab_test_card(sender_id)
 
-        if previews is not None:
-            send_image(sender_id, random.choice(previews))
+        elif bot_modules(bot_id) == 8:
+            send_default_carousel(sender_id)
 
-        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-        try:
-            with conn:
-                cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `cards` WHERE `bot_id` = %s ORDER BY RAND() LIMIT 1;', (bot_id,))
-                row = cur.fetchone()
-                if row is not None:
-                    send_item_card(sender_id, row['id'], False)
-                else:
-                    send_card(
-                        recipient_id=sender_id,
-                        title="Video Placeholder",
-                        image_url="http://via.placeholder.com/640x320",
-                        buttons=[{'type': "element_share"}],
-                        quick_replies=build_quick_replies(sender_id)
-                    )
-
-        except mdb.Error, e:
-            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-
-    elif payload == "WELCOME_NO":
-        send_text(sender_id, "Ok, you can always tap Get {bot_title} in the main menu to learn more!".format(bot_title=bot_title_type(bot_id)), build_quick_replies(sender_id))
-
-    elif payload == "ZIPCODE":
-        set_zipcode(sender_id, "_{PENDING}_")
-        send_text(sender_id, "Please enter your Zip Code to receive updates on daily happy hours in your area.", [build_cancel_button()])
-
-    elif payload == "MAIN_MENU":
-        send_default_carousel(sender_id)
-
-    elif payload == "FLIP":
-        send_flip(sender_id, 1)
-
-    elif payload == "NEXT_VIDEO":
-        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
-        try:
-            with conn:
-                cur = conn.cursor(mdb.cursors.DictCursor)
-                cur.execute('SELECT `id` FROM `cards` WHERE `bot_id` = %s ORDER BY RAND() LIMIT 1;', (bot_id,))
-                row = cur.fetchone()
-                if row is not None:
-                    send_item_card(sender_id, row['id'])
-                else:
-                    send_card(
-                        recipient_id=sender_id,
-                        title="Video Placeholder",
-                        image_url="http://via.placeholder.com/640x320",
-                        buttons=[{ 'type' : "element_share" }],
-                        quick_replies=build_quick_replies(sender_id)
-                    )
-
-        except mdb.Error, e:
-            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
-
-        finally:
-            if conn:
-                conn.close()
-
-
-    elif payload == "WEBSITE":
-        if bot_id == Const.BOT_TYPE_HAPPYHOUR:
-            title = "happyhour.bot"
-            card_url = "http://www.happyhour.bot"
-            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294516_106493256703647_5694536636197485639_n.png?oh=dc6ae511db1644ca247b30f5d16be5a6&oe=5A378726"
-        elif bot_id == Const.BOT_TYPE_TOPSTYLE:
-            title = "foxandjanesalon.com"
-            card_url = "http://www.foxandjanesalon.com"
-            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294515_254659165032297_7229853044888461966_n.png?oh=2b270114e028ff27a733d85e58a01c53&oe=5A07B2EE"
-        else:
-            title = "example.com"
-            card_url = "http://www.example.com"
-            image_url = "https://scontent-sjc2-1.xx.fbcdn.net/v/t1.0-9/20294515_254659165032297_7229853044888461966_n.png?oh=2b270114e028ff27a733d85e58a01c53&oe=5A07B2EE"
-
-        send_card(
-            recipient_id=sender_id,
-            title=title,
-            image_url=image_url,
-            card_url=card_url,
-            quick_replies=build_quick_replies(sender_id)
-        )
-
-    elif payload == "EMAIL":
-        set_email(sender_id, "_{PENDING}_")
-        send_text(sender_id, "Enter your Email Address now for more information on how to protect your Facebook Account. ", build_quick_replies(sender_id))
-
-    elif payload == "LANDING_URL":
-        if bot_id == 12 or bot_id == 13 or bot_id == 15:
-            send_card(
-                recipient_id=sender_id,
-                title="Fingerprint Login",
-                image_url="http://192.241.197.211/bots/image.png",
-                subtitle="PassKey Password & App Keyboard",
-                buttons=[{
-                    'type'                : "web_url",
-                    'url'                 : "https://taps.io/Bw_GA",
-                    'title'               : "Open PassKey",
-                    'webview_height_ratio': "full"
-                }],
-                quick_replies=build_quick_replies(sender_id)
-            )
         else:
             rating, previews = app_store(bot_id)
 
@@ -1182,13 +1537,13 @@ def handle_payload(sender_id, bot_id, payload):
                     cur.execute('SELECT `id` FROM `cards` WHERE `bot_id` = %s ORDER BY RAND() LIMIT 1;', (bot_id,))
                     row = cur.fetchone()
                     if row is not None:
-                        send_item_card(sender_id, row['id'], False)
+                        send_video_card(sender_id, row['id'], False)
                     else:
                         send_card(
                             recipient_id=sender_id,
                             title="Video Placeholder",
                             image_url="http://via.placeholder.com/640x320",
-                            buttons=[{ 'type' : "element_share" }],
+                            buttons=[{'type': "element_share"}],
                             quick_replies=build_quick_replies(sender_id)
                         )
 
@@ -1199,12 +1554,72 @@ def handle_payload(sender_id, bot_id, payload):
                 if conn:
                     conn.close()
 
+
+    elif payload == "WELCOME_NO":
+        send_text(sender_id, "Ok, you can always tap Get {bot_title} in the main menu to learn more!".format(bot_title=bot_title_type(bot_id)), build_quick_replies(sender_id))
+
+        if bot_modules(bot_id) == 2:
+            send_list(sender_id)
+
+        elif bot_modules(bot_id) == 4:
+            send_ab_test_card(sender_id)
+
+        elif bot_modules(bot_id) == 8:
+            send_default_carousel(sender_id)
+
+    elif payload == "MAIN_MENU":
+        send_default_carousel(sender_id)
+
+    elif payload == "FLIP":
+        send_flip(sender_id, 1)
+
+    elif payload == "NEXT_VIDEO":
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `id` FROM `cards` WHERE `bot_id` = %s ORDER BY RAND() LIMIT 1;', (bot_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    send_video_card(sender_id, row['id'])
+                else:
+                    send_card(
+                        recipient_id=sender_id,
+                        title="Video Placeholder",
+                        image_url="http://via.placeholder.com/640x320",
+                        buttons=[{ 'type' : "element_share" }],
+                        quick_replies=build_quick_replies(sender_id)
+                    )
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    elif payload == "LANDING_URL":
+        if bot_modules(bot_id) == 1:
+            send_survey_card(sender_id, True)
+
     elif payload == "APP_SCREENSHOTS":
         rating, previews = app_store(bot_id)
 
         if previews is not None:
             for preview in previews:
                 send_image(sender_id, preview)
+
+        if bot_modules(bot_id) == 1:
+            send_survey_card(sender_id)
+
+        elif bot_modules(bot_id) == 2:
+            send_list(sender_id)
+
+        elif bot_modules(bot_id) == 4:
+            send_ab_test_card(sender_id)
+
+        elif bot_modules(bot_id) == 8:
+            send_rating_card(sender_id)
 
     elif payload == "SUPPORT":
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -1225,7 +1640,7 @@ def handle_payload(sender_id, bot_id, payload):
 
     elif re.search(r'^VIEW\-(\d+)$', payload):
         if bot_id != Const.BOT_TYPE_TOPSTYLE:
-            send_item_card(sender_id, re.match(r'^VIEW\-(?P<item_id>\d+)$', payload).group('item_id'))
+            send_video_card(sender_id, re.match(r'^VIEW\-(?P<item_id>\d+)$', payload).group('item_id'))
 
         else:
             send_text(sender_id, "Content not available in demo.", build_quick_replies(sender_id))
@@ -1268,18 +1683,311 @@ def handle_payload(sender_id, bot_id, payload):
                 conn.close()
 
     elif payload == "CANCEL":
-        set_email(sender_id)
-        set_zipcode(sender_id)
         send_default_carousel(sender_id)
 
-    elif payload == "BROADCAST_YES":
-        send_text(sender_id, "Awesome! Have you connected Facebook to PassKey yet?", build_quick_replies(sender_id))
+    elif re.search(r'^SURVEY\-(\d+)\-(\d+)$', payload):
+        survey_id = re.match(r'^SURVEY\-(?P<survey_id>\d+)\-(\d+)$', payload).group('survey_id')
+        answer_id = int(re.match(r'^SURVEY\-(\d+)\-(?P<answer_id>\d+)$', payload).group('answer_id'))
+
+        logger.info("survey_id=%s, answer_id=%s" % (survey_id, answer_id))
+
+        topic = ""
+        answer = ""
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `topic`, `answer_1`, `answer_2`, `answer_3` FROM `surveys` WHERE `id` = %s LIMIT 1;', (survey_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    topic = row['topic']
+                    answer = row['answer_1'] if answer_id == 0 else row['answer_2'] if answer_id == 1 else row['answer_3']
+
+                cur.execute('INSERT INTO `survey_responses` (`id`, `user_id`, `survey_id`, `answer`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (get_user_id(sender_id), survey_id, answer))
+                conn.commit()
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        f_name, l_name = get_user_name(sender_id)
+        payload = {
+            'channel'  : "#outro-reports",
+            'username ': "Survey - {bot_title}".format(bot_title=bot_title_type(bot_id)),
+            'icon_url' : "",
+            'text'     : "*{f_name} {l_name} ({fb_psid})* responsed to *{bot_title}'s* survey \"{topic}\" with _{answer}_".format(f_name=f_name, l_name=l_name, fb_psid=sender_id, bot_title=bot_title_type(bot_id), topic=topic, answer=answer)
+        }
+        response = requests.post("https://hooks.slack.com/services/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", data={'payload': json.dumps(payload)})
+        send_survey_card(sender_id, survey_id)
+
+    elif payload == "NEXT_SURVEY" or payload == "NEXT_SURVEY-0":
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `survey_id` FROM `survey_responses` WHERE `user_id` = %s ORDER BY `added` DESC LIMIT 1;', (get_user_id(sender_id),))
+                row = cur.fetchone()
+                if row is not None:
+                    cur.execute('SELECT `id`, `video_url`, `topic`, `title`, `subtitle`, `image_url`, `answer_1`, `answer_2`, `answer_3` FROM `surveys` WHERE `bot_id` = %s AND `id` > %s ORDER BY `sort` LIMIT 1;', (bot_id, row['survey_id']))
+                    row = cur.fetchone()
+                    if row is not None:
+                        send_video(sender_id, row['video_url'])
+                        send_text(
+                            recipient_id=sender_id,
+                            message_text=row['topic'],
+                            quick_replies=[
+                                {
+                                    'content_type': "text",
+                                    'title'       : row['answer_1'],
+                                    'payload'     : "SURVEY-{survey_id}-0".format(survey_id=row['id'])
+                                }, {
+                                    'content_type': "text",
+                                    'title'       : row['answer_2'],
+                                    'payload'     : "SURVEY-{survey_id}-1".format(survey_id=row['id'])
+                                }, {
+                                    'content_type': "text",
+                                    'title'       : row['answer_3'],
+                                    'payload'     : "SURVEY-{survey_id}-2".format(survey_id=row['id'])
+                                }, {
+                                    'content_type': "text",
+                                    'title'       : "Get {app_title}".format(app_title=app_title_type(bot_id)),
+                                    'payload'     : "LANDING_URL"
+                                }
+                            ]
+                        )
+
+                    else:
+                        cur.execute('SELECT `id`, `video_url`, `topic`, `title`, `subtitle`, `image_url`, `answer_1`, `answer_2`, `answer_3` FROM `surveys` WHERE `bot_id` = %s ORDER BY `sort` LIMIT 1;', (bot_id,))
+                        row = cur.fetchone()
+                        if row is not None:
+                            send_video(sender_id, row['video_url'])
+                            send_text(
+                                recipient_id=sender_id,
+                                message_text=row['topic'],
+                                quick_replies=[
+                                    {
+                                        'content_type': "text",
+                                        'title'       : row['answer_1'],
+                                        'payload'     : "SURVEY-{survey_id}-0".format(survey_id=row['id'])
+                                    }, {
+                                        'content_type': "text",
+                                        'title'       : row['answer_2'],
+                                        'payload'     : "SURVEY-{survey_id}-1".format(survey_id=row['id'])
+                                    }, {
+                                        'content_type': "text",
+                                        'title'       : row['answer_3'],
+                                        'payload'     : "SURVEY-{survey_id}-2".format(survey_id=row['id'])
+                                    }, {
+                                        'content_type': "text",
+                                        'title'       : "Get {app_title}".format(app_title=app_title_type(bot_id)),
+                                        'payload'     : "LANDING_URL"
+                                    }
+                                ]
+                            )
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    elif payload == "SEND_VIDEO":
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('SELECT `tag_line` FROM `bots` WHERE `id` = %s LIMIT 1;', (bot_id,))
+                row = cur.fetchone()
+                if row is not None:
+                    send_text(sender_id, row['tag_line'], build_quick_replies(sender_id))
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+    elif payload == "NEXT_LIST":
+        send_list(sender_id)
+
+    elif payload == "AB_TEST":
+        send_ab_test_card(sender_id)
+
+    elif payload == "NEXT_RATING":
+        send_rating_card(sender_id)
+
+    elif re.search(r'^LIST_ITEM-(\d+)-(\d+)$', payload):
+        list_id = re.match(r'^LIST_ITEM\-(?P<list_id>\d+)\-(\d+)$', payload).group('list_id')
+        item_id = int(re.match(r'^LIST_ITEM\-(\d+)\-(?P<item_id>\d+)$', payload).group('item_id'))
+
+        send_item_card(sender_id, list_id, item_id)
+
+    elif re.search(r'^RATING-(\d+)-(\d+)$', payload):
+        rating_id = re.match(r'^RATING\-(?P<rating_id>\d+)\-(\d+)$', payload).group('rating_id')
+        score = int(re.match(r'^RATING\-(\d+)\-(?P<score>\d+)$', payload).group('score'))
+
+        conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+        try:
+            with conn:
+                cur = conn.cursor(mdb.cursors.DictCursor)
+                cur.execute('INSERT INTO `rating_responses` (`id`, `user_id`, `rating_id`, `score`, `added`) VALUES (NULL, %s, %s, %s, UTC_TIMESTAMP());', (get_user_id(sender_id), rating_id, score))
+                conn.commit()
+
+        except mdb.Error, e:
+            logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+        finally:
+            if conn:
+                conn.close()
+
+        send_text(sender_id, "Rating saved", build_quick_replies(sender_id))
+
+    return "OK", 200
+
+
+def handle_attachment(sender_id, attachment_type, payload):
+    logger.info("handle_attachment(sender_id=%s, attachment_type=%s, payload=%s)" % (sender_id, attachment_type, payload))
+
+    # return "OK", 200
+
+    bot_id = get_user_bot_id(sender_id)
+    if attachment_type == "video":
+        logger.info("VIDEO: %s" % (payload['url']))
+        send_text(sender_id, "Processing video…", build_quick_replies(sender_id))
+
+
+        timestamp = ("%.03f" % (time.time())).replace(".", "_")
+        audio_file = "/var/www/html/bots/{timestamp}.wav".format(timestamp=timestamp)
+        video_file = "/var/www/html/bots/{timestamp}.mp4".format(timestamp=timestamp)
+
+        copy_thread = threading.Thread(
+            target=copy_remote_asset,
+            name="video_copy",
+            kwargs={
+                'src_url'   : payload['url'],
+                'local_file': video_file
+            }
+        )
+        copy_thread.start()
+        copy_thread.join()
+
+        # video_metadata = VideoMetaData(payload['url'])
+        # video_metadata.start()
+        # video_metadata.join()
+
+        audio_renderer = VideoAudioRenderer(video_file, audio_file)
+        audio_renderer.start()
+        audio_renderer.join()
+
+        r = sr.Recognizer()
+        with sr.AudioFile(audio_file) as source:
+            audio = r.record(source)
+
+        transcript = None
+        try:
+            transcript = r.recognize_sphinx(audio)
+
+        except sr.UnknownValueError:
+            pass
+
+        except sr.RequestError as e:
+            pass
+
+        if transcript is not None:
+            response = wit_client.message(transcript)
+            logger.info("WIT SAYS: %s" % (str(response),))
+
+            if 'sentiment' in response['entities'] and float(response['entities']['sentiment'][0]['confidence']) >= Const.WIT_CONFIDENCE:
+                entities = response['entities']
+                conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+                try:
+                    with conn:
+                        cur = conn.cursor(mdb.cursors.DictCursor)
+                        cur.execute('SELECT COUNT(DISTINCT `user_id`) AS `total` FROM `sentiments` WHERE `source` = "video" AND `bot_id` = %s;', (get_user_bot_id(sender_id),))
+                        row = cur.fetchone()
+                        total = row['total']
+
+                        survey = "N/A"
+                        survey_id = 0
+                        cur.execute('SELECT `survey_id` FROM `survey_responses` WHERE `user_id` = %s ORDER BY `added` DESC LIMIT 1;', (get_user_id(sender_id),))
+                        row = cur.fetchone()
+                        if row is not None:
+                            survey_id = row['survey_id']
+                            cur.execute('SELECT `topic` FROM `surveys` WHERE `bot_id` = %s AND `id` = %s ORDER BY `sort` LIMIT 1;', (bot_id, survey_id))
+                            row = cur.fetchone()
+                            if row is None:
+                                cur.execute('SELECT `id`, `topic` FROM `surveys` WHERE `bot_id` = %s ORDER BY `sort` LIMIT 1;', (bot_id))
+                                row = cur.fetchone()
+                                survey_id = row['id']
+
+                            survey = row['topic']
+
+                        cur.execute('INSERT INTO `sentiments` (`id`, `user_id`, `bot_id`, `media_id`, `source`, `content`, `entities`, `sentiment`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (get_user_id(sender_id), bot_id, survey_id, "video", "http://192.241.197.211/bots/{timestamp}.mp4".format(timestamp=timestamp), json.dumps(response), 1 if entities['sentiment'][0]['value'] == "positive" else -1))
+                        conn.commit()
+
+                        cur.execute('SELECT `channel_name`, `webhook` FROM `slack_auths` WHERE `client_id` IN (SELECT `client_id` FROM `bots` WHERE `id` = %s) LIMIT 1;', (bot_id,))
+                        row = cur.fetchone()
+                        if row is not None:
+                            payload = {
+                                'channel'  : row['channel_name'],
+                                'username ': "",
+                                'icon_url' : "",
+                                'text'     : "A *{sentiment}* \"{transcript}\" video response was submitted for the question _{survey}_\nYou should consider upgrading to a paid account to continue.".format(sentiment=entities['sentiment'][0]['value'], transcript=transcript, survey=survey)
+                            }
+                            # response = requests.post(row['webhook'], data={'payload': json.dumps(payload)})
+
+                            if total >= 10:
+                                payload = {
+                                    'channel'  : row['channel_name'],
+                                    'username ': "",
+                                    'icon_url' : "",
+                                    'text'     : "You have exceeded your video review alottment for free accounts, please purchase an Outro package now."
+                                }
+                                response = requests.post(row['webhook'], data={'payload': json.dumps(payload)})
+
+                        cur.execute('SELECT COUNT(*) AS `total` FROM `sentiments` WHERE `user_id` = %s;', (get_user_id(sender_id),))
+                        if cur.fetchone()['total'] == 0:
+                            cur.execute('SELECT `sentiment` FROM `sentiments` WHERE `bot_id` = %s AND `source` = "video";', (bot_id,))
+                            pos_total = 0
+                            neg_total = 0
+                            all_total = 0
+                            for row in cur.fetchall():
+                                all_total += 1
+                                if row['sentiment'] == 1:
+                                    pos_total += 1
+
+                                else:
+                                    neg_total += 1
+
+                            send_text(sender_id, "Looks like you are not alone. Over {percent}% of people also had a {sentiment} reaction to this video.".format(percent=int((pos_total / float(all_total)) * 100) if pos_total > neg_total else int((neg_total / float(all_total)) * 100), sentiment="positive" if pos_total > neg_total else "negative"), build_quick_replies(sender_id))
+
+                except mdb.Error, e:
+                    logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+                finally:
+                    if conn:
+                        conn.close()
+
+                send_text(sender_id, "Your video upload has been processed. Tap Send Message to upload a video.", build_quick_replies(sender_id))
+
+            else:
+                send_text(sender_id, "Video has not been processed. Try uploading another video and be specific with your feedback. If the problem continues you can alternatvely, text your response.".format(app_title=app_title_type(bot_id)), build_quick_replies(sender_id))
+
+        else:
+            send_text(sender_id, "Video has not been processed. Try uploading another video and be specific with your feedback. If the problem continues you can alternatvely, text your response.".format(app_title=app_title_type(bot_id)), build_quick_replies(sender_id))
 
     return "OK", 200
 
 
 def handle_text_reply(sender_id, message_text):
     logger.info("handle_text_reply(sender_id=%s, message_text=%s)" % (sender_id, message_text))
+
+    bot_id = get_user_bot_id(sender_id)
 
     support = False
     conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -1298,11 +2006,7 @@ def handle_text_reply(sender_id, message_text):
         if conn:
             conn.close()
 
-    bot_id = get_user_bot_id(sender_id)
-    if message_text.lower() in Const.RESERVED_ALERT_REPLIES.split("|"):
-        send_text(sender_id, "It's 4pm. Time to Get Happy!", build_quick_replies(sender_id))
-
-    elif message_text.lower() in Const.RESERVED_SUPPORT_REPLIES.split("|"):
+    if message_text.lower() in Const.RESERVED_SUPPORT_REPLIES.split("|"):
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
         try:
             with conn:
@@ -1322,23 +2026,6 @@ def handle_text_reply(sender_id, message_text):
     elif message_text.lower() in Const.RESERVED_OPTOUT_REPLIES.split("|"):
         set_optout(sender_id)
         send_text(sender_id, "You have opted out.")
-
-    elif get_email(sender_id) == "_{PENDING}_":
-        if re.search(r'^.+\@.+\..*$', message_text) is not None:
-            set_flipped(sender_id)
-            set_email(sender_id, message_text)
-            send_text(sender_id, "Your Email Address has been received and we will message you details shortly.", build_quick_replies(sender_id))
-
-        else:
-            send_text(sender_id, "Invalid email", [build_cancel_button()])
-
-    elif get_zipcode(sender_id) == "_{PENDING}_":
-        if re.search(r'^\d+$', message_text) is not None:
-            set_zipcode(sender_id, message_text)
-            send_text(sender_id, "{zipcode} saved".format(zipcode=message_text), build_quick_replies(sender_id))
-
-        else:
-            send_text(sender_id, "Invalid zipcode", [build_cancel_button()])
 
     elif support is True:
         conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
@@ -1368,9 +2055,39 @@ def handle_text_reply(sender_id, message_text):
             if conn:
                 conn.close()
 
+    elif re.search(r'^wit (.+)$', message_text):
+        query = re.match(r'^wit (?P<query>.+)$', message_text).group('query')
 
     else:
-        send_default_carousel(sender_id)
+        response = wit_client.message(message_text)
+        logger.info("WIT SAYS: %s" % (str(response),))
+
+        if 'sentiment' in response['entities'] and float(response['entities']['sentiment'][0]['confidence']) >= Const.WIT_CONFIDENCE:
+            conn = mdb.connect(host=Const.DB_HOST, user=Const.DB_USER, passwd=Const.DB_PASS, db=Const.DB_NAME, use_unicode=True, charset='utf8')
+            try:
+                with conn:
+                    cur = conn.cursor(mdb.cursors.DictCursor)
+                    cur.execute('INSERT INTO `sentiments` (`id`, `user_id`, `bot_id`, `media_id`, `source`, `content`, `entities`, `sentiment`, `added`) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP());', (get_user_id(sender_id), bot_id, 0, "text", message_text, json.dumps(response), 1 if response['entities']['sentiment'][0]['value'] == "positive" else -1))
+                    conn.commit()
+
+            except mdb.Error, e:
+                logger.info("MySqlError (%s): %s" % (e.args[0], e.args[1]))
+
+            finally:
+                if conn:
+                    conn.close()
+
+            send_text(sender_id, "Your text has been processed. Tap Send Message to upload a video.", build_quick_replies(sender_id))
+
+        else:
+            send_text(sender_id, "Couldn't process reply, please and be more specific with your feedback.".format(sentiment=response), build_quick_replies(sender_id))
+
+        # modules = bot_modules(bot_id)
+        # if modules == 1:
+        #     send_survey_card(sender_id, True)
+        #
+        # else:
+        #     send_default_carousel(sender_id)
 
     return "OK", 200
 
@@ -1407,6 +2124,37 @@ def send_card(recipient_id, title, image_url, card_url=None, subtitle=None, butt
 
     if buttons is not None:
         data['message']['attachment']['payload']['elements'][0]['buttons'] = buttons
+
+    if quick_replies is not None:
+        data['message']['quick_replies'] = quick_replies
+
+    send_message(get_user_bot_id(recipient_id), json.dumps(data))
+    send_typing_indicator(recipient_id, False)
+
+
+
+def send_list_card(recipient_id, body_elements, header_element=None, buttons=None, quick_replies=None):
+    logger.info("send_list_card(recipient_id=%s, body_elements=%s, header_element=%s, buttons=%s, quick_replies=%s)" % (recipient_id, body_elements, header_element, buttons, quick_replies))
+    send_typing_indicator(recipient_id, True)
+
+    data = {
+        'recipient': {
+            'id': recipient_id
+        },
+        'message'  : {
+            'attachment': {
+                'type'   : "template",
+                'payload': {
+                    'template_type'    : "list",
+                    'top_element_style': "compact" if header_element is None else "large",
+                    'elements'         : body_elements if header_element is None else [header_element] + body_elements
+                }
+            }
+        }
+    }
+
+    if buttons is not None:
+        data['message']['attachment']['payload']['buttons'] = buttons
 
     if quick_replies is not None:
         data['message']['quick_replies'] = quick_replies
