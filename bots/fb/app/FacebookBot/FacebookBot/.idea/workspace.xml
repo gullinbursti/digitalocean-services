@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="24a7f1d4-5c88-47d0-98ea-66c0f7297d87" name="Default" comment="" />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="TRACKING_ENABLED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileEditorManager">
+    <leaf>
+      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-15505">
+              <caret line="31" column="27" lean-forward="true" selection-start-line="31" selection-start-column="27" selection-end-line="31" selection-end-column="27" />
+              <folding>
+                <marker date="1501450277000" expanded="true" signature="24259:24312" ph="SELECT `id` users" />
+                <marker date="1501450277000" expanded="true" signature="24496:24593" ph="INSERT INTO `users`... " />
+                <marker date="1501450277000" expanded="true" signature="24689:24727" ph="SELECT @@IDE... users" />
+                <marker date="1501450277000" expanded="true" signature="25022:25101" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="25598:25654" ph="SELECT `id` fb_users" />
+                <marker date="1501450277000" expanded="true" signature="25778:26003" ph="INSERT INTO `fb_users`... " />
+                <marker date="1501450277000" expanded="true" signature="26323:26364" ph="SELECT @@IDE... fb_users" />
+                <marker date="1501450277000" expanded="true" signature="27873:27981" ph="SELECT `id` subscriptions" />
+                <marker date="1501450277000" expanded="true" signature="28169:28313" ph="INSERT INTO `subscriptions`... " />
+                <marker date="1501450277000" expanded="true" signature="28443:28489" ph="SELECT @@IDE... subscriptions" />
+                <marker date="1501450277000" expanded="true" signature="29679:29746" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="29794:29864" ph="UPDATE `stor... " />
+                <marker date="1501450277000" expanded="true" signature="30651:30772" ph="SELECT COUNT... flip_wins" />
+                <marker date="1501450277000" expanded="true" signature="31659:31785" ph="INSERT INTO `points`... " />
+                <marker date="1501450277000" expanded="true" signature="31906:31973" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="32059:32111" ph="SELECT `poin... users" />
+                <marker date="1501450277000" expanded="true" signature="33065:33127" ph="SELECT `fb_p... users" />
+                <marker date="1501450277000" expanded="true" signature="37698:37787" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="39842:39966" ph="INSERT INTO `flip_wins`... " />
+                <marker date="1501450277000" expanded="true" signature="40100:40142" ph="SELECT @@IDE... flip_wins" />
+                <marker date="1501450277000" expanded="true" signature="41172:41287" ph="INSERT INTO `user_flips`... " />
+                <marker date="1501450277000" expanded="true" signature="41399:41442" ph="SELECT @@IDE... user_flips" />
+                <marker date="1501450277000" expanded="true" signature="44347:44462" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="44556:44598" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="46475:46562" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="46668:46783" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="46901:46943" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="49711:49883" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="50099:50141" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="51910:52025" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="52143:52185" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="54032:54119" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="54225:54340" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="54458:54500" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="57260:57386" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="57512:57554" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="70679:70765" ph="SELECT `id` referral_entries" />
+                <marker date="1501450277000" expanded="true" signature="70958:71068" ph="INSERT INTO `referral_entries`... " />
+                <marker date="1501450277000" expanded="true" signature="73323:73406" ph="SELECT `id` giveaways" />
+                <marker date="1501450277000" expanded="true" signature="73512:73626" ph="INSERT INTO `giveaways`... " />
+                <marker date="1501450277000" expanded="true" signature="73855:73926" ph="SELECT COUNT... giveaways" />
+                <marker date="1501450277000" expanded="true" signature="76365:76419" ph="UPDATE `stor... " />
+                <marker date="1501450277000" expanded="true" signature="76486:76548" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="76615:76682" ph="UPDATE `subs... " />
+                <marker date="1501450277000" expanded="true" signature="78627:78800" ph="INSERT INTO `storefronts`... " />
+                <marker date="1501450277000" expanded="true" signature="79006:79050" ph="SELECT @@IDE... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="80775:80835" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="80940:81246" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="81649:81690" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="86442:86496" ph="UPDATE `stor... " />
+                <marker date="1501450277000" expanded="true" signature="86555:86617" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="86676:86743" ph="UPDATE `subs... " />
+                <marker date="1501450277000" expanded="true" signature="88181:88354" ph="INSERT INTO `storefronts`... " />
+                <marker date="1501450277000" expanded="true" signature="88552:88596" ph="SELECT @@IDE... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="90146:90206" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="90303:90609" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="91004:91045" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="91846:91961" ph="INSERT INTO `chat_logs`... " />
+                <marker date="1501450277000" expanded="true" signature="101125:101257" ph="SELECT `id`,... products" />
+                <marker date="1501450277000" expanded="true" signature="114308:114399" ph="SELECT `id` products" />
+                <marker date="1501450277000" expanded="true" signature="138872:138922" ph="SELECT SUM(`... trader_items" />
+                <marker date="1501450277000" expanded="true" signature="139010:139058" ph="SELECT SUM(`... ico_tokens" />
+                <marker date="1501450277000" expanded="true" signature="141756:141921" ph="INSERT INTO `purchases`... " />
+                <marker date="1501450277000" expanded="true" signature="142093:142135" ph="SELECT @@IDE... purchases" />
+                <marker date="1501450277000" expanded="true" signature="146428:146518" ph="SELECT `id` products" />
+                <marker date="1501450277000" expanded="true" signature="152080:152196" ph="INSERT INTO `point_converts`... " />
+                <marker date="1501450277000" expanded="true" signature="152264:152331" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="157113:157191" ph="SELECT `id` products" />
+                <marker date="1501450277000" expanded="true" signature="161793:161847" ph="UPDATE `stor... " />
+                <marker date="1501450277000" expanded="true" signature="161906:161968" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="162027:162094" ph="UPDATE `subs... " />
+                <marker date="1501450277000" expanded="true" signature="164172:164234" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="164289:164356" ph="UPDATE `subs... " />
+                <marker date="1501450277000" expanded="true" signature="166633:166715" ph="SELECT SUM(`... trader_items" />
+                <marker date="1501450277000" expanded="true" signature="169576:169684" ph="SELECT `stri... users" />
+                <marker date="1501450277000" expanded="true" signature="171726:171808" ph="SELECT SUM(`... trader_items" />
+                <marker date="1501450277000" expanded="true" signature="182823:182913" ph="SELECT `id` products" />
+                <marker date="1501450277000" expanded="true" signature="185336:185509" ph="INSERT INTO `storefronts`... " />
+                <marker date="1501450277000" expanded="true" signature="185715:185759" ph="SELECT @@IDE... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="190482:190542" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="190737:191043" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="191446:191487" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="194171:194231" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="194426:194732" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="195141:195182" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="197749:197809" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="198004:198310" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="198719:198760" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="201050:201110" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="201305:201611" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="202020:202061" ph="SELECT @@IDE... products" />
+                <marker date="1501450277000" expanded="true" signature="210594:210716" ph="INSERT INTO `product_ratings`... " />
+                <marker date="1501450277000" expanded="true" signature="213418:213472" ph="SELECT `id` payout" />
+                <marker date="1501450277000" expanded="true" signature="213618:213743" ph="INSERT INTO `payout`... " />
+                <marker date="1501450277000" expanded="true" signature="213856:213943" ph="UPDATE `payo... " />
+                <marker date="1501450277000" expanded="true" signature="217966:218139" ph="INSERT INTO `storefronts`... " />
+                <marker date="1501450277000" expanded="true" signature="218353:218397" ph="SELECT @@IDE... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="226334:226420" ph="SELECT `id` referral_entries" />
+                <marker date="1501450277000" expanded="true" signature="226613:226723" ph="INSERT INTO `referral_entries`... " />
+                <marker date="1501450277000" expanded="true" signature="230776:230890" ph="SELECT `id` users" />
+                <marker date="1501450277000" expanded="true" signature="232513:232734" ph="SELECT `user... users" />
+                <marker date="1501450277000" expanded="true" signature="233778:233845" ph="SELECT `clai... purchases" />
+                <marker date="1501450277000" expanded="true" signature="235487:235545" ph="SELECT `id` moderators" />
+                <marker date="1501450277000" expanded="true" signature="235643:235744" ph="INSERT INTO `moderators`... " />
+                <marker date="1501450277000" expanded="true" signature="236445:236528" ph="SELECT `id` giveaways" />
+                <marker date="1501450277000" expanded="true" signature="236626:236726" ph="INSERT INTO `giveaways`... " />
+                <marker date="1501450277000" expanded="true" signature="236827:236906" ph="SELECT COUNT... giveaways" />
+                <marker date="1501450277000" expanded="true" signature="242082:242141" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="243097:243159" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="244173:244243" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="247334:247388" ph="SELECT `id` payout" />
+                <marker date="1501450277000" expanded="true" signature="247534:247659" ph="INSERT INTO `payout`... " />
+                <marker date="1501450277000" expanded="true" signature="247763:247850" ph="UPDATE `payo... " />
+                <marker date="1501450277000" expanded="true" signature="256396:256467" ph="SELECT `id` products" />
+                <marker date="1501450277000" expanded="true" signature="259562:259636" ph="SELECT `id` storefronts" />
+                <marker date="1501450277000" expanded="true" signature="275250:275331" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="276354:276459" ph="INSERT INTO `unlocked_users`... " />
+                <marker date="1501450277000" expanded="true" signature="277605:277686" ph="UPDATE `user... " />
+                <marker date="1501450277000" expanded="true" signature="279319:279376" ph="UPDATE `purc... " />
+                <marker date="1501450277000" expanded="true" signature="283888:283941" ph="SELECT `fb_p... users" />
+                <marker date="1501450277000" expanded="true" signature="290339:290440" ph="SELECT `stor... products" />
+                <marker date="1501450277000" expanded="true" signature="292341:292395" ph="UPDATE `stor... " />
+                <marker date="1501450277000" expanded="true" signature="292454:292516" ph="UPDATE `prod... " />
+                <marker date="1501450277000" expanded="true" signature="292575:292642" ph="UPDATE `subs... " />
+                <marker date="1501450277000" expanded="true" signature="294137:294200" ph="SELECT * FRO... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="294300:294485" ph="INSERT INTO `storefronts`... " />
+                <marker date="1501450277000" expanded="true" signature="294738:294782" ph="SELECT @@IDE... storefronts" />
+                <marker date="1501450277000" expanded="true" signature="296575:296635" ph="SELECT * FRO... products" />
+                <marker date="1501450277000" expanded="true" signature="296732:297038" ph="INSERT INTO `products`... " />
+                <marker date="1501450277000" expanded="true" signature="297377:297418" ph="SELECT @@IDE... products" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
+  <component name="JsBuildToolGruntFileManager" detection-done="true" sorting="DEFINITION_ORDER" />
+  <component name="JsBuildToolPackageJson" detection-done="true" sorting="DEFINITION_ORDER" />
+  <component name="JsGulpfileManager">
+    <detection-done>true</detection-done>
+    <sorting>DEFINITION_ORDER</sorting>
+  </component>
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="619" />
+    <option name="y" value="23" />
+    <option name="width" value="821" />
+    <option name="height" value="873" />
+  </component>
+  <component name="ProjectView">
+    <navigator currentView="ProjectPane" proportions="" version="1">
+      <flattenPackages />
+      <showMembers />
+      <showModules />
+      <showLibraryContents />
+      <hideEmptyPackages />
+      <abbreviatePackageNames />
+      <autoscrollToSource />
+      <autoscrollFromSource />
+      <sortByType />
+      <manualOrder />
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="FacebookBot" type="b2602c69:ProjectViewProjectNode" />
+              <item name="FacebookBot" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scratches" />
+      <pane id="Scope" />
+    </panes>
+  </component>
+  <component name="PropertiesComponent">
+    <property name="settings.editor.selected.configurable" value="PyConsoleConfigurable.Python Console" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+  </component>
+  <component name="PyConsoleOptionsProvider">
+    <option name="myPythonConsoleState">
+      <console-settings is-module-sdk="true" working-directory="$PROJECT_DIR$/..">
+        <option name="myUseModuleSdk" value="true" />
+        <option name="myWorkingDirectory" value="$PROJECT_DIR$/.." />
+      </console-settings>
+    </option>
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="Python.FacebookBot">
+    <configuration name="FacebookBot" type="PythonConfigurationType" factoryName="Python" singleton="true">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="FacebookBot" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" sample_coverage="true" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/__init__.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+    </configuration>
+  </component>
+  <component name="ShelveChangesManager" show_recycled="false">
+    <option name="remove_strategy" value="false" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="24a7f1d4-5c88-47d0-98ea-66c0f7297d87" name="Default" comment="" />
+      <created>1504751324610</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1504751324610</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="0" y="23" width="1440" height="873" extended-state="6" />
+    <editor active="true" />
+    <layout>
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="true" content_ui="tabs" />
+      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="false" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Ultimate PasteBin" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="true" content_ui="tabs" />
+      <window_info id="Data View" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
+      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
+      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+    </layout>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="VcsContentAnnotationSettings">
+    <option name="myLimit" value="2678400000" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager />
+    <watches-manager />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-15505">
+          <caret line="31" column="27" lean-forward="true" selection-start-line="31" selection-start-column="27" selection-end-line="31" selection-end-column="27" />
+          <folding>
+            <marker date="1501450277000" expanded="true" signature="24259:24312" ph="SELECT `id` users" />
+            <marker date="1501450277000" expanded="true" signature="24496:24593" ph="INSERT INTO `users`... " />
+            <marker date="1501450277000" expanded="true" signature="24689:24727" ph="SELECT @@IDE... users" />
+            <marker date="1501450277000" expanded="true" signature="25022:25101" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="25598:25654" ph="SELECT `id` fb_users" />
+            <marker date="1501450277000" expanded="true" signature="25778:26003" ph="INSERT INTO `fb_users`... " />
+            <marker date="1501450277000" expanded="true" signature="26323:26364" ph="SELECT @@IDE... fb_users" />
+            <marker date="1501450277000" expanded="true" signature="27873:27981" ph="SELECT `id` subscriptions" />
+            <marker date="1501450277000" expanded="true" signature="28169:28313" ph="INSERT INTO `subscriptions`... " />
+            <marker date="1501450277000" expanded="true" signature="28443:28489" ph="SELECT @@IDE... subscriptions" />
+            <marker date="1501450277000" expanded="true" signature="29679:29746" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="29794:29864" ph="UPDATE `stor... " />
+            <marker date="1501450277000" expanded="true" signature="30651:30772" ph="SELECT COUNT... flip_wins" />
+            <marker date="1501450277000" expanded="true" signature="31659:31785" ph="INSERT INTO `points`... " />
+            <marker date="1501450277000" expanded="true" signature="31906:31973" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="32059:32111" ph="SELECT `poin... users" />
+            <marker date="1501450277000" expanded="true" signature="33065:33127" ph="SELECT `fb_p... users" />
+            <marker date="1501450277000" expanded="true" signature="37698:37787" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="39842:39966" ph="INSERT INTO `flip_wins`... " />
+            <marker date="1501450277000" expanded="true" signature="40100:40142" ph="SELECT @@IDE... flip_wins" />
+            <marker date="1501450277000" expanded="true" signature="41172:41287" ph="INSERT INTO `user_flips`... " />
+            <marker date="1501450277000" expanded="true" signature="41399:41442" ph="SELECT @@IDE... user_flips" />
+            <marker date="1501450277000" expanded="true" signature="44347:44462" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="44556:44598" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="46475:46562" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="46668:46783" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="46901:46943" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="49711:49883" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="50099:50141" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="51910:52025" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="52143:52185" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="54032:54119" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="54225:54340" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="54458:54500" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="57260:57386" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="57512:57554" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="70679:70765" ph="SELECT `id` referral_entries" />
+            <marker date="1501450277000" expanded="true" signature="70958:71068" ph="INSERT INTO `referral_entries`... " />
+            <marker date="1501450277000" expanded="true" signature="73323:73406" ph="SELECT `id` giveaways" />
+            <marker date="1501450277000" expanded="true" signature="73512:73626" ph="INSERT INTO `giveaways`... " />
+            <marker date="1501450277000" expanded="true" signature="73855:73926" ph="SELECT COUNT... giveaways" />
+            <marker date="1501450277000" expanded="true" signature="76365:76419" ph="UPDATE `stor... " />
+            <marker date="1501450277000" expanded="true" signature="76486:76548" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="76615:76682" ph="UPDATE `subs... " />
+            <marker date="1501450277000" expanded="true" signature="78627:78800" ph="INSERT INTO `storefronts`... " />
+            <marker date="1501450277000" expanded="true" signature="79006:79050" ph="SELECT @@IDE... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="80775:80835" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="80940:81246" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="81649:81690" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="86442:86496" ph="UPDATE `stor... " />
+            <marker date="1501450277000" expanded="true" signature="86555:86617" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="86676:86743" ph="UPDATE `subs... " />
+            <marker date="1501450277000" expanded="true" signature="88181:88354" ph="INSERT INTO `storefronts`... " />
+            <marker date="1501450277000" expanded="true" signature="88552:88596" ph="SELECT @@IDE... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="90146:90206" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="90303:90609" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="91004:91045" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="91846:91961" ph="INSERT INTO `chat_logs`... " />
+            <marker date="1501450277000" expanded="true" signature="101125:101257" ph="SELECT `id`,... products" />
+            <marker date="1501450277000" expanded="true" signature="114308:114399" ph="SELECT `id` products" />
+            <marker date="1501450277000" expanded="true" signature="138872:138922" ph="SELECT SUM(`... trader_items" />
+            <marker date="1501450277000" expanded="true" signature="139010:139058" ph="SELECT SUM(`... ico_tokens" />
+            <marker date="1501450277000" expanded="true" signature="141756:141921" ph="INSERT INTO `purchases`... " />
+            <marker date="1501450277000" expanded="true" signature="142093:142135" ph="SELECT @@IDE... purchases" />
+            <marker date="1501450277000" expanded="true" signature="146428:146518" ph="SELECT `id` products" />
+            <marker date="1501450277000" expanded="true" signature="152080:152196" ph="INSERT INTO `point_converts`... " />
+            <marker date="1501450277000" expanded="true" signature="152264:152331" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="157113:157191" ph="SELECT `id` products" />
+            <marker date="1501450277000" expanded="true" signature="161793:161847" ph="UPDATE `stor... " />
+            <marker date="1501450277000" expanded="true" signature="161906:161968" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="162027:162094" ph="UPDATE `subs... " />
+            <marker date="1501450277000" expanded="true" signature="164172:164234" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="164289:164356" ph="UPDATE `subs... " />
+            <marker date="1501450277000" expanded="true" signature="166633:166715" ph="SELECT SUM(`... trader_items" />
+            <marker date="1501450277000" expanded="true" signature="169576:169684" ph="SELECT `stri... users" />
+            <marker date="1501450277000" expanded="true" signature="171726:171808" ph="SELECT SUM(`... trader_items" />
+            <marker date="1501450277000" expanded="true" signature="182823:182913" ph="SELECT `id` products" />
+            <marker date="1501450277000" expanded="true" signature="185336:185509" ph="INSERT INTO `storefronts`... " />
+            <marker date="1501450277000" expanded="true" signature="185715:185759" ph="SELECT @@IDE... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="190482:190542" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="190737:191043" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="191446:191487" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="194171:194231" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="194426:194732" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="195141:195182" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="197749:197809" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="198004:198310" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="198719:198760" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="201050:201110" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="201305:201611" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="202020:202061" ph="SELECT @@IDE... products" />
+            <marker date="1501450277000" expanded="true" signature="210594:210716" ph="INSERT INTO `product_ratings`... " />
+            <marker date="1501450277000" expanded="true" signature="213418:213472" ph="SELECT `id` payout" />
+            <marker date="1501450277000" expanded="true" signature="213618:213743" ph="INSERT INTO `payout`... " />
+            <marker date="1501450277000" expanded="true" signature="213856:213943" ph="UPDATE `payo... " />
+            <marker date="1501450277000" expanded="true" signature="217966:218139" ph="INSERT INTO `storefronts`... " />
+            <marker date="1501450277000" expanded="true" signature="218353:218397" ph="SELECT @@IDE... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="226334:226420" ph="SELECT `id` referral_entries" />
+            <marker date="1501450277000" expanded="true" signature="226613:226723" ph="INSERT INTO `referral_entries`... " />
+            <marker date="1501450277000" expanded="true" signature="230776:230890" ph="SELECT `id` users" />
+            <marker date="1501450277000" expanded="true" signature="232513:232734" ph="SELECT `user... users" />
+            <marker date="1501450277000" expanded="true" signature="233778:233845" ph="SELECT `clai... purchases" />
+            <marker date="1501450277000" expanded="true" signature="235487:235545" ph="SELECT `id` moderators" />
+            <marker date="1501450277000" expanded="true" signature="235643:235744" ph="INSERT INTO `moderators`... " />
+            <marker date="1501450277000" expanded="true" signature="236445:236528" ph="SELECT `id` giveaways" />
+            <marker date="1501450277000" expanded="true" signature="236626:236726" ph="INSERT INTO `giveaways`... " />
+            <marker date="1501450277000" expanded="true" signature="236827:236906" ph="SELECT COUNT... giveaways" />
+            <marker date="1501450277000" expanded="true" signature="242082:242141" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="243097:243159" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="244173:244243" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="247334:247388" ph="SELECT `id` payout" />
+            <marker date="1501450277000" expanded="true" signature="247534:247659" ph="INSERT INTO `payout`... " />
+            <marker date="1501450277000" expanded="true" signature="247763:247850" ph="UPDATE `payo... " />
+            <marker date="1501450277000" expanded="true" signature="256396:256467" ph="SELECT `id` products" />
+            <marker date="1501450277000" expanded="true" signature="259562:259636" ph="SELECT `id` storefronts" />
+            <marker date="1501450277000" expanded="true" signature="275250:275331" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="276354:276459" ph="INSERT INTO `unlocked_users`... " />
+            <marker date="1501450277000" expanded="true" signature="277605:277686" ph="UPDATE `user... " />
+            <marker date="1501450277000" expanded="true" signature="279319:279376" ph="UPDATE `purc... " />
+            <marker date="1501450277000" expanded="true" signature="283888:283941" ph="SELECT `fb_p... users" />
+            <marker date="1501450277000" expanded="true" signature="290339:290440" ph="SELECT `stor... products" />
+            <marker date="1501450277000" expanded="true" signature="292341:292395" ph="UPDATE `stor... " />
+            <marker date="1501450277000" expanded="true" signature="292454:292516" ph="UPDATE `prod... " />
+            <marker date="1501450277000" expanded="true" signature="292575:292642" ph="UPDATE `subs... " />
+            <marker date="1501450277000" expanded="true" signature="294137:294200" ph="SELECT * FRO... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="294300:294485" ph="INSERT INTO `storefronts`... " />
+            <marker date="1501450277000" expanded="true" signature="294738:294782" ph="SELECT @@IDE... storefronts" />
+            <marker date="1501450277000" expanded="true" signature="296575:296635" ph="SELECT * FRO... products" />
+            <marker date="1501450277000" expanded="true" signature="296732:297038" ph="INSERT INTO `products`... " />
+            <marker date="1501450277000" expanded="true" signature="297377:297418" ph="SELECT @@IDE... products" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+  </component>
+</project>
